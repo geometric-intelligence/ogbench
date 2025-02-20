@@ -1,4 +1,4 @@
-"""Test the message passing module."""
+"""Test the knn lifting."""
 
 import pytest
 import torch

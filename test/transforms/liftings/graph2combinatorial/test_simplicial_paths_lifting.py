@@ -1,3 +1,5 @@
+"""Test the simplicial paths lifting."""
+
 import networkx as nx
 import pytest
 import torch
@@ -8,9 +10,17 @@ from topobenchmark.transforms.liftings.graph2combinatorial.sp_lifting import (
 
 
 class TestDirectedFlagComplex:
+    """Test the DirectedFlagComplex class."""
+    
     @pytest.fixture
     def digraph(self):
-        """Creates a simple directed graph for testing."""
+        """Create a simple directed graph for testing.
+        
+        Returns
+        -------
+        nx.DiGraph
+            A directed graph with edges added in a specific pattern.
+        """
         digraph = nx.DiGraph()
         edges = [(i, i + offset) for i in range(100) for offset in (1, 2)]
         digraph.add_edges_from(edges)
@@ -18,26 +28,56 @@ class TestDirectedFlagComplex:
 
     @pytest.fixture
     def dfc(self, digraph):
-        """Initializes a DirectedFlagComplex instance for testing."""
+        """Initialize a DirectedFlagComplex instance for testing.
+        
+        Parameters
+        ----------
+        digraph : nx.DiGraph
+            The directed graph to be used for testing.
+        
+        Returns
+        -------
+        DirectedQConnectivity
+            An instance of the DirectedQConnectivity class.
+        """
         return DirectedQConnectivity(
             digraph=digraph, complex_dim=2, flagser_num_threads=4
         )
 
     def test_initialization(self, dfc, digraph):
-        """Test the initialization of the DirectedFlagComplex."""
+        """Test the initialization of the DirectedFlagComplex.
+        
+        Parameters
+        ----------
+        dfc : DirectedQConnectivity
+            The DirectedQConnectivity instance to be tested.
+        digraph : nx.DiGraph
+            The directed graph used for testing.
+        """
         assert dfc.digraph == digraph
         assert dfc.complex_dim == 2
 
     def test_d_i_batched(self, dfc):
-        """Test the _d_i_batched method, that computes the i-th boundary
-        operator."""
+        """Test the _d_i_batched method, that computes the i-th boundary operator.
+        
+        Parameters
+        ----------
+        dfc : DirectedQConnectivity
+            The DirectedQConnectivity instance to be tested.
+        """
         simplices = torch.tensor([[0, 1, 2], [1, 2, 3]], device=dfc.device)
         result = dfc._d_i_batched(1, simplices)
         expected = torch.tensor([[0, 2], [1, 3]], device=dfc.device)
         assert torch.equal(result, expected)
 
     def test_gen_q_faces_batched(self, dfc):
-        """Test the _gen_q_faces_batched method which generates the q-faces"""
+        """Test the _gen_q_faces_batched method which generates the q-faces.
+        
+        Parameters
+        ----------
+        dfc : DirectedQConnectivity
+            The DirectedQConnectivity instance to be tested.
+        """
         simplices = torch.tensor([[0, 1, 2], [1, 2, 3]], device=dfc.device)
         result = dfc._gen_q_faces_batched(simplices, 2)
         expected = torch.tensor(
@@ -46,8 +86,15 @@ class TestDirectedFlagComplex:
         assert torch.equal(result, expected)
 
     def test_multiple_contained_chunked(self, dfc):
-        """Test the _multiple_contained_chunked method which computes the
-        containment of multiple simplices in multiple simplices."""
+        """Test the _multiple_contained_chunked method.
+        
+        This method computes the containment of multiple simplices in multiple simplices.
+        
+        Parameters
+        ----------
+        dfc : DirectedQConnectivity
+            The DirectedQConnectivity instance to be tested.
+        """
         sigmas = torch.tensor([[0, 1], [1, 2]], device=dfc.device)
         taus = torch.tensor([[0, 1, 2], [1, 2, 3]], device=dfc.device)
         result = dfc._multiple_contained_chunked(sigmas, taus)
@@ -61,7 +108,13 @@ class TestDirectedFlagComplex:
         assert torch.equal(result._values(), expected._values())
 
     def test_alpha_q_contained_sparse(self, dfc):
-        """Test the _alpha_q_contained_sparse method"""
+        """Test the _alpha_q_contained_sparse method.
+        
+        Parameters
+        ----------
+        dfc : DirectedQConnectivity
+            The DirectedQConnectivity instance to be tested.
+        """
         sigmas = torch.tensor([[0, 1, 2], [1, 2, 3]], device=dfc.device)
         taus = torch.tensor([[0, 1, 2], [1, 2, 3]], device=dfc.device)
         result = dfc._alpha_q_contained_sparse(sigmas, taus, 1)
@@ -74,7 +127,13 @@ class TestDirectedFlagComplex:
         assert torch.equal(result._values(), expected._values())
 
     def test_qij_adj(self, dfc):
-        """Test the qij_adj method."""
+        """Test the qij_adj method.
+        
+        Parameters
+        ----------
+        dfc : DirectedQConnectivity
+            The DirectedQConnectivity instance to be tested.
+        """
         result = dfc.qij_adj(dfc.complex[2], dfc.complex[2], q=1, i=0, j=2)
         expected_indices = torch.tensor(
             [
@@ -482,6 +541,13 @@ class TestDirectedFlagComplex:
         assert torch.equal(result, expected_indices)
 
     def test_find_paths(self, dfc):
+        """Test the find_paths method.
+        
+        Parameters
+        ----------
+        dfc : DirectedQConnectivity
+            The DirectedQConnectivity instance to be tested.
+        """
         adj = dfc.qij_adj(dfc.complex[2], dfc.complex[2], q=1, i=0, j=2)
         path = dfc.find_paths(adj, 1)
         expected = [

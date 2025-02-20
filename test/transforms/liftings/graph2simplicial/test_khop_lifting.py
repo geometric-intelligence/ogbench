@@ -1,4 +1,4 @@
-"""Test the message passing module."""
+"""Test the khop lifting."""
 
 import torch
 
@@ -11,6 +11,7 @@ class TestSimplicialKHopLifting:
     """Test the SimplicialKHopLifting class."""
 
     def setup_method(self):
+        """ Setup the test."""
         # Initialise the SimplicialKHopLifting class
         self.lifting_signed = SimplicialKHopLifting(complex_dim=3, signed=True)
         self.lifting_unsigned = SimplicialKHopLifting(
@@ -18,6 +19,13 @@ class TestSimplicialKHopLifting:
         )
 
     def test_lift_topology(self, simple_graph_1):
+        """ Test the lift_topology method.
+        
+        Parameters
+        ----------
+        simple_graph_1 : Data
+            A simple graph used for testing.
+        """
         # Test the lift_topology method
         self.data = simple_graph_1
         lifted_data_signed = self.lifting_signed.forward(self.data.clone())
@@ -1319,6 +1327,13 @@ class TestSimplicialKHopLifting:
         )
 
     def test_lifted_features_signed(self, simple_graph_1):
+        """Test the lift_features method for signed case.
+        
+        Parameters
+        ----------
+        simple_graph_1 : Data
+            A simple graph with 6 nodes and 7 edges.
+        """
         # Test the lift_features method for signed case
         self.data = simple_graph_1
         lifted_data = self.lifting_signed.forward(self.data)
@@ -1407,6 +1422,13 @@ class TestSimplicialKHopLifting:
         ).all(), "Something is wrong with x_2 features."
 
     def test_lifted_features_unsigned(self, simple_graph_1):
+        """Test the lift_features method for unsigned case.
+        
+        Parameters
+        ----------
+        simple_graph_1 : Data
+            A simple graph with 6 nodes and 7 edges.
+        """
         # Test the lift_features method for unsigned case
         self.data = simple_graph_1
         lifted_data = self.lifting_unsigned.forward(self.data)

@@ -1,4 +1,4 @@
-# """Test the message passing module."""
+"""Test the discrete config. complex lifting."""
 
 # import torch
 
