@@ -4,8 +4,8 @@ import random
 
 import torch
 
-from modules.data.utils.utils import load_manual_graph
-from modules.transforms.liftings.graph2simplicial.dnd_lifting import (
+from topobenchmark.data.utils.utils import load_manual_graph
+from topobenchmark.transforms.liftings.graph2simplicial.dnd_lifting import (
     SimplicialDnDLifting,
 )
 

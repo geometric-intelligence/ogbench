@@ -2,7 +2,7 @@ import networkx as nx
 import pytest
 import torch
 
-from modules.transforms.liftings.graph2combinatorial.sp_lifting import (
+from topobenchmark.transforms.liftings.graph2combinatorial.sp_lifting import (
     DirectedQConnectivity,
 )
 

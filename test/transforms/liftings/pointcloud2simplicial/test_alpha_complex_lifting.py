@@ -2,8 +2,8 @@
 
 import torch
 
-from modules.data.utils.utils import load_manual_points
-from modules.transforms.liftings.pointcloud2simplicial.alpha_complex_lifting import (
+from topobenchmark.data.utils.utils import load_manual_points
+from topobenchmark.transforms.liftings.pointcloud2simplicial.alpha_complex_lifting import (
     AlphaComplexLifting,
 )
 

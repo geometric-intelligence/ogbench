@@ -5,8 +5,8 @@ import pytest
 import torch
 from torch_geometric.data import Data
 
-from modules.data.utils.utils import load_manual_simplicial_complex
-from modules.transforms.liftings.simplicial2combinatorial.coface_cc_lifting import (
+from topobenchmark.data.utils.utils import load_manual_simplicial_complex
+from topobenchmark.transforms.liftings.simplicial2combinatorial.coface_cc_lifting import (
     CofaceCCLifting,
 )
 

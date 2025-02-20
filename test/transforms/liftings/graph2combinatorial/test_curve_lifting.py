@@ -6,16 +6,16 @@ import torch
 import torch_geometric
 import torch_geometric.data
 
-from modules.data.utils.utils import (
+from topobenchmark.data.utils.utils import (
     load_double_house_graph,
     load_k4_graph,
     load_manual_graph,
 )
-from modules.matroid.matroid import CCMatroid, powerset
-from modules.transforms.liftings.graph2combinatorial.base import (
+from topobenchmark.matroid.matroid import CCMatroid, powerset
+from topobenchmark.transforms.liftings.graph2combinatorial.base import (
     Matroid2CombinatorialLifting,
 )
-from modules.transforms.liftings.graph2combinatorial.curve_lifting import (
+from topobenchmark.transforms.liftings.graph2combinatorial.curve_lifting import (
     GraphCurveMatroidLifting,
 )
 

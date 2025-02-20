@@ -1,7 +1,7 @@
 import torch
 
-from modules.data.utils.utils import load_manual_mol
-from modules.transforms.liftings.graph2combinatorial.ring_close_atoms_lifting import (
+from topobenchmark.data.utils.utils import load_manual_mol
+from topobenchmark.transforms.liftings.graph2combinatorial.ring_close_atoms_lifting import (
     CombinatorialRingCloseAtomsLifting,
 )
 

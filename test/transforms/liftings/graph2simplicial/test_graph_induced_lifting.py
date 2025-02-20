@@ -2,8 +2,8 @@
 
 import torch
 
-from modules.data.utils.utils import load_manual_graph
-from modules.transforms.liftings.graph2simplicial.graph_induced_lifting import (
+from topobenchmark.data.utils.utils import load_manual_graph
+from topobenchmark.transforms.liftings.graph2simplicial.graph_induced_lifting import (
     SimplicialGraphInducedLifting,
 )
 

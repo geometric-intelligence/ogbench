@@ -1,7 +1,7 @@
 """Test the message passing module."""
 
-from modules.data.utils.utils import load_manual_graph
-from modules.transforms.liftings.graph2hypergraph.expander_graph_lifting import (
+from topobenchmark.data.utils.utils import load_manual_graph
+from topobenchmark.transforms.liftings.graph2hypergraph.expander_graph_lifting import (
     ExpanderGraphLifting,
 )
 

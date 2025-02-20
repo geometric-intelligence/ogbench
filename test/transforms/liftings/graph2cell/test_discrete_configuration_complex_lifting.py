@@ -2,8 +2,8 @@
 
 # import torch
 
-# from modules.data.utils.utils import load_simple_configuration_graphs
-# from modules.transforms.liftings.graph2cell.discrete_configuration_complex_lifting import (
+# from topobenchmark.data.utils.utils import load_simple_configuration_graphs
+# from topobenchmark.transforms.liftings.graph2cell.discrete_configuration_complex_lifting import (
 #     DiscreteConfigurationComplexLifting,
 # )
 

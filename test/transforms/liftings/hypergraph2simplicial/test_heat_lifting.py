@@ -5,7 +5,7 @@ import toponetx as tnx
 import torch
 from torch_geometric.data import Data
 
-from modules.transforms.liftings.hypergraph2simplicial.heat_lifting import (
+from topobenchmark.transforms.liftings.hypergraph2simplicial.heat_lifting import (
     HypergraphHeatLifting,
     downward_closure,
     top_weights,

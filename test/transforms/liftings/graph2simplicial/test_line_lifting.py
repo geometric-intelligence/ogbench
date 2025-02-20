@@ -3,7 +3,7 @@
 import torch
 import torch_geometric
 
-from modules.transforms.liftings.graph2simplicial.line_lifting import (
+from topobenchmark.transforms.liftings.graph2simplicial.line_lifting import (
     SimplicialLineLifting,
 )
 

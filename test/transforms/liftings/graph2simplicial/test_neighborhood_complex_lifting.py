@@ -3,8 +3,8 @@
 # import torch
 # from torch_geometric.utils.convert import from_networkx
 
-# from modules.data.utils.utils import load_manual_graph
-# from modules.transforms.liftings.graph2simplicial.neighborhood_complex_lifting import (
+# from topobenchmark.data.utils.utils import load_manual_graph
+# from topobenchmark.transforms.liftings.graph2simplicial.neighborhood_complex_lifting import (
 #     NeighborhoodComplexLifting,
 # )
 
