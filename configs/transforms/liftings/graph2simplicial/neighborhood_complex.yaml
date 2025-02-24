@@ -1,7 +1,9 @@
 _target_: topobenchmark.transforms.data_transform.DataTransform
 transform_type: 'lifting'
 transform_name: "NeighborhoodComplexLifting"
-preserve_edge_attr: False
 signed: True
-feature_lifting: ElementwiseMean
-complex_dim: 5
+feature_lifting: ProjectionSum #ElementwiseMean
+# Required for all liftings to make the pipeline executable 
+complex_dim: ${oc.select:dataset.parameters.max_dim_if_lifted,3}
+preserve_edge_attr: False
+neighborhoods: ${oc.select:model.backbone.neighborhoods,null}
