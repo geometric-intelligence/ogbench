@@ -3,3 +3,8 @@ transform_type: 'lifting'
 transform_name: "CurveLifting"
 feature_lifting: ProjectionSum
 max_rank: 2
+
+# Required for all liftings to make the pipeline executable 
+complex_dim: 2
+preserve_edge_attr: ${oc.select:dataset.parameters.preserve_edge_attr_if_lifted,False}
+neighborhoods: ${oc.select:model.backbone.neighborhoods,null}
