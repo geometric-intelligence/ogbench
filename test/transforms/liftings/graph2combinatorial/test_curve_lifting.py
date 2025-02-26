@@ -11,7 +11,7 @@ from topobenchmark.data.utils.utils import (
     load_k4_graph,
     load_manual_graph,
 )
-from topobenchmark.matroid.matroid import CCMatroid, powerset
+from topobenchmark.data.utils.matroid import CCMatroid, powerset
 from topobenchmark.transforms.liftings.graph2combinatorial.base import (
     Matroid2CombinatorialLifting,
 )
