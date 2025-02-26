@@ -1,3 +1,0 @@
-defaults:
-  - /transforms/liftings/graph2hypergraph@graph2hypergraph_lifting: khop
-  - /transforms/liftings/hypergraph2simplicial@hypergraph2simplicial_lifting: heat

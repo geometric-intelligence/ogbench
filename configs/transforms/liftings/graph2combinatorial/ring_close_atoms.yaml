@@ -1,8 +1,0 @@
-_target_: topobenchmark.transforms.data_transform.DataTransform
-transform_type: 'lifting'
-transform_name: "CombinatorialRingCloseAtomsLifting"
-max_cell_length: null
-preserve_edge_attr: True
-feature_lifting: ProjectionSum
-complex_dim: 2
-threshold_distance: 1.5
