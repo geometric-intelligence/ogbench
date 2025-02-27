@@ -13,8 +13,8 @@ class TestMoGMSTLifting:
     """Test the MoGMSTLifting class."""
 
     def setup_method(self):
+        """Set up the test."""
         # Load the graph
-        x = torch.tensor([[0.0] for i in range(8)])
         y = torch.tensor([0 for i in range(8)], dtype=torch.int32)
         pos = torch.tensor(
             [
@@ -28,14 +28,16 @@ class TestMoGMSTLifting:
                 [0.16, 0.45],
             ]
         )
-        self.data = Data(x=x, pos=pos, y=torch.tensor(y))
+        self.data = Data(x=pos, y=torch.tensor(y))
 
         # Initialise the HypergraphKHopLifting class
         self.lifting = MoGMSTLifting(min_components=3, random_state=0)
 
     def test_find_mog(self):
+        """Test the find_mog method."""
+        
         labels, num_components, means = self.lifting.find_mog(
-            self.data.clone().pos.numpy()
+            self.data.clone().x_0.numpy()
         )
 
         assert num_components == 3, "Wrong number of components"
@@ -50,6 +52,8 @@ class TestMoGMSTLifting:
         ), "Labels have not been assigned correctly"
 
     def test_lift_topology(self):
+        """Test the lift_topology method."""
+        
         # Test the lift_topology method
         lifted_data_k = self.lifting.forward(self.data.clone())
 
