@@ -1,4 +1,4 @@
-"""Some models implemented for TopoBenchmarkX."""
+"""Some models implemented for TopoBenchX."""
 
 from .cell import (
     CCCN,
