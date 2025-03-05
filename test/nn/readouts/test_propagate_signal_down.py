@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch_geometric.data as tg_data
 import topomodelx
-from topobenchmark.nn.readouts.propagate_signal_down import PropagateSignalDown
+from topobench.nn.readouts.propagate_signal_down import PropagateSignalDown
 
 
 class TestPropagateSignalDown:

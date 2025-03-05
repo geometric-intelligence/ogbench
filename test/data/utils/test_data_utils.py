@@ -4,7 +4,7 @@ import omegaconf
 import pytest
 import torch_geometric
 import torch
-from topobenchmark.data.utils import *
+from topobench.data.utils import *
 import toponetx as tnx
 from toponetx.classes import CellComplex
 
