@@ -1,6 +1,6 @@
 """Wrapper for the GNN models."""
 
-from topobenchmark.nn.wrappers.base import AbstractWrapper
+from topobench.nn.wrappers.base import AbstractWrapper
 
 
 class GNNWrapper(AbstractWrapper):

@@ -1,6 +1,6 @@
 """Abstract class for lifting graphs to hypergraphs."""
 
-from topobenchmark.transforms.liftings import GraphLifting
+from topobench.transforms.liftings import GraphLifting
 
 
 class Graph2HypergraphLifting(GraphLifting):

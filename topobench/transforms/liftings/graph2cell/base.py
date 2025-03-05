@@ -4,8 +4,8 @@ import networkx as nx
 import torch
 from toponetx.classes import CellComplex
 
-from topobenchmark.data.utils.utils import get_complex_connectivity
-from topobenchmark.transforms.liftings import GraphLifting
+from topobench.data.utils.utils import get_complex_connectivity
+from topobench.transforms.liftings import GraphLifting
 
 
 class Graph2CellLifting(GraphLifting):

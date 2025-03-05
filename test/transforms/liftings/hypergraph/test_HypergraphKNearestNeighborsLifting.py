@@ -3,7 +3,7 @@
 import pytest
 import torch
 from torch_geometric.data import Data
-from topobenchmark.transforms.liftings.graph2hypergraph import (
+from topobench.transforms.liftings.graph2hypergraph import (
     HypergraphKNNLifting,
 )
 

@@ -4,7 +4,7 @@ from abc import abstractmethod
 
 import torch_geometric
 
-from topobenchmark.transforms.feature_liftings import FEATURE_LIFTINGS
+from topobench.transforms.feature_liftings import FEATURE_LIFTINGS
 
 
 class AbstractLifting(torch_geometric.transforms.BaseTransform):

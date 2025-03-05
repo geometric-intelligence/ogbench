@@ -14,7 +14,7 @@ from toponetx.classes import SimplicialComplex
 from torch_geometric.data import Data
 from torch_sparse import coalesce
 
-from topobenchmark.data.utils import get_complex_connectivity
+from topobench.data.utils import get_complex_connectivity
 
 
 def get_file_id_from_url(url):

@@ -4,7 +4,7 @@ import torch
 import torch_geometric
 from torch_geometric.nn.norm import GraphNorm
 
-from topobenchmark.nn.encoders.base import AbstractFeatureEncoder
+from topobench.nn.encoders.base import AbstractFeatureEncoder
 
 
 class AllCellFeatureEncoder(AbstractFeatureEncoder):

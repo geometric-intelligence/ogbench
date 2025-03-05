@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from torch_geometric.data import Data, InMemoryDataset, extract_gz
 from torch_geometric.io import fs
 
-from topobenchmark.data.utils import (
+from topobench.data.utils import (
     download_file_from_link,
     read_ndim_manifolds,
 )

@@ -2,7 +2,7 @@
 
 import torch
 
-from topobenchmark.nn.wrappers.base import AbstractWrapper
+from topobench.nn.wrappers.base import AbstractWrapper
 
 
 class SCNWrapper(AbstractWrapper):

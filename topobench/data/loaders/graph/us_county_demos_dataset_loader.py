@@ -4,8 +4,8 @@ from pathlib import Path
 
 from omegaconf import DictConfig
 
-from topobenchmark.data.datasets import USCountyDemosDataset
-from topobenchmark.data.loaders.base import AbstractLoader
+from topobench.data.datasets import USCountyDemosDataset
+from topobench.data.loaders.base import AbstractLoader
 
 
 class USCountyDemosDatasetLoader(AbstractLoader):
