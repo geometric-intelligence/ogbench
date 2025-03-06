@@ -12,6 +12,7 @@ class TestUniversalStrictLifting:
     """Test the UniversalStrictLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the hypergraph
         self.data = load_manual_hypergraph()
 

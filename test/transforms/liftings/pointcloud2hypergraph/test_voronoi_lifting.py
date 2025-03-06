@@ -12,6 +12,7 @@ class TestVoronoiLifting:
     """Test the SimplicialCliqueLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the graph
         self.data = load_manual_pointcloud(pos_to_x=True)
 

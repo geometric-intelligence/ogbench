@@ -1,4 +1,4 @@
-"""Test the message passing module."""
+"""Test the SimplicialEccentricityLifting lifting."""
 
 import torch
 
@@ -12,6 +12,7 @@ class TestSimplicialEccentricityLifting:
     """Test the SimplicialEccentricityLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the graph
         self.data = load_manual_graph()
 

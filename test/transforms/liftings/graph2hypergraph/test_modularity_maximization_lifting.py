@@ -1,3 +1,4 @@
+"""Test the ModularityMaximization lifting."""
 import pytest
 import torch
 
@@ -11,6 +12,7 @@ class TestModularityMaximizationLifting:
     """Test the ModularityMaximizationLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the graph
         self.data = load_manual_graph()
 
@@ -18,6 +20,7 @@ class TestModularityMaximizationLifting:
         self.lifting = ModularityMaximizationLifting(num_communities=2, k_neighbors=3)
 
     def test_kmeans(self):
+        """Test the kmeans method."""
         # Set a random seed for reproducibility
         torch.manual_seed(42)
 
@@ -45,6 +48,7 @@ class TestModularityMaximizationLifting:
         ).all(), "Something is wrong with kmeans."
 
     def test_modularity_matrix(self):
+        """Test the modularity_matrix method."""
         # Test the lift_topology method
         data_modularity_matrix = self.lifting.modularity_matrix(self.data.clone())
 
@@ -72,6 +76,7 @@ class TestModularityMaximizationLifting:
         ).all(), "Something is wrong with modularity matrix."
 
     def test_detect_communities(self):
+        """Test the detect_communities method."""
         # Set a random seed for reproducibility
         torch.manual_seed(42)
 
@@ -88,6 +93,7 @@ class TestModularityMaximizationLifting:
         ).all(), "Something is wrong with detect communities."
 
     def test_lift_topology(self):
+        """Test the lift_topology method."""
         # Set a random seed for reproducibility
         torch.manual_seed(42)
 
@@ -110,10 +116,10 @@ class TestModularityMaximizationLifting:
         )
 
         assert (
-            lifted_data["incidence_hyperedges"].to_dense() == lifted_data["incidence_hyperedges"].to_dense()#expected_incidence_1 == lifted_data["incidence_hyperedges"].to_dense()
+            expected_incidence_1 == lifted_data["incidence_hyperedges"].to_dense()
         ).all(), "Something is wrong with incidence_hyperedges."
         assert (
-            lifted_data["num_hyperedges"] == lifted_data["num_hyperedges"]#expected_n_hyperedges == lifted_data["num_hyperedges"]
+            expected_n_hyperedges == lifted_data["num_hyperedges"]
         ), "Something is wrong with the number of hyperedges."
 
 

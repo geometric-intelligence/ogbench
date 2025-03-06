@@ -1,4 +1,4 @@
-"""Test the message passing module."""
+"""Test the LatentCliqueCoverLifting class."""
 
 import random
 
@@ -16,11 +16,15 @@ def create_clique_graph(num_nodes=8):
     """
     Create a torch_geometric.data.Data object representing a single clique graph with node features being all ones.
 
-    Parameters:
-    num_nodes (int): Number of nodes in the clique.
+    Parameters
+    ----------
+    num_nodes : int
+        Number of nodes in the clique.
 
-    Returns:
-    Data: Torch Geometric data object representing the graph.
+    Returns
+    -------
+    torch_geometric.data.Data
+        Torch Geometric data object representing the graph.
     """
     # Create edge index for a complete graph (clique)
     edge_index = []
@@ -42,6 +46,7 @@ class TestLatentCliqueCoverLifting:
     """Test the LatentCliqueCoverLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the graph
         self.data_test_one = create_clique_graph()
         self.data_test_two = load_manual_graph()

@@ -12,6 +12,7 @@ class TestAlphaComplexLifting:
     """Test the AlphaComplexLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the graph
         self.data = load_manual_points()
 

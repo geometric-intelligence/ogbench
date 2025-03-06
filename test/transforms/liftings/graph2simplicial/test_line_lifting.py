@@ -1,4 +1,4 @@
-"""Test the message passing module."""
+"""Test the implicialLineLifting class."""
 
 import torch
 import torch_geometric
@@ -9,6 +9,13 @@ from topobenchmark.transforms.liftings.graph2simplicial.line_lifting import (
 
 
 def create_test_graph():
+    """Create a simple graph for testing.
+    
+    Returns
+    -------
+    torch_geometric.data
+        A simple graph for testing.
+    """
     num_nodes = 5
     x = [1] * num_nodes
     edge_index = torch.tensor(
@@ -28,6 +35,7 @@ class TestSimplicialLineLifting:
     """Test the SimplicialLineLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the graph
         self.data = create_test_graph()  # load_manual_graph()
 

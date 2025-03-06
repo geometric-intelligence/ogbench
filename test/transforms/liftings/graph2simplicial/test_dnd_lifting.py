@@ -1,4 +1,4 @@
-"""Test the message passing module."""
+"""Test the SimplicialDnDLifting lifting."""
 
 import random
 
@@ -14,6 +14,7 @@ class TestSimplicialDnDLifting:
     """Test the SimplicialDnDLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Load the graph
         self.data = load_manual_graph()
 

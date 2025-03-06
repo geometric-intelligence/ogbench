@@ -12,6 +12,7 @@ class TestPointNet:
     """Test the PointNetLifting class."""
 
     def setup_method(self):
+        """Setup the test."""
         # Point cloud of equidistantly-spaced grid
         pos = (
             torch.stack(
@@ -25,6 +26,7 @@ class TestPointNet:
         self.lifting = PointNetLifting(sampling_ratio=0.25, cluster_radius=2.5)
 
     def test_lift_topology(self):
+        """Test the lift_topology method."""
         lifted_data = self.lifting(self.data)
 
         # Expected shape of the incidence matrix
