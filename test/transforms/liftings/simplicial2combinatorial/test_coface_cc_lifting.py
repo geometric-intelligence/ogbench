@@ -1,4 +1,4 @@
-"""Test the message passing module."""
+"""Test the CofaceCCLifting module."""
 
 
 import pytest
@@ -15,7 +15,7 @@ class TestCofaceCCLifting:
     """Test the CofaceCCLifting class."""
 
     def setup_method(self):
-
+        """Setup the test."""
         # Load the graph
         self.data = load_manual_simplicial_complex()
 
@@ -24,8 +24,7 @@ class TestCofaceCCLifting:
         self.coface_lift_keep = CofaceCCLifting(keep_features=True)
 
     def test_feature_preservation(self):
-        """ Test that features are preserved when lifting
-        """
+        """Test that features are preserved when lifting."""
         x_0 = torch.rand(3, 5)
         x_1 = torch.rand(3, 6)
         x_2 = torch.rand(1, 7)
@@ -54,25 +53,8 @@ class TestCofaceCCLifting:
         assert torch.allclose(lifted_data.x_1, x_1)
         assert torch.allclose(lifted_data.x_2, x_2)
 
-    # def test_empty_complex(self):
-    #     """  Test that the lifting fails when the complex is empty
-    #     """
-
-    #     # Load empty graph
-    #     data_empty = Data(x_0=torch.tensor([]), incidence_1=torch.tensor([]), incidence_2=torch.tensor([]))
-
-    #     # Should not generate combinatorial complex
-    #     with pytest.raises(TypeError):
-    #         self.coface_lift(data_empty)
-
-    # def test_data_empty_one_node(self):
-
-    #     data_empty = Data(x_0=torch.ones((1,1)), incidence_1=torch.tensor([]), incidence_2=torch.tensor([]))
-    #     lifted_data = self.coface_lift(data_empty)
-
-    #     assert lifted_data.x_1.size(0) == 0
-
     def test_lift_topology(self):
+        """Test that lifted topology."""
         # Test the lift_topology method
         lifted_data = self.coface_lift.forward(self.data.clone())
 
