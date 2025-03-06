@@ -5,12 +5,48 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 import torch_geometric
 from omegaconf import DictConfig
+import torch
 
-from topobenchmark.data.preprocessor import PreProcessor
+from topobench.data.preprocessor import PreProcessor
 
 from ..._utils.flow_mocker import FlowMocker
 
+class MockTorchDataset(torch.utils.data.Dataset):
+    """Mock class for torch.utils.data.Dataset.
+    
+    Parameters
+    ----------
+    size : int
+        Size of the dataset.
+    """
+    def __init__(self, size):
+        self.size = size
 
+    def __len__(self):
+        """Return the size of the dataset.
+        
+        Returns
+        -------
+        int
+            Size of the dataset.
+        """
+        return self.size
+
+    def __getitem__(self, idx):
+        """Return the data at the given index.
+        
+        Parameters
+        ----------
+        idx : int
+            Index of the data.
+            
+        Returns
+        -------
+        str
+            A f"data_{idx}" string.
+        """
+        return f"data_{idx}"
+    
 @pytest.mark.usefixtures("mocker_fixture")
 class TestPreProcessor:
     """Test the PreProcessor class."""
@@ -115,7 +151,7 @@ class TestPreProcessor:
         )
         self.flow_mocker.assert_all(self.preprocessor_with_tranform)
 
-    @patch("topobenchmark.data.preprocessor.preprocessor.load_inductive_splits")
+    @patch("topobench.data.preprocessor.preprocessor.load_inductive_splits")
     def test_load_dataset_splits_inductive(self, mock_load_inductive_splits):
         """Test loading dataset splits for inductive learning.
         
@@ -131,7 +167,7 @@ class TestPreProcessor:
         )
 
     @patch(
-        "topobenchmark.data.preprocessor.preprocessor.load_transductive_splits"
+        "topobench.data.preprocessor.preprocessor.load_transductive_splits"
     )
     def test_load_dataset_splits_transductive(
         self, mock_load_transductive_splits
@@ -154,3 +190,14 @@ class TestPreProcessor:
         split_params = DictConfig({"learning_setting": "invalid"})
         with pytest.raises(ValueError):
             self.preprocessor.load_dataset_splits(split_params)
+
+    def test_init_with_torch_utils_dataset(self):
+        """Test PreProcessor with torch.utils.data.Dataset."""
+        mock_dataset = MockTorchDataset(size=5)  # Use real subclass
+        preprocessor = PreProcessor(mock_dataset, self.data_dir, None)
+
+    def test_init_with_torch_geometric_data(self):
+        """Test PreProcessor with torch_geometric.data.Data."""
+        mock_data = torch_geometric.data.Data(x=torch.tensor([[1, 2], [3, 4]]))
+
+        preprocessor = PreProcessor(mock_data, self.data_dir, None)
