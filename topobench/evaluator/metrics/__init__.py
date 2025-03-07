@@ -70,7 +70,7 @@ class LoadManager:
                 module = importlib.import_module(module_name)
 
                 # Find all loss classes in the module
-                metrics = {
+                new_metrics = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
                     if (
@@ -78,6 +78,7 @@ class LoadManager:
                         and obj.__module__ == module.__name__
                     )
                 }
+                metrics.update(new_metrics)
             except ImportError as e:
                 print(f"Could not import module {module_name}: {e}")
 

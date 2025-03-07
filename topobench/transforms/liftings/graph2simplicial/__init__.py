@@ -5,7 +5,9 @@ from importlib import util
 from pathlib import Path
 from typing import Any
 
-from .base import Graph2SimplicialLifting
+from topobench.transforms.liftings.graph2simplicial.base import (
+    Graph2SimplicialLifting,
+)
 
 
 class ModuleExportsManager:
@@ -66,7 +68,7 @@ class ModuleExportsManager:
                 spec.loader.exec_module(module)
 
                 # Find all lifting classes in the module
-                liftings = {
+                new_liftings = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
                     if (
@@ -77,6 +79,7 @@ class ModuleExportsManager:
                         and obj != Graph2SimplicialLifting
                     )
                 }
+                liftings.update(new_liftings)
         return liftings
 
 

@@ -66,7 +66,7 @@ class ModuleExportsManager:
                 spec.loader.exec_module(module)
 
                 # Find all lifting classes in the module
-                liftings = {
+                new_liftings = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
                     if (
@@ -77,6 +77,7 @@ class ModuleExportsManager:
                         and obj != Graph2HypergraphLifting
                     )
                 }
+                liftings.update(new_liftings)
         return liftings
 
 

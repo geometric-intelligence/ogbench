@@ -66,7 +66,7 @@ class HypergraphLoaderManager:
                 spec.loader.exec_module(module)
 
                 # Find all hypergraph loader classes in the module
-                loaders = {
+                new_loaders = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
                     if (
@@ -74,6 +74,7 @@ class HypergraphLoaderManager:
                         and obj.__module__ == module.__name__
                     )
                 }
+                loaders.update(new_loaders)
         return loaders
 
 

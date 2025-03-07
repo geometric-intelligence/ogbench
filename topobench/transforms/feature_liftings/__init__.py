@@ -70,7 +70,7 @@ class ModuleExportsManager:
                 spec.loader.exec_module(module)
 
                 # Find all lifting classes in the module
-                liftings = {
+                new_liftings = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
                     if (
@@ -79,6 +79,7 @@ class ModuleExportsManager:
                         and not name.startswith("_")
                     )
                 }
+                liftings.update(new_liftings)
         # Add special cases if provided
         if special_cases:
             liftings.update(special_cases)
