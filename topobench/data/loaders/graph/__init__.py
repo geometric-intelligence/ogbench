@@ -66,13 +66,14 @@ class GraphLoaderManager:
                 spec.loader.exec_module(module)
 
                 # Find all loader classes in the module
-                for name, obj in inspect.getmembers(module):
+                loaders = {
+                    name: obj
+                    for name, obj in inspect.getmembers(module)
                     if (
                         cls.is_loader_class(obj)
                         and obj.__module__ == module.__name__
-                    ):
-                        loaders[name] = obj
-
+                    )
+                }
         return loaders
 
 

@@ -212,7 +212,7 @@ def infer_in_channels(dataset, transforms):
         else:
             assert (
                 type(dataset.parameters.num_features)
-                == omegaconf.listconfig.ListConfig
+                is omegaconf.listconfig.ListConfig
             ), (
                 f"num_features should be a list of integers, not {type(dataset.parameters.num_features)}"
             )

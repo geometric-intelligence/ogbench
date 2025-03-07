@@ -62,14 +62,13 @@ class ModuleExportsManager:
                 spec.loader.exec_module(module)
 
                 # Find all manipulation classes in the module
-                for name, obj in inspect.getmembers(module):
-                    if (
-                        inspect.isclass(obj)
-                        and obj.__module__ == module.__name__
-                        and not name.startswith("_")
-                    ):
-                        manipulations[name] = obj
-
+                manipulations = {
+                    name: obj
+                    for name, obj in inspect.getmembers(module)
+                    if inspect.isclass(obj)
+                    and obj.__module__ == module.__name__
+                    and not name.startswith("_")
+                }
         return manipulations
 
 

@@ -70,13 +70,14 @@ class LoadManager:
                 module = importlib.import_module(module_name)
 
                 # Find all loss classes in the module
-                for name, obj in inspect.getmembers(module):
+                losses = {
+                    name: obj
+                    for name, obj in inspect.getmembers(module)
                     if (
                         cls.is_encoder_class(obj)
                         and obj.__module__ == module.__name__
-                    ):
-                        losses[name] = obj
-
+                    )
+                }
             except ImportError as e:
                 print(f"Could not import module {module_name}: {e}")
 

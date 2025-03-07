@@ -70,14 +70,15 @@ class ModuleExportsManager:
                 spec.loader.exec_module(module)
 
                 # Find all lifting classes in the module
-                for name, obj in inspect.getmembers(module):
+                liftings = {
+                    name: obj
+                    for name, obj in inspect.getmembers(module)
                     if (
                         inspect.isclass(obj)
                         and obj.__module__ == module.__name__
                         and not name.startswith("_")
-                    ):
-                        liftings[name] = obj
-
+                    )
+                }
         # Add special cases if provided
         if special_cases:
             liftings.update(special_cases)

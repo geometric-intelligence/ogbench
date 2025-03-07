@@ -66,16 +66,17 @@ class ModuleExportsManager:
                 spec.loader.exec_module(module)
 
                 # Find all lifting classes in the module
-                for name, obj in inspect.getmembers(module):
+                liftings = {
+                    name: obj
+                    for name, obj in inspect.getmembers(module)
                     if (
                         inspect.isclass(obj)
                         and obj.__module__ == module.__name__
                         and not name.startswith("_")
                         and issubclass(obj, PointCloud2SimplicialLifting)
                         and obj != PointCloud2SimplicialLifting
-                    ):
-                        liftings[name] = obj
-
+                    )
+                }
         return liftings
 
 
