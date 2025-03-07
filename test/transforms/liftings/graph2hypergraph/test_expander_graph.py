@@ -10,11 +10,13 @@ class TestExpanderGraph:
     """Test the HypergraphKHopLifting class."""
 
     def setup_method(self):
+        """Load the manual graph data and initialize the ExpanderGraphLifting class."""
         self.data = load_manual_graph()
 
         self.lifting = ExpanderGraphLifting(node_degree=2)
 
     def test_lift_topology(self):
+        """Test the lift_topology method."""
         lifted_data = self.lifting(self.data)
 
         # Expected number of non-zero entries in the expander graph incidence matrix

@@ -13,6 +13,7 @@ class TestHypergraphFormanRicciCurvatureLifting:
     """Test the HypergraphFormanRicciCurvatureLifting class."""
 
     def setup_method(self):
+        """Set up the test."""
         self.data = load_manual_graph()
 
         self.lifting = HypergraphFormanRicciCurvatureLifting(
@@ -23,7 +24,7 @@ class TestHypergraphFormanRicciCurvatureLifting:
         )
 
     def test_lift_topology(self):
-        # Test the lift_topology method
+        """Test the lift_topology method."""
         lifted_data = self.lifting.forward(self.data.clone())
 
         expected_n_hyperedges = 2
@@ -152,6 +153,7 @@ class TestHypergraphFormanRicciCurvatureLifting:
         ), "Something is wrong with the number of hyperedges."
 
     def test_validations(self):
+        """Test the validations of the class."""
         with pytest.raises(NotImplementedError):
             self.lifting.threshold_type = "relative"
             self.lifting.forward(self.data.clone())

@@ -1,4 +1,4 @@
-"""Unit tests for simplicial model wrappers"""
+"""Unit tests for simplicial model wrappers."""
 
 import torch
 from torch_geometric.utils import get_laplacian
@@ -24,7 +24,7 @@ class TestSimplicialWrappers:
         Parameters
         ----------
         sg1_clique_lifted : torch_geometric.data.Data
-            A fixture of simple graph 1 lifted with SimlicialCliqueLifting
+            A fixture of simple graph 1 lifted with SimlicialCliqueLifting.
         """
         data = sg1_clique_lifted
         out_dim = 4
@@ -48,7 +48,7 @@ class TestSimplicialWrappers:
         Parameters
         ----------
         sg1_clique_lifted : torch_geometric.data.Data
-            A fixture of simple graph 1 lifted with SimlicialCliqueLifting 
+            A fixture of simple graph 1 lifted with SimlicialCliqueLifting.
         """
         data = sg1_clique_lifted
         out_dim = data.x_0.shape[1]
@@ -70,7 +70,7 @@ class TestSimplicialWrappers:
         Parameters
         ----------
         sg1_clique_lifted : torch_geometric.data.Data
-            A fixture of simple graph 1 lifted with SimlicialCliqueLifting 
+            A fixture of simple graph 1 lifted with SimlicialCliqueLifting.
         """
         data = sg1_clique_lifted
         out_dim = data.x_0.shape[1]
@@ -91,7 +91,7 @@ class TestSimplicialWrappers:
         Parameters
         ----------
         sg1_clique_lifted : torch_geometric.data.Data
-            A fixture of simple graph 1 lifted with SimlicialCliqueLifting 
+            A fixture of simple graph 1 lifted with SimlicialCliqueLifting.
         """
         data = sg1_clique_lifted
         out_dim = data.x_0.shape[1]

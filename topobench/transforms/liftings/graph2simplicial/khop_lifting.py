@@ -52,11 +52,11 @@ class SimplicialKHopLifting(Graph2SimplicialLifting):
         graph = self._generate_graph_from_data(data)
         simplicial_complex = SimplicialComplex(graph)
         edge_index = torch_geometric.utils.to_undirected(data.edge_index)
-        
+
         simplices: list[set[tuple[Any, ...]]] = [
             set() for _ in range(2, self.complex_dim + 1)
         ]
-        
+
         for n in range(graph.number_of_nodes()):
             # Find 1-hop node n neighbors
             neighbors, _, _, _ = torch_geometric.utils.k_hop_subgraph(
