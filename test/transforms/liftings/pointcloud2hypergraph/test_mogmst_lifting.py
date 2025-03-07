@@ -35,9 +35,8 @@ class TestMoGMSTLifting:
 
     def test_find_mog(self):
         """Test the find_mog method."""
-        
         labels, num_components, means = self.lifting.find_mog(
-            self.data.clone().x_0.numpy()
+            self.data.clone().x.numpy()
         )
 
         assert num_components == 3, "Wrong number of components"
