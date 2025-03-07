@@ -59,6 +59,6 @@ class AbstractLifting(torch_geometric.transforms.BaseTransform):
         lifted_topology = self.lift_topology(data)
         lifted_topology = self.feature_lifting(lifted_topology)
         # Remove the original features to avoid conflict with the feature lifting
-        if "x_0" in initial_data.keys():
+        if "x_0" in initial_data:
             del initial_data["x_0"]
         return torch_geometric.data.Data(**initial_data, **lifted_topology)

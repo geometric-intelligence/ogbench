@@ -79,7 +79,7 @@ def get_complex_connectivity(
                         rank=rank_idx, signed=signed
                     )
                 )
-            except:
+            except:  # noqa: E722
                 if connectivity_info == "incidence":
                     connectivity[f"{connectivity_info}_{rank_idx}"] = (
                         generate_zero_sparse_connectivity(

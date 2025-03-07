@@ -58,7 +58,7 @@ class GeometricShapesDatasetLoader(AbstractLoader):
         datasets = []
 
         for split in train_split:
-            datasets.append(
+            datasets.append(  # noqa: PERF401
                 GeometricShapes(
                     root=str(self.root_data_dir),
                     train=split,
