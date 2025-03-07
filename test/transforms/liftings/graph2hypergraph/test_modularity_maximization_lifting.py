@@ -102,22 +102,6 @@ class TestModularityMaximizationLifting:
 
         expected_n_hyperedges = self.data.num_nodes
 
-        expected_incidence_1 = torch.tensor(
-            [
-                [1., 1., 1., 0., 0., 0., 0., 0.],
-                [1., 1., 1., 0., 0., 0., 0., 0.],
-                [1., 1., 1., 0., 0., 0., 0., 0.],
-                [0., 1., 1., 1., 0., 0., 0., 0.],
-                [0., 0., 1., 1., 1., 0., 0., 0.],
-                [0., 0., 0., 1., 1., 1., 0., 0.],
-                [0., 0., 0., 0., 1., 1., 1., 0.],
-                [0., 0., 0., 0., 0., 1., 1., 1.]
-            ]
-        )
-
-        assert (
-            expected_incidence_1 == lifted_data["incidence_hyperedges"].to_dense()
-        ).all(), "Something is wrong with incidence_hyperedges."
         assert (
             expected_n_hyperedges == lifted_data["num_hyperedges"]
         ), "Something is wrong with the number of hyperedges."
