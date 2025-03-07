@@ -173,7 +173,7 @@ def random_splitting(labels, parameters, global_data_seed=42):
 
 
 def assign_train_val_test_mask_to_graphs(dataset, split_idx):
-    r"""Split the graph dataset into train, validation, and test datasets.
+    """Split the graph dataset into train, validation, and test datasets.
 
     Parameters
     ----------
@@ -184,37 +184,33 @@ def assign_train_val_test_mask_to_graphs(dataset, split_idx):
 
     Returns
     -------
-    list:
-        List containing the train, validation, and test datasets.
+    tuple:
+        Tuple containing the train, validation, and test datasets.
     """
+
     data_train_lst, data_val_lst, data_test_lst = [], [], []
 
-    # Go over each of the graph and assign correct label
-    for i in range(len(dataset)):
+    # Assign masks directly by iterating over pre-split indices
+    for i in split_idx["train"]:
         graph = dataset[i]
-        assigned = False
-        if i in split_idx["train"]:
-            graph.train_mask = torch.Tensor([1]).long()
-            graph.val_mask = torch.Tensor([0]).long()
-            graph.test_mask = torch.Tensor([0]).long()
-            data_train_lst.append(graph)
-            assigned = True
+        graph.train_mask = torch.tensor([1], dtype=torch.long)
+        graph.val_mask = torch.tensor([0], dtype=torch.long)
+        graph.test_mask = torch.tensor([0], dtype=torch.long)
+        data_train_lst.append(graph)
 
-        if i in split_idx["valid"]:
-            graph.train_mask = torch.Tensor([0]).long()
-            graph.val_mask = torch.Tensor([1]).long()
-            graph.test_mask = torch.Tensor([0]).long()
-            data_val_lst.append(graph)
-            assigned = True
+    for i in split_idx["valid"]:
+        graph = dataset[i]
+        graph.train_mask = torch.tensor([0], dtype=torch.long)
+        graph.val_mask = torch.tensor([1], dtype=torch.long)
+        graph.test_mask = torch.tensor([0], dtype=torch.long)
+        data_val_lst.append(graph)
 
-        if i in split_idx["test"]:
-            graph.train_mask = torch.Tensor([0]).long()
-            graph.val_mask = torch.Tensor([0]).long()
-            graph.test_mask = torch.Tensor([1]).long()
-            data_test_lst.append(graph)
-            assigned = True
-        if not assigned:
-            raise ValueError("Graph not in any split")
+    for i in split_idx["test"]:
+        graph = dataset[i]
+        graph.train_mask = torch.tensor([0], dtype=torch.long)
+        graph.val_mask = torch.tensor([0], dtype=torch.long)
+        graph.test_mask = torch.tensor([1], dtype=torch.long)
+        data_test_lst.append(graph)
 
     return (
         DataloadDataset(data_train_lst),

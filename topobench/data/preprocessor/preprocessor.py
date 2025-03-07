@@ -34,13 +34,7 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
     """
 
     def __init__(self, dataset, data_dir, transforms_config=None, **kwargs):
-        if isinstance(dataset, torch_geometric.data.Dataset):
-            data_list = [dataset.get(idx) for idx in range(len(dataset))]
-        elif isinstance(dataset, torch.utils.data.Dataset):
-            data_list = [dataset[idx] for idx in range(len(dataset))]
-        elif isinstance(dataset, torch_geometric.data.Data):
-            data_list = [dataset]
-        self.data_list = data_list
+        self.dataset = dataset
         if transforms_config is not None:
             self.transforms_applied = True
             pre_transform = self.instantiate_pre_transform(
@@ -168,10 +162,19 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
 
     def process(self) -> None:
         """Method that processes the data."""
+        if isinstance(self.dataset, torch_geometric.data.Dataset):
+            data_list = [
+                self.dataset.get(idx) for idx in range(len(self.dataset))
+            ]
+        elif isinstance(self.dataset, torch.utils.data.Dataset):
+            data_list = [self.dataset[idx] for idx in range(len(self.dataset))]
+        elif isinstance(self.dataset, torch_geometric.data.Data):
+            data_list = [self.dataset]
+
         self.data_list = (
-            [self.pre_transform(d) for d in self.data_list]
+            [self.pre_transform(d) for d in data_list]
             if self.pre_transform is not None
-            else self.data_list
+            else data_list
         )
 
         self._data, self.slices = self.collate(self.data_list)
