@@ -67,8 +67,8 @@ class TestNeighborhoodComplexLifting:
         """ Verify that the lifting procedure works on a random graph, that is, checks that the simplices generated share a neighbour."""
         lifted_data = self.lifting_high.forward(self.random_data)
         # For each set of simplices
-        r = max(int(key.split("_")[-1]) for key in list(lifted_data.keys()) if "x_idx_" in key)
-        idx_str = f"x_idx_{r}"
+        r = max(int(key.split("_")[-1]) for key in list(lifted_data.keys()) if "x_" in key)
+        idx_str = f"x_{r}"
 
         # Go over each (max_dim)-simplex
         for simplex_points in lifted_data[idx_str]:
@@ -79,8 +79,8 @@ class TestNeighborhoodComplexLifting:
         """ Verify that the lifting procedure works on a small star graph, that is, checks that the simplices generated share a neighbour."""
         lifted_data = self.lifting_high.forward(self.star_data)
         # For each set of simplices
-        r = max(int(key.split("_")[-1]) for key in list(lifted_data.keys()) if "x_idx_" in key)
-        idx_str = f"x_idx_{r}"
+        r = max(int(key.split("_")[-1]) for key in list(lifted_data.keys()) if "x_" in key)
+        idx_str = f"x_{r}"
 
         # Go over each (max_dim)-simplex
         for simplex_points in lifted_data[idx_str]:
