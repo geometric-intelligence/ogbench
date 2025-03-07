@@ -213,7 +213,9 @@ def infer_in_channels(dataset, transforms):
             assert (
                 type(dataset.parameters.num_features)
                 == omegaconf.listconfig.ListConfig
-            ), f"num_features should be a list of integers, not {type(dataset.parameters.num_features)}"
+            ), (
+                f"num_features should be a list of integers, not {type(dataset.parameters.num_features)}"
+            )
             # If preserve_edge_attr == False
             if not transforms[lifting].preserve_edge_attr:
                 if feature_lifting == "Concatenation":

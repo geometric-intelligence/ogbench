@@ -239,9 +239,9 @@ def load_transductive_splits(dataset, parameters):
         List containing the train, validation, and test splits.
     """
     # Extract labels from dataset object
-    assert (
-        len(dataset) == 1
-    ), "Dataset should have only one graph in a transductive setting."
+    assert len(dataset) == 1, (
+        "Dataset should have only one graph in a transductive setting."
+    )
 
     data = dataset.data_list[0]
     labels = data.y.numpy()
@@ -293,9 +293,9 @@ def load_inductive_splits(dataset, parameters):
         List containing the train, validation, and test splits.
     """
     # Extract labels from dataset object
-    assert (
-        len(dataset) > 1
-    ), "Datasets should have more than one graph in an inductive setting."
+    assert len(dataset) > 1, (
+        "Datasets should have more than one graph in an inductive setting."
+    )
     labels = np.array(
         [data.y.squeeze(0).numpy() for data in dataset.data_list]
     )

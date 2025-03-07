@@ -258,7 +258,7 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                     ]
                 elif "incidence" in neighborhood_type:
                     useful_connectivity[neighborhood] = (
-                        connectivity[f"incidence_{src_rank+1}"].T
+                        connectivity[f"incidence_{src_rank + 1}"].T
                         if "up" in neighborhood_type
                         else connectivity[f"incidence_{src_rank}"]
                     )
@@ -273,8 +273,8 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                     if direction == "up":
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank+1}"],
-                            connectivity[f"incidence_{src_rank+2}"],
+                            connectivity[f"incidence_{src_rank + 1}"],
+                            connectivity[f"incidence_{src_rank + 2}"],
                         )
                         for idx in range(src_rank + 3, src_rank + r + 1):
                             matrix = torch.sparse.mm(
@@ -297,8 +297,8 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                     elif direction == "down":
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank-r+1}"],
-                            connectivity[f"incidence_{src_rank-r+2}"],
+                            connectivity[f"incidence_{src_rank - r + 1}"],
+                            connectivity[f"incidence_{src_rank - r + 2}"],
                         )
                         for idx in range(src_rank - r + 3, src_rank + 1):
                             matrix = torch.sparse.mm(
@@ -323,8 +323,8 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                     if direction == "up":
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank+1}"],
-                            connectivity[f"incidence_{src_rank+2}"],
+                            connectivity[f"incidence_{src_rank + 1}"],
+                            connectivity[f"incidence_{src_rank + 2}"],
                         )
                         for idx in range(src_rank + 3, src_rank + r + 1):
                             matrix = torch.sparse.mm(
@@ -341,8 +341,8 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                     elif direction == "down":
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank-r+1}"],
-                            connectivity[f"incidence_{src_rank-r+2}"],
+                            connectivity[f"incidence_{src_rank - r + 1}"],
+                            connectivity[f"incidence_{src_rank - r + 2}"],
                         )
                         for idx in range(src_rank - r + 3, src_rank + 1):
                             matrix = torch.sparse.mm(

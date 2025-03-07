@@ -38,13 +38,13 @@ class MoGMSTLifting(PointCloud2HypergraphLifting):
     ):
         super().__init__(**kwargs)
         if min_components is not None:
-            assert (
-                min_components > 0
-            ), "Minimum number of components should be at least 1"
+            assert min_components > 0, (
+                "Minimum number of components should be at least 1"
+            )
         if max_components is not None:
-            assert (
-                max_components > 0
-            ), "Maximum number of components should be at least 1"
+            assert max_components > 0, (
+                "Maximum number of components should be at least 1"
+            )
         if min_components is not None and max_components is not None:
             assert min_components <= max_components, (
                 "Minimum number of components must be lower or equal to the"

@@ -163,7 +163,7 @@ else:
 
         if not (n - 1 >= d):
             raise nx.NetworkXError(
-                f"Need n-1>= d to have room for {d//2} independent cycles with {n} nodes"
+                f"Need n-1>= d to have room for {d // 2} independent cycles with {n} nodes"
             )
 
         G = nx.empty_graph(n, create_using)

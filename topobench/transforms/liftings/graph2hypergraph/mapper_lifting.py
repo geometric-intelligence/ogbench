@@ -91,7 +91,7 @@ class MapperCover:
             torch.logical_or(upper_values, upper_is_close_values),
         )
         # assert every data point is covered
-        assert torch.all(torch.any(mask, 1)), f"{torch.any(mask,1)}"
+        assert torch.all(torch.any(mask, 1)), f"{torch.any(mask, 1)}"
 
         # remove empty intervals from cover
         non_empty_covers = torch.any(mask, 0)
@@ -99,15 +99,15 @@ class MapperCover:
 
     def _verify_cover_parameters(self):
         """Verify the cover parameters for the MapperCover class."""
-        assert (
-            self.gain > 0 and self.gain <= 0.5
-        ), f"Gain must be a proportion greater than 0 and at most 0.5. Currently, gain is {self.gain}."
-        assert (
-            self.resolution > 0
-        ), f"Resolution should be greater than 0. Currently, resolution is {self.resolution}."
-        assert float(
-            self.resolution
-        ).is_integer(), f"Resolution must be an integer value. Currenly, resolution is {self.resolution}."
+        assert self.gain > 0 and self.gain <= 0.5, (
+            f"Gain must be a proportion greater than 0 and at most 0.5. Currently, gain is {self.gain}."
+        )
+        assert self.resolution > 0, (
+            f"Resolution should be greater than 0. Currently, resolution is {self.resolution}."
+        )
+        assert float(self.resolution).is_integer(), (
+            f"Resolution must be an integer value. Currenly, resolution is {self.resolution}."
+        )
 
 
 # Global filter dictionary for the MapperLifting class.
@@ -237,18 +237,18 @@ class MapperLifting(Graph2HypergraphLifting):
             Filter function used for Mapper construction.
         """
         if filter_func is None:
-            assert (
-                self.filter_attr in filter_dict
-            ), f"Please add function to filter_func or choose filter_attr from {list(filter_dict)}. \
+            assert self.filter_attr in filter_dict, (
+                f"Please add function to filter_func or choose filter_attr from {list(filter_dict)}. \
             Currently filter_func is {filter_func} and filter_attr is {filter_attr}."
+            )
         if filter_func is not None:
-            assert (
-                self.filter_attr not in filter_dict
-            ), f"Assign new filter_attr not in {list(filter_dict)} or leave filter_func as None. \
+            assert self.filter_attr not in filter_dict, (
+                f"Assign new filter_attr not in {list(filter_dict)} or leave filter_func as None. \
             Currently filter_func is {filter_func} and filter_attr is {filter_attr}"
-            assert isinstance(
-                filter_attr, str
-            ), f"{filter_attr} must be a string."
+            )
+            assert isinstance(filter_attr, str), (
+                f"{filter_attr} must be a string."
+            )
 
     def _filter(self, data):
         """Apply 1-dimensional filter function to torch_geometric.Data.
@@ -280,9 +280,9 @@ class MapperLifting(Graph2HypergraphLifting):
             transform = self.filter_func
             filtered_data = transform(data)
 
-        assert (
-            filtered_data.size() == torch.Size([len(data.x), 1])
-        ), f"filtered data should have size [n_samples, 1]. Currently filtered data has size {filtered_data.size()}."
+        assert filtered_data.size() == torch.Size([len(data.x), 1]), (
+            f"filtered data should have size [n_samples, 1]. Currently filtered data has size {filtered_data.size()}."
+        )
         self.filtered_data = {self.filter_attr: filtered_data}
 
         return filtered_data
