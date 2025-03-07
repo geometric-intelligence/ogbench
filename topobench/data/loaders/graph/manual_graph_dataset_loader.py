@@ -5,9 +5,9 @@ from typing import Any
 
 from omegaconf import DictConfig
 
-from topobenchmark.data.loaders.base import AbstractLoader
-from topobenchmark.data.utils import load_manual_graph
-from topobenchmark.dataloader import DataloadDataset
+from topobench.data.loaders.base import AbstractLoader
+from topobench.data.utils import load_manual_graph
+from topobench.dataloader import DataloadDataset
 
 
 class ManualGraphDatasetLoader(AbstractLoader):

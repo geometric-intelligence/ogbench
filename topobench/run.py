@@ -12,9 +12,9 @@ from lightning import Callback, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig, OmegaConf
 
-from topobenchmark.data.preprocessor import PreProcessor
-from topobenchmark.dataloader import TBDataloader
-from topobenchmark.utils import (
+from topobench.data.preprocessor import PreProcessor
+from topobench.dataloader import TBDataloader
+from topobench.utils import (
     RankedLogger,
     extras,
     get_metric_value,
@@ -23,7 +23,7 @@ from topobenchmark.utils import (
     log_hyperparameters,
     task_wrapper,
 )
-from topobenchmark.utils.config_resolvers import (
+from topobench.utils.config_resolvers import (
     get_default_metrics,
     get_default_transform,
     get_monitor_metric,

@@ -8,14 +8,14 @@ import torch
 import torch_geometric
 from torch_geometric.io import fs
 
-from topobenchmark.data.utils import (
+from topobench.data.utils import (
     ensure_serializable,
     load_inductive_splits,
     load_transductive_splits,
     make_hash,
 )
-from topobenchmark.dataloader import DataloadDataset
-from topobenchmark.transforms.data_transform import DataTransform
+from topobench.dataloader import DataloadDataset
+from topobench.transforms.data_transform import DataTransform
 
 
 class PreProcessor(torch_geometric.data.InMemoryDataset):

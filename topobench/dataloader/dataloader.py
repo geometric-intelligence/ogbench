@@ -5,8 +5,8 @@ from typing import Any
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
-from topobenchmark.dataloader.dataload_dataset import DataloadDataset
-from topobenchmark.dataloader.utils import collate_fn
+from topobench.dataloader.dataload_dataset import DataloadDataset
+from topobench.dataloader.utils import collate_fn
 
 
 class TBDataloader(LightningDataModule):

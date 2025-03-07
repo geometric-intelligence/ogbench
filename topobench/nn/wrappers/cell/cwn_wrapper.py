@@ -1,6 +1,6 @@
 """Wrapper for the CWN model."""
 
-from topobenchmark.nn.wrappers.base import AbstractWrapper
+from topobench.nn.wrappers.base import AbstractWrapper
 
 
 class CWNWrapper(AbstractWrapper):

@@ -2,8 +2,8 @@
 
 from omegaconf import DictConfig
 
-from topobenchmark.data.datasets import MantraDataset
-from topobenchmark.data.loaders.base import AbstractLoader
+from topobench.data.datasets import MantraDataset
+from topobench.data.loaders.base import AbstractLoader
 
 
 class MantraSimplicialDatasetLoader(AbstractLoader):

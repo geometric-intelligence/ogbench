@@ -2,8 +2,8 @@
 
 import torch_geometric
 
-from topobenchmark.nn.encoders.all_cell_encoder import BaseEncoder
-from topobenchmark.nn.encoders.base import AbstractFeatureEncoder
+from topobench.nn.encoders.all_cell_encoder import BaseEncoder
+from topobench.nn.encoders.base import AbstractFeatureEncoder
 
 from .kdgm import DGM_d
 

@@ -2,7 +2,7 @@
 
 import torch
 
-from topobenchmark.transforms.liftings.graph2cell import CellCycleLifting
+from topobench.transforms.liftings.graph2cell import CellCycleLifting
 
 
 class TestCellCycleLifting:
