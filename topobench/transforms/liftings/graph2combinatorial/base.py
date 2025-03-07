@@ -1,11 +1,14 @@
 """Abstract class for lifting graphs to combinatorial complexes."""
 
 from collections.abc import Iterable
+
 import torch_geometric
+
 from topobench.transforms.liftings.liftings import (
     AbstractLifting,
     GraphLifting,
 )
+
 
 class Graph2CombinatorialLifting(GraphLifting):
     r"""Abstract class for lifting graphs to combinatorial complexes.

@@ -154,7 +154,7 @@ def collate_fn(batch):
         # Back compatiility check
         assert torch.all(
             batch["batch_0"] == batch.pop("batch")
-        ), f"batch['batch_0'] and batch['batch] should match in the number of nodes"
+        ), "batch['batch_0'] and batch['batch] should match in the number of nodes"
         # batch["batch_0"] = batch.pop("batch")
 
     # Ensure shape is torch.Tensor

@@ -2,7 +2,6 @@
 
 import os
 from abc import ABC, abstractmethod
-from typing import Union
 from pathlib import Path
 
 import torch
@@ -39,7 +38,7 @@ class AbstractLoader(ABC):
     @abstractmethod
     def load_dataset(
         self,
-    ) -> Union[torch_geometric.data.Dataset, torch.utils.data.Dataset]:
+    ) -> torch_geometric.data.Dataset | torch.utils.data.Dataset:
         """Load data into a dataset.
 
         Raises

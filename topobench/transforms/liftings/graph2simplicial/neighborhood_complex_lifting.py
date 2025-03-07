@@ -1,10 +1,7 @@
 """This module implements the NeighborhoodComplexLifting class, which lifts graphs to simplicial complexes."""
 
-import networkx as nx
-import torch
 from toponetx.classes import SimplicialComplex
 from torch_geometric.data import Data
-from torch_geometric.utils.convert import to_networkx
 
 from topobench.transforms.liftings.graph2simplicial.base import (
     Graph2SimplicialLifting,

@@ -1,6 +1,5 @@
 """Abstract class for lifting hypergraphs to simplicial complexes."""
 
-import torch
 from toponetx.classes import SimplicialComplex
 
 from topobench.data.utils.utils import get_complex_connectivity
