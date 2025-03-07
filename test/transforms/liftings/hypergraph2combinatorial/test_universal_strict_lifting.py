@@ -17,7 +17,7 @@ class TestUniversalStrictLifting:
         self.data = load_manual_hypergraph()
 
         # Initialise the UniversalStrictLifting class
-        self.lifting = UniversalStrictLifting()
+        self.lifting = UniversalStrictLifting(complex_dim=3)
 
     def test_lift_topology(self):
         """Test the lift_topology method."""
