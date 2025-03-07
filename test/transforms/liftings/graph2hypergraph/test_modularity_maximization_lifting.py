@@ -98,7 +98,7 @@ class TestModularityMaximizationLifting:
         torch.manual_seed(42)
 
         # Test the lift_topology method
-        lifted_data = self.lifting.lift_topology(self.data.clone(), permute_x=False)
+        lifted_data = self.lifting.lift_topology(self.data.clone())
 
         expected_n_hyperedges = self.data.num_nodes
 
