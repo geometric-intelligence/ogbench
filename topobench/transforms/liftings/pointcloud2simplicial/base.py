@@ -2,8 +2,8 @@
 
 from toponetx.classes import SimplicialComplex
 
-from topobenchmark.data.utils.utils import get_complex_connectivity
-from topobenchmark.transforms.liftings.liftings import PointCloudLifting
+from topobench.data.utils.utils import get_complex_connectivity
+from topobench.transforms.liftings.liftings import PointCloudLifting
 
 
 class PointCloud2SimplicialLifting(PointCloudLifting):

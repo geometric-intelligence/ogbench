@@ -8,8 +8,8 @@ from torch_geometric.transforms import (
     ToUndirected,
 )
 
-from topobenchmark.data.utils.utils import load_manual_graph
-from topobenchmark.transforms.liftings.graph2hypergraph.mapper_lifting import MapperLifting
+from topobench.data.utils.utils import load_manual_graph
+from topobench.transforms.liftings.graph2hypergraph.mapper_lifting import MapperLifting
 
 expected_edge_incidence = torch.tensor([
     [1., 1., 1., 1., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.,

@@ -10,7 +10,7 @@ from torch_geometric.transforms import (
     ToUndirected,
 )
 
-from topobenchmark.transforms.liftings.graph2hypergraph.base import (
+from topobench.transforms.liftings.graph2hypergraph.base import (
     Graph2HypergraphLifting,
 )
 

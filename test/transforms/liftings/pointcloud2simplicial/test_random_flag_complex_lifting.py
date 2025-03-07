@@ -1,8 +1,8 @@
 """Test the message passing module."""
 
 
-from topobenchmark.data.utils.utils import load_manual_graph
-from topobenchmark.transforms.liftings.pointcloud2simplicial.random_flag_complex import (
+from topobench.data.utils.utils import load_manual_graph
+from topobench.transforms.liftings.pointcloud2simplicial.random_flag_complex import (
     RandomFlagComplexLifting,
 )
 

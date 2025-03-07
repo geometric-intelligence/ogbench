@@ -6,7 +6,7 @@ import networkx
 import torch
 import torch_geometric
 
-from topobenchmark.transforms.liftings.graph2hypergraph.base import (
+from topobench.transforms.liftings.graph2hypergraph.base import (
     Graph2HypergraphLifting,
 )
 

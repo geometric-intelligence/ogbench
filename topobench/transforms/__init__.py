@@ -1,32 +1,32 @@
-"""This module contains the transforms for the topobenchmark package."""
+"""This module contains the transforms for the topobench package."""
 
 from typing import Any
 
-from topobenchmark.transforms.data_manipulations import DATA_MANIPULATIONS
-from topobenchmark.transforms.feature_liftings import FEATURE_LIFTINGS
-from topobenchmark.transforms.liftings.graph2cell import GRAPH2CELL_LIFTINGS
-from topobenchmark.transforms.liftings.graph2hypergraph import (
+from topobench.transforms.data_manipulations import DATA_MANIPULATIONS
+from topobench.transforms.feature_liftings import FEATURE_LIFTINGS
+from topobench.transforms.liftings.graph2cell import GRAPH2CELL_LIFTINGS
+from topobench.transforms.liftings.graph2hypergraph import (
     GRAPH2HYPERGRAPH_LIFTINGS,
 )
-from topobenchmark.transforms.liftings.graph2simplicial import (
+from topobench.transforms.liftings.graph2simplicial import (
     GRAPH2SIMPLICIAL_LIFTINGS,
 )
-from topobenchmark.transforms.liftings.graph2combinatorial import (
+from topobench.transforms.liftings.graph2combinatorial import (
     GRAPH2COMBINATORIAL_LIFTINGS,
 )
-from topobenchmark.transforms.liftings.hypergraph2simplicial import (
+from topobench.transforms.liftings.hypergraph2simplicial import (
     HYPERGRAPH2SIMPLICIAL_LIFTINGS,
 )
-from topobenchmark.transforms.liftings.pointcloud2hypergraph import (
+from topobench.transforms.liftings.pointcloud2hypergraph import (
     POINTCLOUD2HYPERGRAPH_LIFTINGS,
 )
-from topobenchmark.transforms.liftings.pointcloud2simplicial import (
+from topobench.transforms.liftings.pointcloud2simplicial import (
     POINTCLOUD2SIMPLICIAL_LIFTINGS,
 )
-from topobenchmark.transforms.liftings.hypergraph2combinatorial import (
+from topobench.transforms.liftings.hypergraph2combinatorial import (
     HYPERGRAPH2COMBINATORIAL_LIFTINGS,
 )
-from topobenchmark.transforms.liftings.simplicial2combinatorial import (
+from topobench.transforms.liftings.simplicial2combinatorial import (
     SIMPLICIAL2COMBINATORIAL_LIFTINGS,
 )
 

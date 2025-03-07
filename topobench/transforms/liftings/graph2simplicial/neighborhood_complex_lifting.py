@@ -6,7 +6,7 @@ from toponetx.classes import SimplicialComplex
 from torch_geometric.data import Data
 from torch_geometric.utils.convert import to_networkx
 
-from topobenchmark.transforms.liftings.graph2simplicial.base import (
+from topobench.transforms.liftings.graph2simplicial.base import (
     Graph2SimplicialLifting,
 )
 

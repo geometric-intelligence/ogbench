@@ -2,8 +2,8 @@
 
 import torch
 
-from topobenchmark.data.utils.utils import load_manual_pointcloud
-from topobenchmark.transforms.liftings.pointcloud2hypergraph.voronoi_lifting import (
+from topobench.data.utils.utils import load_manual_pointcloud
+from topobench.transforms.liftings.pointcloud2hypergraph.voronoi_lifting import (
     VoronoiLifting,
 )
 

@@ -4,7 +4,7 @@ import gudhi
 import torch_geometric
 from toponetx.classes import SimplicialComplex
 
-from topobenchmark.transforms.liftings.pointcloud2simplicial.base import (
+from topobench.transforms.liftings.pointcloud2simplicial.base import (
     PointCloud2SimplicialLifting,
 )
 

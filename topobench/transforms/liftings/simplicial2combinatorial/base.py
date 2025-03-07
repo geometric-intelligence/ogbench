@@ -1,6 +1,6 @@
 """General class for lifting simplicial complexes to combinatorial complexes."""
 
-from topobenchmark.transforms.liftings.liftings import SimplicialLifting
+from topobench.transforms.liftings.liftings import SimplicialLifting
 
 
 class Simplicial2CombinatorialLifting(SimplicialLifting):

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch_geometric.data import Data
 
-from topobenchmark.transforms.liftings.pointcloud2hypergraph.mogmst_lifting import (
+from topobench.transforms.liftings.pointcloud2hypergraph.mogmst_lifting import (
     MoGMSTLifting,
 )
 

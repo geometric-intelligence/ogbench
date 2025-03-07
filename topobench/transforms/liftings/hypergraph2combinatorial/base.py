@@ -2,10 +2,10 @@
 
 from toponetx.classes import CombinatorialComplex
 
-from topobenchmark.data.utils.utils import (
+from topobench.data.utils.utils import (
     get_combinatorial_complex_connectivity,
 )
-from topobenchmark.transforms.liftings.liftings import HypergraphLifting
+from topobench.transforms.liftings.liftings import HypergraphLifting
 
 
 class Hypergraph2CombinatorialLifting(HypergraphLifting):

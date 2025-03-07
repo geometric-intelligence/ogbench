@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 import torch_geometric
-from topobenchmark.transforms.liftings.liftings import (
+from topobench.transforms.liftings.liftings import (
     AbstractLifting,
     GraphLifting,
 )

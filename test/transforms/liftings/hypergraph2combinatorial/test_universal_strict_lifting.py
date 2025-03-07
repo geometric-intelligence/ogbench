@@ -2,8 +2,8 @@
 
 import torch
 
-from topobenchmark.data.utils.utils import load_manual_hypergraph
-from topobenchmark.transforms.liftings.hypergraph2combinatorial.universal_strict_lifting import (
+from topobench.data.utils.utils import load_manual_hypergraph
+from topobench.transforms.liftings.hypergraph2combinatorial.universal_strict_lifting import (
     UniversalStrictLifting,
 )
 

@@ -5,8 +5,8 @@ import torch
 import torch.nn.functional as F
 import torch_geometric
 
-from topobenchmark.data.utils.utils import load_manual_graph
-from topobenchmark.transforms.liftings.graph2hypergraph.kernel_lifting import (
+from topobench.data.utils.utils import load_manual_graph
+from topobench.transforms.liftings.graph2hypergraph.kernel_lifting import (
      HypergraphKernelLifting,
      get_combination,
      get_feat_kernel,

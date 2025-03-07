@@ -3,7 +3,7 @@
 import torch
 import torch_geometric as pyg
 
-from topobenchmark.transforms.liftings.pointcloud2hypergraph.pointnet_lifting import (
+from topobench.transforms.liftings.pointcloud2hypergraph.pointnet_lifting import (
     PointNetLifting,
 )
 

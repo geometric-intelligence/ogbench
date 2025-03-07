@@ -1,5 +1,5 @@
 """
-Class for automated testing of neural network topobenchmark.
+Class for automated testing of neural network topobench.
 """
 
 import torch

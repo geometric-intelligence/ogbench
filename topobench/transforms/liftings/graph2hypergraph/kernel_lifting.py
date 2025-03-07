@@ -8,7 +8,7 @@ import torch_geometric
 import torch_geometric.utils
 from scipy.linalg import fractional_matrix_power as fmp
 
-from topobenchmark.transforms.liftings.graph2hypergraph.base import (
+from topobench.transforms.liftings.graph2hypergraph.base import (
     Graph2HypergraphLifting,
 )
 

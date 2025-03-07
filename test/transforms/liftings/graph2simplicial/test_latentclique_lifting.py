@@ -6,8 +6,8 @@ import networkx as nx
 import torch
 from torch_geometric.data import Data
 
-from topobenchmark.data.utils.utils import load_manual_graph
-from topobenchmark.transforms.liftings.graph2simplicial.latentclique_lifting import (
+from topobench.data.utils.utils import load_manual_graph
+from topobench.transforms.liftings.graph2simplicial.latentclique_lifting import (
     LatentCliqueLifting,
 )
 

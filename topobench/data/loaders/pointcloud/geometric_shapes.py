@@ -4,7 +4,7 @@ from omegaconf import DictConfig
 from torch_geometric.data import Dataset
 from torch_geometric.datasets import GeometricShapes
 
-from topobenchmark.data.loaders.base import AbstractLoader
+from topobench.data.loaders.base import AbstractLoader
 
 
 def rename_pos_to_x(data):
