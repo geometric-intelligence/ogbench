@@ -55,8 +55,29 @@ def test_discrete_configuration_complex_lifting_lift_topology(mock_data):
     assert "adjacency_0" in lifted_topology
     assert "adjacency_1" in lifted_topology
 
-if __name__ == "__main__":
-    pytest.main()
+class TestDiscreteConfigurationComplexLifting:
+    """Test the DiscreteConfigurationComplexLifting class."""
+
+    def setup_method(self):
+        """Initialise the DiscreteConfigurationComplexLifting class."""
+        self.lifting_concat = DiscreteConfigurationComplexLifting(k=2, complex_dim=2, feature_aggregation="concat")
+        self.lifting_sum = DiscreteConfigurationComplexLifting(k=2, complex_dim=2, feature_aggregation="sum")
+        self.lifting_mean = DiscreteConfigurationComplexLifting(k=2, complex_dim=2, feature_aggregation="mean")
+
+    def test_lift_topology(self, simple_graph_1):
+        """Test the lift_topology method.
+        
+        Parameters
+        ----------
+        simple_graph_1 : Data
+            A simple graph used for testing.
+        """
+        data = simple_graph_1
+        
+        assert self.lifting_concat.forward(data.clone()).incidence_1.shape[1] == 156, "Something is wrong with incidence_1."
+        assert self.lifting_sum.forward(data.clone()).incidence_1.shape[1] == 156, "Something is wrong with incidence_1."
+        assert self.lifting_mean.forward(data.clone()).incidence_1.shape[1] == 156, "Something is wrong with incidence_1."
+
     
 
 # import torch

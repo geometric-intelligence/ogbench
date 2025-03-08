@@ -49,10 +49,9 @@ class DiscreteConfigurationComplexLifting(Graph2CellLifting):
     ):
         self.k = k
         self.complex_dim = kwargs["complex_dim"]
-        if feature_aggregation not in ["mean", "sum", "concat"]:
-            raise ValueError(
-                "feature_aggregation must be one of 'mean', 'sum', 'concat'"
-            )
+        assert feature_aggregation in ["mean", "sum", "concat"], (
+            "Feature_aggregation must be one of 'mean', 'sum', 'concat'"
+        )
         self.feature_aggregation = feature_aggregation
         super().__init__(preserve_edge_attr=preserve_edge_attr, **kwargs)
 
@@ -91,8 +90,7 @@ class DiscreteConfigurationComplexLifting(Graph2CellLifting):
             The lifted topology.
         """
         G = self._generate_graph_from_data(data)
-        if G.is_directed():
-            raise ValueError("Directed Graphs are not supported.")
+        assert not G.is_directed(), "Directed Graphs are not supported."
 
         Configuration = generate_configuration_class(
             G, self.feature_aggregation, self.contains_edge_attr
