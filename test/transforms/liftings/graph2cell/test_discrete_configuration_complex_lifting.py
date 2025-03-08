@@ -1,4 +1,63 @@
 """Test the discrete config. complex lifting."""
+import pytest
+import torch
+import torch_geometric
+from unittest.mock import MagicMock
+from topobench.transforms.liftings.graph2cell.discrete_configuration_complex_lifting import DiscreteConfigurationComplexLifting
+
+@pytest.fixture
+def mock_data():
+    """Create a mock data object for testing.
+    
+    Returns
+    -------
+    MagicMock
+        A mock object representing a graph data.
+    """
+    data = MagicMock(spec=torch_geometric.data.Data)
+    data.y = torch.tensor([1, 0])
+    data.edge_index = torch.tensor([[0, 1], [1, 0]])
+    data.x = torch.tensor([[1, 2], [3, 4]])
+    data.num_nodes = 2
+    return data
+
+def test_discrete_configuration_complex_lifting_init():
+    """Test the initialization of the DiscreteConfigurationComplexLifting class."""
+    lifting = DiscreteConfigurationComplexLifting(k=2, complex_dim=2)
+    assert lifting.k == 2
+    assert lifting.complex_dim == 2
+    assert lifting.feature_aggregation == "concat"
+
+def test_discrete_configuration_complex_lifting_forward(mock_data):
+    """Test the forward method of the DiscreteConfigurationComplexLifting class.
+    
+    Parameters
+    ----------
+    mock_data : MagicMock
+        A mock object representing a graph data.
+    """
+    lifting = DiscreteConfigurationComplexLifting(k=2, complex_dim=2)
+    lifted_data = lifting.forward(mock_data)
+    assert isinstance(lifted_data, torch_geometric.data.Data)
+    assert torch.equal(lifted_data.y, mock_data.y)
+
+def test_discrete_configuration_complex_lifting_lift_topology(mock_data):
+    """Test the lift_topology method of the DiscreteConfigurationComplexLifting class.
+    
+    Parameters
+    ----------
+    mock_data : MagicMock
+        A mock object representing a graph data.
+    """
+    lifting = DiscreteConfigurationComplexLifting(k=2, complex_dim=2)
+    lifted_topology = lifting.lift_topology(mock_data)
+    assert isinstance(lifted_topology, dict)
+    assert "adjacency_0" in lifted_topology
+    assert "adjacency_1" in lifted_topology
+
+if __name__ == "__main__":
+    pytest.main()
+    
 
 # import torch
 

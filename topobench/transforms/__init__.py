@@ -5,9 +5,6 @@ from typing import Any
 from topobench.transforms.data_manipulations import DATA_MANIPULATIONS
 from topobench.transforms.feature_liftings import FEATURE_LIFTINGS
 from topobench.transforms.liftings.graph2cell import GRAPH2CELL_LIFTINGS
-from topobench.transforms.liftings.graph2combinatorial import (
-    GRAPH2COMBINATORIAL_LIFTINGS,
-)
 from topobench.transforms.liftings.graph2hypergraph import (
     GRAPH2HYPERGRAPH_LIFTINGS,
 )
@@ -16,9 +13,6 @@ from topobench.transforms.liftings.graph2simplicial import (
 )
 from topobench.transforms.liftings.hypergraph2combinatorial import (
     HYPERGRAPH2COMBINATORIAL_LIFTINGS,
-)
-from topobench.transforms.liftings.hypergraph2simplicial import (
-    HYPERGRAPH2SIMPLICIAL_LIFTINGS,
 )
 from topobench.transforms.liftings.pointcloud2hypergraph import (
     POINTCLOUD2HYPERGRAPH_LIFTINGS,
@@ -34,8 +28,6 @@ LIFTINGS = {
     **GRAPH2CELL_LIFTINGS,
     **GRAPH2HYPERGRAPH_LIFTINGS,
     **GRAPH2SIMPLICIAL_LIFTINGS,
-    **GRAPH2COMBINATORIAL_LIFTINGS,
-    **HYPERGRAPH2SIMPLICIAL_LIFTINGS,
     **POINTCLOUD2HYPERGRAPH_LIFTINGS,
     **POINTCLOUD2SIMPLICIAL_LIFTINGS,
     **HYPERGRAPH2COMBINATORIAL_LIFTINGS,
