@@ -19,12 +19,14 @@ class MoGMSTLifting(PointCloud2HypergraphLifting):
 
     Parameters
     ----------
-    min_components : int
+    min_components : int or None, optional
         The minimum number of components for the Mixture of Gaussians model.
-    max_components : int
+        It needs to be at least 1 (default: None).
+    max_components : int or None, optional
         The maximum number of components for the Mixture of Gaussians model.
-    random_state : int
-        The random state for the Mixture of Gaussians model.
+        It needs to be greater or equal than min_components (default: None).
+    random_state : int, optional
+        The random state for the Mixture of Gaussians model (default: None).
     **kwargs : optional
         Additional arguments for the class.
     """
@@ -37,19 +39,6 @@ class MoGMSTLifting(PointCloud2HypergraphLifting):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if min_components is not None:
-            assert min_components > 0, (
-                "Minimum number of components should be at least 1"
-            )
-        if max_components is not None:
-            assert max_components > 0, (
-                "Maximum number of components should be at least 1"
-            )
-        if min_components is not None and max_components is not None:
-            assert min_components <= max_components, (
-                "Minimum number of components must be lower or equal to the"
-                " maximum number of components."
-            )
         self.min_components = min_components
         self.max_components = max_components
         self.random_state = random_state
@@ -121,6 +110,9 @@ class MoGMSTLifting(PointCloud2HypergraphLifting):
         tuple[np.ndarray, int, np.ndarray]
             The labels of the data, the number of components and the means of the components.
         """
+        possible_num_components = [
+            self.min_components if self.min_components is not None else 1
+        ]
         if self.min_components is not None and self.max_components is not None:
             possible_num_components = range(
                 self.min_components, self.max_components + 1
@@ -129,20 +121,6 @@ class MoGMSTLifting(PointCloud2HypergraphLifting):
             possible_num_components = [
                 2**i for i in range(1, int(np.log2(data.shape[0] / 2)) + 1)
             ]
-        else:
-            if self.min_components is not None:
-                num_components = self.min_components
-            elif self.max_components is not None:
-                num_components = self.max_components
-            else:
-                # Cannot happen
-                num_components = 1
-
-            gm = GaussianMixture(
-                n_components=num_components, random_state=self.random_state
-            )
-            labels = gm.fit_predict(data)
-            return labels, num_components, gm.means_
 
         best_score = float("inf")
         best_labels = None

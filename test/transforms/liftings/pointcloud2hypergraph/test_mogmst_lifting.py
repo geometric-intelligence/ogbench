@@ -32,6 +32,7 @@ class TestMoGMSTLifting:
 
         # Initialise the HypergraphKHopLifting class
         self.lifting = MoGMSTLifting(min_components=3, random_state=0)
+        self.lifting2 = MoGMSTLifting(random_state=0)
 
     def test_find_mog(self):
         """Test the find_mog method."""
@@ -49,6 +50,12 @@ class TestMoGMSTLifting:
             and labels[3] != labels[6]
             and labels[0] != labels[6]
         ), "Labels have not been assigned correctly"
+        
+        labels, num_components, means = self.lifting2.find_mog(
+            self.data.clone().x.numpy()
+        )
+        
+        assert num_components == 4, "Wrong number of components"
 
     def test_lift_topology(self):
         """Test the lift_topology method."""
