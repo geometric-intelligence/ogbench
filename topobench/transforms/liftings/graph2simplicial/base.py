@@ -66,4 +66,12 @@ class Graph2SimplicialLifting(GraphLifting):
                     ).values()
                 )
             )
+        elif self.contains_edge_attr and simplicial_complex.shape[1] != (
+            graph.number_of_edges()
+        ):
+            # Stop the processing to avoid errors
+            raise ValueError(
+                f" The variable self.contains_edge_attr is {self.contains_edge_attr} however number of edges (1-cells) is not equal to the number of edges (1-cells) in the original graph. The number of edges in the simplicial complex is {simplicial_complex.shape[1]} and the number of edges in the original graph is {graph.number_of_edges()}. This is not expected behavior. Please, check your code. Please set self.contains_edge_attr to False or chose other lifting method that preserves number of edges (1-cells) (For example cluque lifting)."
+            )
+
         return lifted_topology

@@ -1,4 +1,4 @@
-"""Unit tests for cell model wrappers"""
+"""Unit tests for cell model wrappers."""
 
 import torch
 from torch_geometric.utils import get_laplacian
@@ -21,7 +21,15 @@ from unittest.mock import MagicMock
 
 
 class TestCellWrappers:
+    """Test cell model wrappers."""
     def test_CCCNWrapper(self, sg1_clique_lifted):
+        """Test CCCNWrapper.
+        
+        Parameters
+        ----------
+        sg1_clique_lifted : torch_geometric.data.Data
+            A fixture of simple graph 1 lifted with CellLifting.
+        """
         data = sg1_clique_lifted
         out_channels = data.x_1.shape[1]
         num_cell_dimensions = 2
@@ -39,6 +47,13 @@ class TestCellWrappers:
             assert key in out
 
     def test_CCXNWrapper(self, sg1_cell_lifted):
+        """Test CCXNWrapper.
+        
+        Parameters
+        ----------
+        sg1_cell_lifted : torch_geometric.data.Data
+            A fixture of simple graph 1 lifted with CellLifting.
+        """
         data = sg1_cell_lifted
         out_channels = data.x_1.shape[1]
         num_cell_dimensions = 2
@@ -56,6 +71,13 @@ class TestCellWrappers:
             assert key in out
 
     def test_CWNWrapper(self, sg1_cell_lifted):
+        """Test CWNWrapper.
+        
+        Parameters
+        ----------
+        sg1_cell_lifted : torch_geometric.data.Data
+            A fixture of simple graph 1 lifted with CellLifting.
+        """
         data = sg1_cell_lifted
         out_channels = data.x_1.shape[1]
         hid_channels = data.x_1.shape[1]

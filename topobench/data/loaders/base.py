@@ -4,6 +4,7 @@ import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import torch
 import torch_geometric
 from omegaconf import DictConfig
 
@@ -35,13 +36,20 @@ class AbstractLoader(ABC):
         return os.path.join(self.root_data_dir, self.parameters.data_name)
 
     @abstractmethod
-    def load_dataset(self) -> torch_geometric.data.Data:
-        """Load data into Data.
+    def load_dataset(
+        self,
+    ) -> torch_geometric.data.Dataset | torch.utils.data.Dataset:
+        """Load data into a dataset.
 
         Raises
         ------
         NotImplementedError
             If the method is not implemented.
+
+        Returns
+        -------
+        Union[torch_geometric.data.Dataset, torch.utils.data.Dataset]
+            The loaded dataset, which could be a PyG or PyTorch dataset.
         """
         raise NotImplementedError
 

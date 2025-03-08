@@ -114,41 +114,48 @@ def collate_fn(batch):
         # Generate batch_slice values for x_1, x_2, x_3, ...
         x_keys = [el for el in keys if ("x_" in el)]
         for x_key in x_keys:
-            if x_key != "x_0":
-                if x_key != "x_hyperedges":
-                    cell_dim = int(x_key.split("_")[1])
-                else:
-                    cell_dim = x_key.split("_")[1]
+            # if x_key != "x_0":
+            if x_key != "x_hyperedges":
+                cell_dim = int(x_key.split("_")[1])
+            else:
+                cell_dim = x_key.split("_")[1]
 
-                current_number_of_cells = data[x_key].shape[0]
+            current_number_of_cells = data[x_key].shape[0]
 
-                batch_idx_dict[f"batch_{cell_dim}"].append(
-                    torch.tensor([[batch_idx] * current_number_of_cells])
+            batch_idx_dict[f"batch_{cell_dim}"].append(
+                torch.tensor([[batch_idx] * current_number_of_cells])
+            )
+
+            if running_idx.get(f"cell_running_idx_number_{cell_dim}") is None:
+                running_idx[f"cell_running_idx_number_{cell_dim}"] = (
+                    current_number_of_cells
                 )
 
-                if (
-                    running_idx.get(f"cell_running_idx_number_{cell_dim}")
-                    is None
-                ):
-                    running_idx[f"cell_running_idx_number_{cell_dim}"] = (
-                        current_number_of_cells
-                    )
-
-                else:
-                    running_idx[f"cell_running_idx_number_{cell_dim}"] += (
-                        current_number_of_cells
-                    )
+            else:
+                running_idx[f"cell_running_idx_number_{cell_dim}"] += (
+                    current_number_of_cells
+                )
 
         data_list.append(data)
 
     batch = torch_geometric.data.Batch.from_data_list(data_list)
 
-    # Rename batch.batch to batch.batch_0 for consistency
-    batch["batch_0"] = batch.pop("batch")
+    # # Rename batch.batch to batch.batch_0 for consistency
+    # if batch.get("shape") is not None:
+    #     assert torch.all(batch["batch_0"] == batch.pop("batch"))
+    #     # batch["batch_0"] = batch.pop("batch")
 
     # Add batch slices to batch
     for key, value in batch_idx_dict.items():
         batch[key] = torch.cat(value, dim=1).squeeze(0).long()
+
+    # Rename batch.batch to batch.batch_0 for consistency
+    if (batch.get("batch") is not None) and (batch.get("batch_0") is not None):
+        # Back compatiility check
+        assert torch.all(batch["batch_0"] == batch.pop("batch")), (
+            "batch['batch_0'] and batch['batch] should match in the number of nodes"
+        )
+        # batch["batch_0"] = batch.pop("batch")
 
     # Ensure shape is torch.Tensor
     # "shape" describes the number of n_cells in each graph

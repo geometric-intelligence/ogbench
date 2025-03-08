@@ -67,8 +67,8 @@ class PropagateSignalDown(AbstractZeroCellReadOut):
                 model_out[f"x_{i}"], batch[f"incidence_{i}"]
             )
             x_i = getattr(self, f"ln_{i}")(x_i)
-            model_out[f"x_{i-1}"] = getattr(self, f"projector_{i}")(
-                torch.cat([x_i, model_out[f"x_{i-1}"]], dim=1)
+            model_out[f"x_{i - 1}"] = getattr(self, f"projector_{i}")(
+                torch.cat([x_i, model_out[f"x_{i - 1}"]], dim=1)
             )
 
         return model_out

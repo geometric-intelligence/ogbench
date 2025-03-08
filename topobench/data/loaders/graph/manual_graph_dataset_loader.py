@@ -23,9 +23,9 @@ class ManualGraphDatasetLoader(AbstractLoader):
 
     def __init__(self, parameters: DictConfig) -> None:
         super().__init__(parameters)
-        assert (
-            self.parameters.data_dir
-        ), "The 'data_dir' parameter must be provided."
+        assert self.parameters.data_dir, (
+            "The 'data_dir' parameter must be provided."
+        )
 
     def load_dataset(self) -> Any:
         """Load the manual graph dataset.

@@ -158,6 +158,7 @@ def infer_in_channels(dataset, transforms):
             "pointcloud2combinatorial_lifting",
             "pointcloud2hypergraph_lifting",
             "pointcloud2cell_lifting",
+            "hypergraph2combinatorial_lifting",
         ]
         for t in complex_transforms:
             if t in transforms:
@@ -192,6 +193,7 @@ def infer_in_channels(dataset, transforms):
         # Get type of feature lifting
         feature_lifting = check_for_type_feature_lifting(transforms, lifting)
 
+        # Check if the dataset.parameters.num_features defines a single value or a list
         if isinstance(dataset.parameters.num_features, int):
             # Case when the dataset has no edge attributes
             if feature_lifting == "Concatenation":
@@ -206,8 +208,15 @@ def infer_in_channels(dataset, transforms):
                 return [dataset.parameters.num_features] * transforms[
                     lifting
                 ].complex_dim
+        # Case when the dataset has edge attributes (cells attributes)
         else:
-            # Case when the dataset has edge attributes
+            assert (
+                type(dataset.parameters.num_features)
+                is omegaconf.listconfig.ListConfig
+            ), (
+                f"num_features should be a list of integers, not {type(dataset.parameters.num_features)}"
+            )
+            # If preserve_edge_attr == False
             if not transforms[lifting].preserve_edge_attr:
                 if feature_lifting == "Concatenation":
                     return_value = [dataset.parameters.num_features[0]]
@@ -221,7 +230,7 @@ def infer_in_channels(dataset, transforms):
                     return [dataset.parameters.num_features[0]] * transforms[
                         lifting
                     ].complex_dim
-
+            # If preserve_edge_attr == True
             else:
                 return list(dataset.parameters.num_features) + [
                     dataset.parameters.num_features[1]

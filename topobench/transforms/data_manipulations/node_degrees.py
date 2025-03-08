@@ -64,9 +64,9 @@ class NodeDegrees(torch_geometric.transforms.BaseTransform):
         if data[field].is_sparse:
             degrees = abs(data[field].to_dense()).sum(1)
         else:
-            assert (
-                field == "edge_index"
-            ), "Following logic of finding degrees is only implemented for edge_index"
+            assert field == "edge_index", (
+                "Following logic of finding degrees is only implemented for edge_index"
+            )
 
             # Get number of nodes
             if data.get("num_nodes", None):

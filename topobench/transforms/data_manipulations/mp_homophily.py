@@ -35,15 +35,14 @@ class MessagePassingHomophily(torch_geometric.transforms.BaseTransform):
             "incidence_field", "incidence_hyperedges"
         )
 
-        assert (
-            self.incidence_field
-            in [
-                "incidence_hyperedges",
-                "incidence_0",
-                "incidence_1",
-                "incidence_2",
-            ]
-        ), f"Incidence field must be one of ['incidence_hyperedges', 'incidence_0', 'incidence_1', 'incidence_2'], but got {self.incidence_field}"
+        assert self.incidence_field in [
+            "incidence_hyperedges",
+            "incidence_0",
+            "incidence_1",
+            "incidence_2",
+        ], (
+            f"Incidence field must be one of ['incidence_hyperedges', 'incidence_0', 'incidence_1', 'incidence_2'], but got {self.incidence_field}"
+        )
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(type={self.type!r})"

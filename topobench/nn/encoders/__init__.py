@@ -70,13 +70,15 @@ class LoadManager:
                 module = importlib.import_module(module_name)
 
                 # Find all encoder classes in the module
-                for name, obj in inspect.getmembers(module):
+                new_encoders = {
+                    name: obj
+                    for name, obj in inspect.getmembers(module)
                     if (
                         cls.is_encoder_class(obj)
                         and obj.__module__ == module.__name__
-                    ):
-                        encoders[name] = obj  # noqa: PERF403
-
+                    )
+                }
+                encoders.update(new_encoders)
             except ImportError as e:
                 print(f"Could not import module {module_name}: {e}")
 

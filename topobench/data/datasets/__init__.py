@@ -74,16 +74,18 @@ class DatasetManager:
                 spec.loader.exec_module(module)
 
                 # Find all dataset classes in the module
-                for name, obj in inspect.getmembers(module):
+                new_datasets = {
+                    name: obj
+                    for name, obj in inspect.getmembers(module)
                     if (
                         inspect.isclass(obj)
                         and obj.__module__ == module.__name__
                         and not name.startswith("_")
                         and issubclass(obj, InMemoryDataset)
                         and obj != InMemoryDataset
-                    ):
-                        datasets[name] = obj  # noqa: PERF403
-
+                    )
+                }
+                datasets.update(new_datasets)
         return datasets
 
     @classmethod

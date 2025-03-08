@@ -62,9 +62,9 @@ class TBDataloader(LightningDataModule):
             # Transductive setting
             self.dataset_val = dataset_train
             self.dataset_test = dataset_train
-            assert (
-                self.batch_size == 1
-            ), "Batch size must be 1 for transductive setting."
+            assert self.batch_size == 1, (
+                "Batch size must be 1 for transductive setting."
+            )
         else:
             self.dataset_val = dataset_val
             self.dataset_test = dataset_test

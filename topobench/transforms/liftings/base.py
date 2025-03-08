@@ -22,6 +22,7 @@ class AbstractLifting(torch_geometric.transforms.BaseTransform):
         super().__init__()
         self.feature_lifting = FEATURE_LIFTINGS[feature_lifting]()
         self.neighborhoods = kwargs.get("neighborhoods")
+        self.complex_dim = kwargs.get("complex_dim")
 
     @abstractmethod
     def lift_topology(self, data: torch_geometric.data.Data) -> dict:
@@ -57,4 +58,7 @@ class AbstractLifting(torch_geometric.transforms.BaseTransform):
         initial_data = data.to_dict()
         lifted_topology = self.lift_topology(data)
         lifted_topology = self.feature_lifting(lifted_topology)
+        # Remove the original features to avoid conflict with the feature lifting
+        if "x_0" in initial_data:
+            del initial_data["x_0"]
         return torch_geometric.data.Data(**initial_data, **lifted_topology)
