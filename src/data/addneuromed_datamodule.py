@@ -109,6 +109,8 @@ class AddNeuroMedDataModule(LightningDataModule):
         }
         
         self.raw_data: pd.DataFrame = pd.DataFrame()
+        common_genes: set[str] | None = None
+        frames: list[pd.DataFrame] = []
         for dataset, url in datasets.items():
             gz_path: str = os.path.join(self.hparams.data_dir, f"{dataset}.txt.gz")
             if not os.path.exists(gz_path):
@@ -120,7 +122,16 @@ class AddNeuroMedDataModule(LightningDataModule):
                     print(f"Error downloading {dataset}: {str(e)}")
                     raise
             data: pd.DataFrame = self._read_microarray_data(gz_path).transpose()
-            self.raw_data = pd.concat([self.raw_data, data], axis=0)
+            frames.append(data)
+        # Find common genes between the two datasets
+        common_genes = list(set(frames[0].columns).intersection(set(frames[1].columns)))    
+        # Filter the two datasets to only include common genes
+        frames[0] = frames[0][common_genes]
+        frames[1] = frames[1][common_genes]
+        # Concatenate the two datasets
+        self.raw_data = pd.concat(frames, axis=0)
+        
+
         
 
     def setup(self, stage: Optional[str] = None) -> None:
