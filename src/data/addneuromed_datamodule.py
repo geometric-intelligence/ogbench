@@ -1,42 +1,41 @@
 from typing import Any, Dict, Optional, Tuple
-
 import os
 import pandas as pd
 import requests
+import tarfile
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision.transforms import transforms
 from tqdm import tqdm
-
+import gzip
 
 class AddNeuroMedDataset(Dataset):
     """Dataset class for AddNeuroMed data."""
     
-    def __init__(self, data: pd.DataFrame, transform=None):
-        self.data = data
-        self.transform = transform
+    def __init__(self, data: pd.DataFrame, transform: Optional[transforms.Compose] = None) -> None:
+        self.data: pd.DataFrame = data
+        self.transform: Optional[transforms.Compose] = transform
         
     def __len__(self) -> int:
         return len(self.data)
         
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         # Get features and target
-        features = torch.tensor(self.data.iloc[idx, :-1].values, dtype=torch.float32)
-        target = torch.tensor(self.data.iloc[idx, -1], dtype=torch.long)
+        features: torch.Tensor = torch.tensor(self.data.iloc[idx, :-1].values, dtype=torch.float32)
+        target: torch.Tensor = torch.tensor(self.data.iloc[idx, -1], dtype=torch.long)
         
         if self.transform:
             features = self.transform(features)
             
         return features, target
 
-
 class AddNeuroMedDataModule(LightningDataModule):
     """`LightningDataModule` for the AddNeuroMed dataset."""
 
     def __init__(
         self,
-        data_dir: str = "addneuromed_data/",
+        data_dir: str = "data/addneuromed/",
         train_val_test_split: Tuple[float, float, float] = (0.7, 0.15, 0.15),
         batch_size: int = 64,
         num_workers: int = 0,
@@ -44,7 +43,7 @@ class AddNeuroMedDataModule(LightningDataModule):
     ) -> None:
         """Initialize a `AddNeuroMedDataModule`.
 
-        :param data_dir: The data directory. Defaults to `"addneuromed_data/"`.
+        :param data_dir: The data directory. Defaults to `"data/addneuromed/"`.
         :param train_val_test_split: The train, validation and test split ratios. Defaults to `(0.7, 0.15, 0.15)`.
         :param batch_size: The batch size. Defaults to `64`.
         :param num_workers: The number of workers. Defaults to `0`.
@@ -55,7 +54,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
         # data transformations
-        self.transforms = transforms.Compose([
+        self.transforms: transforms.Compose = transforms.Compose([
             transforms.Normalize(mean=[0.0], std=[1.0])  # Standardize features
         ])
 
@@ -63,7 +62,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
 
-        self.batch_size_per_device = batch_size
+        self.batch_size_per_device: int = batch_size
 
     @property
     def num_classes(self) -> int:
@@ -75,8 +74,8 @@ class AddNeuroMedDataModule(LightningDataModule):
 
     def _download_file(self, url: str, output_path: str) -> None:
         """Download a file with progress bar."""
-        response = requests.get(url, stream=True)
-        total_size = int(response.headers.get('content-length', 0))
+        response: requests.Response = requests.get(url, stream=True)
+        total_size: int = int(response.headers.get('content-length', 0))
         
         with open(output_path, 'wb') as f, tqdm(
             desc=os.path.basename(output_path),
@@ -86,8 +85,14 @@ class AddNeuroMedDataModule(LightningDataModule):
             unit_divisor=1024,
         ) as pbar:
             for data in response.iter_content(chunk_size=1024):
-                size = f.write(data)
+                size: int = f.write(data)
                 pbar.update(size)
+
+
+    def _read_microarray_data(self, gz_path: str) -> pd.DataFrame:
+        """Read microarray data from gzipped file."""
+        with gzip.open(gz_path, 'rt') as f:
+            return pd.read_csv(f, sep='\t', comment='!')
 
     def prepare_data(self) -> None:
         """Download data if needed. Lightning ensures that `self.prepare_data()` is called only
@@ -98,21 +103,25 @@ class AddNeuroMedDataModule(LightningDataModule):
             os.makedirs(self.hparams.data_dir)
         
         # GEO dataset URLs
-        datasets = {
-            'GSE63060': 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE63060&format=file',
-            'GSE63061': 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE63061&format=file'
+        datasets: Dict[str, str] = {
+            'GPL10558': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL10558_series_matrix.txt.gz',
+            'GPL6947': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL6947_series_matrix.txt.gz'
         }
         
+        self.raw_data: pd.DataFrame = pd.DataFrame()
         for dataset, url in datasets.items():
-            output_file = os.path.join(self.hparams.data_dir, f"{dataset}.txt.gz")
-            if not os.path.exists(output_file):
+            gz_path: str = os.path.join(self.hparams.data_dir, f"{dataset}.txt.gz")
+            if not os.path.exists(gz_path):
                 print(f"Downloading {dataset}...")
                 try:
-                    self._download_file(url, output_file)
+                    self._download_file(url, gz_path)
                     print(f"Successfully downloaded {dataset}")
                 except Exception as e:
                     print(f"Error downloading {dataset}: {str(e)}")
                     raise
+            data: pd.DataFrame = self._read_microarray_data(gz_path).transpose()
+            self.raw_data = pd.concat([self.raw_data, data], axis=0)
+        
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
@@ -121,6 +130,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         `trainer.predict()`, so be careful not to execute things like random split twice!
         """
         # Divide batch size by the number of devices
+        print(self.raw_data)
         if self.trainer is not None:
             if self.hparams.batch_size % self.trainer.world_size != 0:
                 raise RuntimeError(
@@ -128,23 +138,14 @@ class AddNeuroMedDataModule(LightningDataModule):
                 )
             self.batch_size_per_device = self.hparams.batch_size // self.trainer.world_size
 
-        # Load and split datasets only if not loaded already
-        if not self.data_train and not self.data_val and not self.data_test:
-            # Load the data from GSE63060 and GSE63061
-            gse63060 = pd.read_csv(f"{self.hparams.data_dir}/GSE63060.txt.gz", sep='\t')
-            gse63061 = pd.read_csv(f"{self.hparams.data_dir}/GSE63061.txt.gz", sep='\t')
-            
-            # Combine datasets and preprocess
-            data = pd.concat([gse63060, gse63061], axis=0)
-            
-            # Create dataset
-            dataset = AddNeuroMedDataset(data, transform=self.transforms)
+            print(self.raw_data)
+            dataset: AddNeuroMedDataset = AddNeuroMedDataset(data, transform=self.transforms)
             
             # Calculate split sizes
-            n = len(dataset)
-            train_size = int(n * self.hparams.train_val_test_split[0])
-            val_size = int(n * self.hparams.train_val_test_split[1])
-            test_size = n - train_size - val_size
+            n: int = len(dataset)
+            train_size: int = int(n * self.hparams.train_val_test_split[0])
+            val_size: int = int(n * self.hparams.train_val_test_split[1])
+            test_size: int = n - train_size - val_size
             
             # Split dataset
             self.data_train, self.data_val, self.data_test = random_split(
@@ -216,6 +217,11 @@ class AddNeuroMedDataModule(LightningDataModule):
         """
         pass
 
-
 if __name__ == "__main__":
-    _ = AddNeuroMedDataModule()
+    datamodule = AddNeuroMedDataModule()
+    datamodule.prepare_data()
+    datamodule.setup()
+    train_loader = datamodule.train_dataloader()
+    val_loader = datamodule.val_dataloader()
+    test_loader = datamodule.test_dataloader()
+    
