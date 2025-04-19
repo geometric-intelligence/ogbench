@@ -9,26 +9,12 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision.transforms import transforms
 from tqdm import tqdm
 import gzip
+import torch_geometric.data
+import torch_geometric.transforms as T
+import PyWGCNA
+from sklearn.metrics import mutual_info_classif
+import numpy as np
 
-class AddNeuroMedDataset(Dataset):
-    """Dataset class for AddNeuroMed data."""
-    
-    def __init__(self, data: pd.DataFrame, transform: Optional[transforms.Compose] = None) -> None:
-        self.data: pd.DataFrame = data
-        self.transform: Optional[transforms.Compose] = transform
-        
-    def __len__(self) -> int:
-        return len(self.data)
-        
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        # Get features and target
-        features: torch.Tensor = torch.tensor(self.data.iloc[idx, :-1].values, dtype=torch.float32)
-        target: torch.Tensor = torch.tensor(self.data.iloc[idx, -1], dtype=torch.long)
-        
-        if self.transform:
-            features = self.transform(features)
-            
-        return features, target
 
 class AddNeuroMedDataModule(LightningDataModule):
     """`LightningDataModule` for the AddNeuroMed dataset."""
@@ -130,9 +116,59 @@ class AddNeuroMedDataModule(LightningDataModule):
         frames[1] = frames[1][common_genes]
         # Concatenate the two datasets
         self.raw_data = pd.concat(frames, axis=0)
-        
 
+    def select_nodes(self, node_features, graph_label, n_selected_nodes=100):
+        """Select nodes based on graph label."""
+        """
+        Compute feature importance scores between node features and graph labels using mutual information.
+        Since graph labels are discrete (0,1,2), mutual information is more appropriate than correlation.
         
+        Args:
+            node_features: numpy array of shape (n_samples, n_features)
+            graph_label: numpy array of shape (n_samples,) containing discrete labels
+            
+        Returns:
+            selected_features: indices of most informative features
+        """
+        
+        # Compute mutual information between each feature and the graph label
+        mi_scores = mutual_info_classif(node_features, graph_label)
+        
+        # Sort features by mutual information score
+        ranked_features = np.argsort(mi_scores)[::-1]
+        
+        # Select top features (can adjust threshold as needed)
+        n_select = min(n_selected_nodes, len(ranked_features))  # Select top 100 or all if less
+        selected_features = ranked_features[:n_select]
+        
+        return selected_features
+
+    def calculate_adjacency_matrix(self, node_features, save_to):
+        """Calculate and save adjacency matrix."""
+        node_features_df = pd.DataFrame(node_features)
+        softThreshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_df)
+        print("Soft threshold:", softThreshold[0])
+        adjacency = PyWGCNA.WGCNA.adjacency(
+            node_features, power=softThreshold[0], adjacencyType="signed hybrid"
+        )
+
+        adjacency_df = pd.DataFrame(adjacency)
+        print(f"Saving adjacency matrix to: {save_to}...")
+        adjacency_df.to_csv(save_to, header=None, index=False)
+
+
+    def create_graph_data(self, node_features, graph_label, adj_matrix):
+        """Create Data object for each graph.
+
+        Compute attributes x, edge_index, and y for each graph.
+        Uses sparse tensor representation for efficiency.
+        """
+        x = node_features  # what is on the nodes
+        adj_tensor = torch.tensor(adj_matrix)  # Transpose the adjacency matrix
+        data = torch_geometric.data.Data(x=x, edge_index=None, y=graph_label)
+        transform = T.ToSparseTensor()
+        data.adj_t = transform(adj_tensor)
+        return data   
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
@@ -150,6 +186,18 @@ class AddNeuroMedDataModule(LightningDataModule):
             self.batch_size_per_device = self.hparams.batch_size // self.trainer.world_size
 
             print(self.raw_data)
+
+            selected_nodes = self.select_nodes(self.raw_data, self.raw_data["label"]) 
+            self.raw_data = self.raw_data[selected_nodes]
+
+            adj_matrix = self.calculate_adjacency_matrix(self.raw_data, "adjacency_matrix.csv")
+
+            graph_data_list = []
+            for subject in self.raw_data:
+                graph_data_list.append(
+                    self.create_graph_data(subject, subject["label"], adj_matrix))
+
+            # FTDDataset(root, "train", config)
             dataset: AddNeuroMedDataset = AddNeuroMedDataset(data, transform=self.transforms)
             
             # Calculate split sizes
@@ -170,7 +218,7 @@ class AddNeuroMedDataModule(LightningDataModule):
 
         :return: The train dataloader.
         """
-        return DataLoader(
+        return torch_geometric.data.DataLoader(
             dataset=self.data_train,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
@@ -183,7 +231,7 @@ class AddNeuroMedDataModule(LightningDataModule):
 
         :return: The validation dataloader.
         """
-        return DataLoader(
+        return torch_geometric.data.DataLoader(
             dataset=self.data_val,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
@@ -196,7 +244,7 @@ class AddNeuroMedDataModule(LightningDataModule):
 
         :return: The test dataloader.
         """
-        return DataLoader(
+        return torch_geometric.data.DataLoader(
             dataset=self.data_test,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
