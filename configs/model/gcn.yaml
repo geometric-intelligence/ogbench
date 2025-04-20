@@ -15,9 +15,9 @@ scheduler:
 
 net:
   _target_: torch_geometric.nn.GCN
-  num_layers: 2
+  num_layers: 4
   in_channels: 1
-  hidden_channels: 16
+  hidden_channels: 2048
   out_channels: 4
   #graph_pooling: mean
 
