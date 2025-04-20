@@ -48,6 +48,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         self.data_test: Optional[Dataset] = None
 
         self.batch_size_per_device: int = batch_size
+        self.train_val_test_split: Tuple[float, float, float] = train_val_test_split
 
     @property
     def num_classes(self) -> int:
@@ -187,6 +188,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         Uses sparse tensor representation for efficiency.
         """ 
         x = torch.tensor(subject_data, dtype=torch.float)
+       # print(f"x shape: {x.shape}")
     
         # Convert adjacency matrix to edge index
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t()
@@ -233,6 +235,13 @@ class AddNeuroMedDataModule(LightningDataModule):
             graph_data_list.append(
                 self.create_graph_data(subject_data, subject_label, adj_matrix))
    
+        self.n_graphs = len(graph_data_list)
+        i_train = int(self.n_graphs * self.train_val_test_split[0]) 
+        i_val = int(self.n_graphs * (self.train_val_test_split[0] + self.train_val_test_split[1]))
+
+        self.train_graph_data_list = graph_data_list[:i_train]
+        self.val_graph_data_list = graph_data_list[i_train:i_val]
+        self.test_graph_data_list = graph_data_list[i_val:]
 
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader.
@@ -240,7 +249,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         :return: The train dataloader.
         """
         return torch_geometric.data.DataLoader(
-            dataset=self.data_train,
+            dataset= self.train_graph_data_list,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
@@ -253,7 +262,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         :return: The validation dataloader.
         """
         return torch_geometric.data.DataLoader(
-            dataset=self.data_val,
+            dataset=self.val_graph_data_list,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
@@ -266,7 +275,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         :return: The test dataloader.
         """
         return torch_geometric.data.DataLoader(
-            dataset=self.data_test,
+            dataset=self.test_graph_data_list,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
@@ -301,7 +310,16 @@ if __name__ == "__main__":
     datamodule = AddNeuroMedDataModule()
     datamodule.prepare_data()
     datamodule.setup()
-    # train_loader = datamodule.train_dataloader()
-    # val_loader = datamodule.val_dataloader()
-    # test_loader = datamodule.test_dataloader()
+    train_loader = datamodule.train_dataloader()
+    val_loader = datamodule.val_dataloader()
+    test_loader = datamodule.test_dataloader()
+    # Print total number of samples in each dataset
+    print(f"Number of training samples: {len(train_loader.dataset)}")
+    print(f"Number of validation samples: {len(val_loader.dataset)}")
+    print(f"Number of test samples: {len(test_loader.dataset)}")
+    
+    # Print number of batches
+    print(f"\nNumber of training batches: {len(train_loader)}")
+    print(f"Number of validation batches: {len(val_loader)}")
+    print(f"Number of test batches: {len(test_loader)}")
     

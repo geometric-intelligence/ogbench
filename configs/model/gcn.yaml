@@ -1,0 +1,25 @@
+_target_: src.models.gcn_module.GCNLitModule
+
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.0
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  mode: min
+  factor: 0.1
+  patience: 10
+
+net:
+  _target_: torch_geometric.nn.GCN
+  num_layers: 2
+  in_channels: 1
+  hidden_channels: 16
+  out_channels: 4
+  #graph_pooling: mean
+
+# compile model for faster training with pytorch 2.0
+compile: false
