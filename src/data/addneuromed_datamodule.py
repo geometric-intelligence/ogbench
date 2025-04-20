@@ -180,36 +180,35 @@ class AddNeuroMedDataModule(LightningDataModule):
         return adjacency
 
 
-    def create_graph_data(self, node_features, graph_label, adj_matrix):
+    def create_graph_data(self, subject_data, subject_label, adj_matrix):
         """Create Data object for each graph.
 
         Compute attributes x, edge_index, and y for each graph.
         Uses sparse tensor representation for efficiency.
-        """
-        # x = node_features  # what is on the nodes
-        # adj_tensor = torch.tensor(adj_matrix)  # Transpose the adjacency matrix
-        # data = torch_geometric.data.Data(x=x, edge_index=None, y=graph_label)
-        # transform = T.ToSparseTensor()
-        # import IPython; IPython.embed()
-        # data.adj_t = transform(adj_tensor)
-        # return data   
-        x = torch.tensor(node_features, dtype=torch.float)
+        """ 
+        x = torch.tensor(subject_data, dtype=torch.float)
     
         # Convert adjacency matrix to edge index
-        edge_index = torch.nonzero(adj_matrix).t()
+        edge_index = torch.nonzero(torch.tensor(adj_matrix)).t()
         
         # Create data object
-        data = torch_geometric.data.Data(
+        graph_data = torch_geometric.data.Data(
             x=x,
             edge_index=edge_index,
-            y=torch.tensor([graph_label], dtype=torch.long)
+            y=torch.tensor([subject_label], dtype=torch.long)
         )
         
         # Convert to sparse tensor format
         transform = T.ToSparseTensor()
-        data = transform(data)
+        graph_data = transform(graph_data)
+        print("Graph data:")
+        print(f"Number of nodes: {graph_data.num_nodes}")
+        print(f"Number of edges: {graph_data.num_edges}")
+        print(f"Node features shape: {graph_data.x.shape}")
+        print(f"Adjacency matrix shape: {graph_data.adj_t.shape}")
+        print(f"Label: {graph_data.y}")
         
-        return data
+        return graph_data
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
@@ -234,10 +233,10 @@ class AddNeuroMedDataModule(LightningDataModule):
         print("done calculating adjacency matrix")
 
         graph_data_list = []
-        for subject, label in zip(selected_data, self.labels):
+        for (_, subject_data), subject_label in zip(selected_data.iterrows(), self.labels):
 
             graph_data_list.append(
-                self.create_graph_data(subject, label, adj_matrix))
+                self.create_graph_data(subject_data, subject_label, adj_matrix))
 
         # FTDDataset(root, "train", config)
         # dataset: AddNeuroMedDataset = AddNeuroMedDataset(data, transform=self.transforms)
