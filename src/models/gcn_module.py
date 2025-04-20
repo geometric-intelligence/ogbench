@@ -4,8 +4,8 @@ import torch
 from lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
+from torch_geometric.nn import global_mean_pool
 
-from torch_geometric.nn import GCN
 
 
 class GCNLitModule(LightningModule):
@@ -110,7 +110,8 @@ class GCNLitModule(LightningModule):
         """
         x, adj_t, y = batch.x, batch.adj_t, batch.y
         x = x.unsqueeze(1)
-        logits = self.forward(x, adj_t)
+        y_nodes = self.forward(x, adj_t)
+        logits = global_mean_pool(y_nodes, batch.batch)
         loss = self.criterion(logits, y)
         preds = torch.argmax(logits, dim=1)
         return loss, preds, y
