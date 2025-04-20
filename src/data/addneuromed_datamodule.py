@@ -138,10 +138,32 @@ class AddNeuroMedDataModule(LightningDataModule):
         # Concatenate the two datasets
         raw_data = pd.concat(frames, axis=0)
         self.labels = raw_data['label']
-        self.raw_data = raw_data.drop(columns=['label']).iloc[:, :100]  # Select top 100 features
+        self.raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]  # Select top 100 features
+        # Select nodes based on graph label
+        selected_nodes_path = os.path.join(self.hparams.data_dir, 'selected_nodes.npy')
+        adj_matrix_path = os.path.join(self.hparams.data_dir, 'adj_matrix.npy')
 
+        if os.path.exists(selected_nodes_path):
+            print("Loading cached selected nodes")
+            self._selected_nodes = np.load(selected_nodes_path)
+        else:
+            print("start selecting nodes")
+            self._selected_nodes = self.select_nodes(self.raw_data, self.labels, n_selected=50)
+            np.save(selected_nodes_path, self._selected_nodes)
+            print("done selecting nodes")
+        
+        selected_data = self.raw_data.iloc[:, self._selected_nodes]
+        
+        if os.path.exists(adj_matrix_path):
+            print("Loading cached adjacency matrix")
+            self._adj_matrix = np.load(adj_matrix_path)
+        else:
+            print("start calculating adjacency matrix")
+            self._adj_matrix = self.calculate_adjacency_matrix(selected_data)
+            np.save(adj_matrix_path, self._adj_matrix)
+            print("done calculating adjacency matrix")
 
-    def select_nodes(self, data, labels, n_selected=100):
+    def select_nodes(self, data, labels, n_selected=1000):
         """Select nodes based on graph label."""
         """
         Compute feature importance scores between node features and graph labels using mutual information.
@@ -170,9 +192,11 @@ class AddNeuroMedDataModule(LightningDataModule):
     def calculate_adjacency_matrix(self, node_features):
         """Calculate and save adjacency matrix."""
         node_features_df = pd.DataFrame(node_features)
-        softThreshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_df)
+        soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_df)
         adjacency = PyWGCNA.WGCNA.adjacency(
-            node_features, power=softThreshold[0], adjacencyType="signed hybrid"
+            node_features,
+            power=soft_threshold[0],
+            adjacencyType="signed hybrid",
         )
 
         return adjacency
@@ -185,7 +209,6 @@ class AddNeuroMedDataModule(LightningDataModule):
         Uses sparse tensor representation for efficiency.
         """ 
         x = torch.tensor(subject_data, dtype=torch.float)
-       # print(f"x shape: {x.shape}")
     
         # Convert adjacency matrix to edge index
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t()
@@ -211,23 +234,13 @@ class AddNeuroMedDataModule(LightningDataModule):
         `trainer.predict()`, so be careful not to execute things like random split twice!
         """
 
-        # Select nodes based on graph label
-        print("start selecting nodes")
-        selected_nodes = self.select_nodes(self.raw_data, self.labels, n_selected=50) 
-        selected_data = self.raw_data.iloc[:, selected_nodes]
-        print(selected_nodes)
-        print("done selecting nodes")
         
-        # Calculate adjacency matrix
-        print("start calculating adjacency matrix")
-        adj_matrix = self.calculate_adjacency_matrix(selected_data)
-        print("done calculating adjacency matrix")
 
         graph_data_list = []
-        for (_, subject_data), subject_label in zip(selected_data.iterrows(), self.labels):
+        for (_, subject_data), subject_label in zip(self._selected_data.iterrows(), self.labels):
 
             graph_data_list.append(
-                self.create_graph_data(subject_data, subject_label, adj_matrix))
+                self.create_graph_data(subject_data, subject_label, self._adj_matrix))
    
         self.n_graphs = len(graph_data_list)
         i_train = int(self.n_graphs * self.train_val_test_split[0]) 
