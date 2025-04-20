@@ -84,8 +84,6 @@ class GCNLitModule(LightningModule):
         :param x: A tensor of images.
         :return: A tensor of logits.
         """
-        print(f"x shape: {x.shape}")
-        print(f"adj_t shape: {adj_t.shape}")
         return self.net(x, adj_t)
 
     def on_train_start(self) -> None:

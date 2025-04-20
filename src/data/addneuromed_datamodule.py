@@ -119,13 +119,11 @@ class AddNeuroMedDataModule(LightningDataModule):
                         diagnoses = [x.split(': ')[1].strip().strip('"') for x in line.split('\t')[1:]]
                         # Convert text labels to numeric
                         label_map = {'CTL': 0, 'MCI': 1, 'borderline MCI': 1, 'AD': 2, "OTHER": 3, "CTL to AD": 3, "MCI to CTL": 3}
-                        print(diagnoses)
                         labels = [label_map[d] for d in diagnoses]
                         break
             
             # Add labels to the data frame
             data['label'] = labels
-            print(data)
             frames.append(data)
 
         # Check that labels match for same patients across datasets
@@ -173,7 +171,6 @@ class AddNeuroMedDataModule(LightningDataModule):
         """Calculate and save adjacency matrix."""
         node_features_df = pd.DataFrame(node_features)
         softThreshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_df)
-        print("Soft threshold:", softThreshold[0])
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features, power=softThreshold[0], adjacencyType="signed hybrid"
         )
@@ -213,9 +210,6 @@ class AddNeuroMedDataModule(LightningDataModule):
         This method is called by Lightning before `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and
         `trainer.predict()`, so be careful not to execute things like random split twice!
         """
-        # Divide batch size by the number of devices
-
-        print(self.raw_data)
 
         # Select nodes based on graph label
         print("start selecting nodes")
@@ -313,6 +307,7 @@ if __name__ == "__main__":
     train_loader = datamodule.train_dataloader()
     val_loader = datamodule.val_dataloader()
     test_loader = datamodule.test_dataloader()
+
     # Print total number of samples in each dataset
     print(f"Number of training samples: {len(train_loader.dataset)}")
     print(f"Number of validation samples: {len(val_loader.dataset)}")
