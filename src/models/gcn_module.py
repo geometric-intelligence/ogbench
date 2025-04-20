@@ -78,13 +78,15 @@ class GCNLitModule(LightningModule):
         # for tracking best so far validation accuracy
         self.val_acc_best = MaxMetric()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
 
         :param x: A tensor of images.
         :return: A tensor of logits.
         """
-        return self.net(x)
+        print(f"x shape: {x.shape}")
+        print(f"adj_t shape: {adj_t.shape}")
+        return self.net(x, adj_t)
 
     def on_train_start(self) -> None:
         """Lightning hook that is called when training begins."""
@@ -106,8 +108,9 @@ class GCNLitModule(LightningModule):
             - A tensor of predictions.
             - A tensor of target labels.
         """
-        x, y = batch
-        logits = self.forward(x)
+        x, adj_t, y = batch.x, batch.adj_t, batch.y
+        x = x.unsqueeze(1)
+        logits = self.forward(x, adj_t)
         loss = self.criterion(logits, y)
         preds = torch.argmax(logits, dim=1)
         return loss, preds, y

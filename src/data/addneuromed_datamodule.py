@@ -188,6 +188,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         Uses sparse tensor representation for efficiency.
         """ 
         x = torch.tensor(subject_data, dtype=torch.float)
+       # print(f"x shape: {x.shape}")
     
         # Convert adjacency matrix to edge index
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t()

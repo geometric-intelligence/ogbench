@@ -28,7 +28,7 @@ model:
     in_channels: 1
     hidden_channels: 16
     out_channels: 4
-    graph_pooling: mean
+    #graph_pooling: mean
   compile: false
 
 data:
