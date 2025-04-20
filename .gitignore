@@ -176,3 +176,7 @@ cython_debug/
 .pypirc
 
 addneuromed_data/
+
+# Logs
+logs/
+*.log
