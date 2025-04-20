@@ -201,12 +201,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         # Convert to sparse tensor format
         transform = T.ToSparseTensor()
         graph_data = transform(graph_data)
-        print("Graph data:")
-        print(f"Number of nodes: {graph_data.num_nodes}")
-        print(f"Number of edges: {graph_data.num_edges}")
-        print(f"Node features shape: {graph_data.x.shape}")
-        print(f"Adjacency matrix shape: {graph_data.adj_t.shape}")
-        print(f"Label: {graph_data.y}")
+
         
         return graph_data
 
@@ -237,10 +232,7 @@ class AddNeuroMedDataModule(LightningDataModule):
 
             graph_data_list.append(
                 self.create_graph_data(subject_data, subject_label, adj_matrix))
-
-        # FTDDataset(root, "train", config)
-        # dataset: AddNeuroMedDataset = AddNeuroMedDataset(data, transform=self.transforms)
-            
+   
 
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader.
