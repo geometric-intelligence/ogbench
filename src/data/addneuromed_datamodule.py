@@ -2,7 +2,6 @@ from typing import Any, Dict, Optional, Tuple
 import os
 import pandas as pd
 import requests
-import tarfile
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, random_split
@@ -12,7 +11,7 @@ import gzip
 import torch_geometric.data
 import torch_geometric.transforms as T
 import PyWGCNA
-from sklearn.metrics import mutual_info_classif
+from sklearn.feature_selection import mutual_info_classif
 import numpy as np
 
 
@@ -78,7 +77,8 @@ class AddNeuroMedDataModule(LightningDataModule):
     def _read_microarray_data(self, gz_path: str) -> pd.DataFrame:
         """Read microarray data from gzipped file."""
         with gzip.open(gz_path, 'rt') as f:
-            return pd.read_csv(f, sep='\t', comment='!')
+            return pd.read_csv(f, sep='\t', comment='!', index_col="ID_REF")
+        
 
     def prepare_data(self) -> None:
         """Download data if needed. Lightning ensures that `self.prepare_data()` is called only
@@ -108,16 +108,41 @@ class AddNeuroMedDataModule(LightningDataModule):
                     print(f"Error downloading {dataset}: {str(e)}")
                     raise
             data: pd.DataFrame = self._read_microarray_data(gz_path).transpose()
+            # Extract diagnosis labels from the data
+            # The labels are in the first row which contains "!Sample_characteristics_ch1"
+            labels = None
+            with gzip.open(gz_path, 'rt') as f:
+                for line in f:
+                    if line.startswith('!Sample_characteristics_ch1'):
+                        # Extract diagnosis from the line, typically in format "diagnosis: Control/AD/MCI"
+                        diagnoses = [x.split(': ')[1].strip().strip('"') for x in line.split('\t')[1:]]
+                        # Convert text labels to numeric
+                        label_map = {'CTL': 0, 'MCI': 1, 'borderline MCI': 1, 'AD': 2, "OTHER": 3, "CTL to AD": 3, "MCI to CTL": 3}
+                        print(diagnoses)
+                        labels = [label_map[d] for d in diagnoses]
+                        break
+            
+            # Add labels to the data frame
+            data['label'] = labels
+            print(data)
             frames.append(data)
-        # Find common genes between the two datasets
+
+        # Check that labels match for same patients across datasets
+        common_patients = set(frames[0].index).intersection(set(frames[1].index))
+        assert len(common_patients) == 0, "Common patients found between the two datasets"
+
+        # Find common genes between the two datasets (or common "label" column)
         common_genes = list(set(frames[0].columns).intersection(set(frames[1].columns)))    
         # Filter the two datasets to only include common genes
         frames[0] = frames[0][common_genes]
         frames[1] = frames[1][common_genes]
         # Concatenate the two datasets
-        self.raw_data = pd.concat(frames, axis=0)
+        raw_data = pd.concat(frames, axis=0)
+        self.labels = raw_data['label']
+        self.raw_data = raw_data.drop(columns=['label']).iloc[:, :100]  # Select top 100 features
 
-    def select_nodes(self, node_features, graph_label, n_selected_nodes=100):
+
+    def select_nodes(self, data, labels, n_selected=100):
         """Select nodes based on graph label."""
         """
         Compute feature importance scores between node features and graph labels using mutual information.
@@ -132,18 +157,18 @@ class AddNeuroMedDataModule(LightningDataModule):
         """
         
         # Compute mutual information between each feature and the graph label
-        mi_scores = mutual_info_classif(node_features, graph_label)
+        mi_scores = mutual_info_classif(data, labels)
         
         # Sort features by mutual information score
-        ranked_features = np.argsort(mi_scores)[::-1]
+        ranked_nodes = np.argsort(mi_scores)[::-1]
         
         # Select top features (can adjust threshold as needed)
-        n_select = min(n_selected_nodes, len(ranked_features))  # Select top 100 or all if less
-        selected_features = ranked_features[:n_select]
+        n_select = min(n_selected, len(ranked_nodes))  # Select top 100 or all if less
+        selected_nodes = ranked_nodes[:n_select]
         
-        return selected_features
+        return selected_nodes
 
-    def calculate_adjacency_matrix(self, node_features, save_to):
+    def calculate_adjacency_matrix(self, node_features):
         """Calculate and save adjacency matrix."""
         node_features_df = pd.DataFrame(node_features)
         softThreshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_df)
@@ -152,9 +177,7 @@ class AddNeuroMedDataModule(LightningDataModule):
             node_features, power=softThreshold[0], adjacencyType="signed hybrid"
         )
 
-        adjacency_df = pd.DataFrame(adjacency)
-        print(f"Saving adjacency matrix to: {save_to}...")
-        adjacency_df.to_csv(save_to, header=None, index=False)
+        return adjacency
 
 
     def create_graph_data(self, node_features, graph_label, adj_matrix):
@@ -163,12 +186,30 @@ class AddNeuroMedDataModule(LightningDataModule):
         Compute attributes x, edge_index, and y for each graph.
         Uses sparse tensor representation for efficiency.
         """
-        x = node_features  # what is on the nodes
-        adj_tensor = torch.tensor(adj_matrix)  # Transpose the adjacency matrix
-        data = torch_geometric.data.Data(x=x, edge_index=None, y=graph_label)
+        # x = node_features  # what is on the nodes
+        # adj_tensor = torch.tensor(adj_matrix)  # Transpose the adjacency matrix
+        # data = torch_geometric.data.Data(x=x, edge_index=None, y=graph_label)
+        # transform = T.ToSparseTensor()
+        # import IPython; IPython.embed()
+        # data.adj_t = transform(adj_tensor)
+        # return data   
+        x = torch.tensor(node_features, dtype=torch.float)
+    
+        # Convert adjacency matrix to edge index
+        edge_index = torch.nonzero(adj_matrix).t()
+        
+        # Create data object
+        data = torch_geometric.data.Data(
+            x=x,
+            edge_index=edge_index,
+            y=torch.tensor([graph_label], dtype=torch.long)
+        )
+        
+        # Convert to sparse tensor format
         transform = T.ToSparseTensor()
-        data.adj_t = transform(adj_tensor)
-        return data   
+        data = transform(data)
+        
+        return data
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
@@ -177,41 +218,30 @@ class AddNeuroMedDataModule(LightningDataModule):
         `trainer.predict()`, so be careful not to execute things like random split twice!
         """
         # Divide batch size by the number of devices
+
         print(self.raw_data)
-        if self.trainer is not None:
-            if self.hparams.batch_size % self.trainer.world_size != 0:
-                raise RuntimeError(
-                    f"Batch size ({self.hparams.batch_size}) is not divisible by the number of devices ({self.trainer.world_size})."
-                )
-            self.batch_size_per_device = self.hparams.batch_size // self.trainer.world_size
 
-            print(self.raw_data)
+        # Select nodes based on graph label
+        print("start selecting nodes")
+        selected_nodes = self.select_nodes(self.raw_data, self.labels, n_selected=50) 
+        selected_data = self.raw_data.iloc[:, selected_nodes]
+        print(selected_nodes)
+        print("done selecting nodes")
+        
+        # Calculate adjacency matrix
+        print("start calculating adjacency matrix")
+        adj_matrix = self.calculate_adjacency_matrix(selected_data)
+        print("done calculating adjacency matrix")
 
-            selected_nodes = self.select_nodes(self.raw_data, self.raw_data["label"]) 
-            self.raw_data = self.raw_data[selected_nodes]
+        graph_data_list = []
+        for subject, label in zip(selected_data, self.labels):
 
-            adj_matrix = self.calculate_adjacency_matrix(self.raw_data, "adjacency_matrix.csv")
+            graph_data_list.append(
+                self.create_graph_data(subject, label, adj_matrix))
 
-            graph_data_list = []
-            for subject in self.raw_data:
-                graph_data_list.append(
-                    self.create_graph_data(subject, subject["label"], adj_matrix))
-
-            # FTDDataset(root, "train", config)
-            dataset: AddNeuroMedDataset = AddNeuroMedDataset(data, transform=self.transforms)
+        # FTDDataset(root, "train", config)
+        # dataset: AddNeuroMedDataset = AddNeuroMedDataset(data, transform=self.transforms)
             
-            # Calculate split sizes
-            n: int = len(dataset)
-            train_size: int = int(n * self.hparams.train_val_test_split[0])
-            val_size: int = int(n * self.hparams.train_val_test_split[1])
-            test_size: int = n - train_size - val_size
-            
-            # Split dataset
-            self.data_train, self.data_val, self.data_test = random_split(
-                dataset=dataset,
-                lengths=[train_size, val_size, test_size],
-                generator=torch.Generator().manual_seed(42),
-            )
 
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader.
@@ -280,7 +310,7 @@ if __name__ == "__main__":
     datamodule = AddNeuroMedDataModule()
     datamodule.prepare_data()
     datamodule.setup()
-    train_loader = datamodule.train_dataloader()
-    val_loader = datamodule.val_dataloader()
-    test_loader = datamodule.test_dataloader()
+    # train_loader = datamodule.train_dataloader()
+    # val_loader = datamodule.val_dataloader()
+    # test_loader = datamodule.test_dataloader()
     
