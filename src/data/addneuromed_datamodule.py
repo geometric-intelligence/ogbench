@@ -138,7 +138,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         # Concatenate the two datasets
         raw_data = pd.concat(frames, axis=0)
         self.labels = raw_data['label']
-        self.raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]  # Select top 100 features
+        self.raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]
         # Select nodes based on graph label
         selected_nodes_path = os.path.join(self.hparams.data_dir, 'selected_nodes.npy')
         adj_matrix_path = os.path.join(self.hparams.data_dir, 'adj_matrix.npy')
@@ -152,14 +152,14 @@ class AddNeuroMedDataModule(LightningDataModule):
             np.save(selected_nodes_path, self._selected_nodes)
             print("done selecting nodes")
         
-        selected_data = self.raw_data.iloc[:, self._selected_nodes]
+        self._selected_data = self.raw_data.iloc[:, self._selected_nodes]
         
         if os.path.exists(adj_matrix_path):
             print("Loading cached adjacency matrix")
             self._adj_matrix = np.load(adj_matrix_path)
         else:
             print("start calculating adjacency matrix")
-            self._adj_matrix = self.calculate_adjacency_matrix(selected_data)
+            self._adj_matrix = self.calculate_adjacency_matrix(self._selected_data)
             np.save(adj_matrix_path, self._adj_matrix)
             print("done calculating adjacency matrix")
 
@@ -233,9 +233,6 @@ class AddNeuroMedDataModule(LightningDataModule):
         This method is called by Lightning before `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and
         `trainer.predict()`, so be careful not to execute things like random split twice!
         """
-
-        
-
         graph_data_list = []
         for (_, subject_data), subject_label in zip(self._selected_data.iterrows(), self.labels):
 
