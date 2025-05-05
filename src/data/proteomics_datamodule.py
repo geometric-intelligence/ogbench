@@ -163,15 +163,32 @@ class ProteomicsDataModule(LightningDataModule):
                        ['Project_Identifier', 'model_id', 'cell_line_name', 
                         'drug_name', 'ln_IC50']]
         
-        self.raw_data = merged_df[protein_cols]
-        self.targets = merged_df['ln_IC50'].values
-
+        # Convert protein expression values to numeric, replacing non-numeric values with NaN
+        print('Converting data to numeric...')
+        numeric_data = merged_df[protein_cols].apply(pd.to_numeric, errors='coerce')
+        
+        # Remove columns that are all NaN after conversion
+        valid_cols = numeric_data.columns[~numeric_data.isna().all()]
+        numeric_data = numeric_data[valid_cols]
+        
+        print(f'Number of valid protein columns: {len(valid_cols)}')
+        
+        # Store original column names and index
+        original_columns = numeric_data.columns
+        original_index = numeric_data.index
+        
         # Impute missing values in features
+        print('Imputing missing values...')
+        imputed_data = self.imputer.fit_transform(numeric_data)
+        
+        # Create DataFrame with imputed data, preserving original structure
         self.raw_data = pd.DataFrame(
-            self.imputer.fit_transform(self.raw_data),
-            columns=self.raw_data.columns,
-            index=self.raw_data.index
+            imputed_data,
+            columns=original_columns,
+            index=original_index
         )
+        
+        self.targets = merged_df['ln_IC50'].values
 
         # Select nodes and create adjacency matrix
         self._prepare_graph_data()
