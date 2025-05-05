@@ -12,6 +12,7 @@ import torch_geometric.data
 import torch_geometric.transforms as T
 import PyWGCNA
 from sklearn.feature_selection import mutual_info_regression
+from sklearn.impute import SimpleImputer
 import numpy as np
 from pathlib import Path
 
@@ -28,6 +29,7 @@ class ProteomicsDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
         n_selected_nodes: int = 1000,
+        imputation_method: str = "mean",
     ) -> None:
         """Initialize a `ProteomicsDataModule`.
 
@@ -39,11 +41,13 @@ class ProteomicsDataModule(LightningDataModule):
             num_workers: The number of workers
             pin_memory: Whether to pin memory
             n_selected_nodes: Number of nodes to select for graph construction
+            imputation_method: Method for handling missing values ("mean", "median", "most_frequent")
         """
         super().__init__()
 
         self.save_hyperparameters(logger=False)
         self.dataset = dataset
+        self.imputer = SimpleImputer(strategy=imputation_method)
 
         # data transformations
         self.transforms: transforms.Compose = transforms.Compose([
@@ -98,7 +102,7 @@ class ProteomicsDataModule(LightningDataModule):
                 self._download_file(url, file_path)
 
         # Load data
-        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_proteomics.xlsx"))
+        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_proteomics.xlsx"), header=3)
         analytes_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
 
         # Extract features and target
@@ -109,6 +113,13 @@ class ProteomicsDataModule(LightningDataModule):
         mask = ~pd.isna(self.targets)
         self.raw_data = self.raw_data[mask]
         self.targets = self.targets[mask]
+
+        # Impute missing values in features
+        self.raw_data = pd.DataFrame(
+            self.imputer.fit_transform(self.raw_data),
+            columns=self.raw_data.columns,
+            index=self.raw_data.index
+        )
 
         # Select nodes and create adjacency matrix
         self._prepare_graph_data()
@@ -128,7 +139,8 @@ class ProteomicsDataModule(LightningDataModule):
                 self._download_file(url, file_path)
 
         # Load data
-        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "pancancer_proteomics.xlsx"), sheet_name="Full protein matrix")
+        print('Loading data...')
+        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "pancancer_proteomics.xlsx"), sheet_name="Full protein matrix", header=1)
         drug_df = pd.read_csv(os.path.join(self.hparams.data_dir, "pancancer_drug_response.csv.gz"), compression='gzip')
 
         # Filter for Avagacestat
@@ -153,6 +165,13 @@ class ProteomicsDataModule(LightningDataModule):
         
         self.raw_data = merged_df[protein_cols]
         self.targets = merged_df['ln_IC50'].values
+
+        # Impute missing values in features
+        self.raw_data = pd.DataFrame(
+            self.imputer.fit_transform(self.raw_data),
+            columns=self.raw_data.columns,
+            index=self.raw_data.index
+        )
 
         # Select nodes and create adjacency matrix
         self._prepare_graph_data()
@@ -276,18 +295,19 @@ class ProteomicsDataModule(LightningDataModule):
 
 if __name__ == "__main__":
     # Example usage
-    datamodule = ProteomicsDataModule(dataset="mortrpac")
-    datamodule.prepare_data()
-    datamodule.setup()
-    
-    train_loader = datamodule.train_dataloader()
-    val_loader = datamodule.val_dataloader()
-    test_loader = datamodule.test_dataloader()
+    for dataset in ['pancancer',]: #["mortrpac", "pancancer"]:
+        datamodule = ProteomicsDataModule(dataset=dataset)
+        datamodule.prepare_data()
+        datamodule.setup()
+        
+        train_loader = datamodule.train_dataloader()
+        val_loader = datamodule.val_dataloader()
+        test_loader = datamodule.test_dataloader()
 
-    print(f"Number of training samples: {len(train_loader.dataset)}")
-    print(f"Number of validation samples: {len(val_loader.dataset)}")
-    print(f"Number of test samples: {len(test_loader.dataset)}")
-    
-    print(f"\nNumber of training batches: {len(train_loader)}")
-    print(f"Number of validation batches: {len(val_loader)}")
-    print(f"Number of test batches: {len(test_loader)}") 
+        print(f"Number of training samples: {len(train_loader.dataset)}")
+        print(f"Number of validation samples: {len(val_loader.dataset)}")
+        print(f"Number of test samples: {len(test_loader.dataset)}")
+        
+        print(f"\nNumber of training batches: {len(train_loader)}")
+        print(f"Number of validation batches: {len(val_loader)}")
+        print(f"Number of test batches: {len(test_loader)}") 
