@@ -312,7 +312,7 @@ class ProteomicsDataModule(LightningDataModule):
 
 if __name__ == "__main__":
     # Example usage
-    for dataset in ['pancancer',]: #["mortrpac", "pancancer"]:
+    for dataset in ["mortrpac", "pancancer"]:
         datamodule = ProteomicsDataModule(dataset=dataset)
         datamodule.prepare_data()
         datamodule.setup()
