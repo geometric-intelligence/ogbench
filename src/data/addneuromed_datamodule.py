@@ -103,7 +103,7 @@ class AddNeuroMedDataModule(LightningDataModule):
             'GPL6947': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL6947_series_matrix.txt.gz'
         }
         
-        self.raw_data: pd.DataFrame = pd.DataFrame()
+        raw_data: pd.DataFrame = pd.DataFrame()
         common_genes: set[str] | None = None
         frames: list[pd.DataFrame] = []
         for dataset, url in datasets.items():
@@ -139,31 +139,31 @@ class AddNeuroMedDataModule(LightningDataModule):
         assert len(common_patients) == 0, "Common patients found between the two datasets"
 
         # Find common genes between the two datasets (or common "label" column)
-        common_genes = list(set(frames[0].columns).intersection(set(frames[1].columns)))    
+        common_genes = list(set(frames[0].columns).intersection(set(frames[1].columns)))
+
         # Filter the two datasets to only include common genes
         frames[0] = frames[0][common_genes]
         frames[1] = frames[1][common_genes]
+
         # Concatenate the two datasets
         raw_data = pd.concat(frames, axis=0)
-        self.labels = raw_data['label']
-        self.raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]
+        labels = raw_data['label']
+        np.save(self.labels_path, labels)
 
-        # Select nodes based on graph label
-        if not os.path.exists(self.selected_data_path):
-            print("start selecting nodes")
-            selected_nodes = self.select_nodes(self.raw_data, self.labels, n_selected=50)
-            self._selected_data = self.raw_data.iloc[:, selected_nodes]
-            np.save(self.selected_data_path, self._selected_data)
-            print("done selecting nodes")
-        
-        if not os.path.exists(self.adj_matrix_path):
-            print("start calculating adjacency matrix")
-            self._adj_matrix = self.calculate_adjacency_matrix(self._selected_data)
-            np.save(self.adj_matrix_path, self._adj_matrix)
-            print("done calculating adjacency matrix")
+        # TODO: Make the number of features a parameter
+        raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]
 
-        # Save labels
-        np.save(self.labels_path, self.labels)
+        print("start selecting nodes")
+        selected_nodes = self.select_nodes(raw_data, labels, n_selected=50)
+        selected_data = raw_data.iloc[:, selected_nodes]
+        print(f"Saving selected data to {self.selected_data_path}")
+        selected_data.to_parquet(self.selected_data_path)
+    
+        print("start calculating adjacency matrix")
+        adj_matrix = self.calculate_adjacency_matrix(selected_data)
+        print(f"Saving adjacency matrix to {self.adj_matrix_path}")
+        np.save(self.adj_matrix_path, adj_matrix)
+
 
     def select_nodes(self, data, labels, n_selected=1000):
         """Select nodes based on graph label."""
@@ -242,7 +242,7 @@ class AddNeuroMedDataModule(LightningDataModule):
         if not os.path.exists(self.labels_path):
             raise FileNotFoundError(f"Labels file not found at {self.labels_path}")
         
-        selected_data = np.load(self.selected_data_path)
+        selected_data = pd.read_parquet(self.selected_data_path)
         adj_matrix = np.load(self.adj_matrix_path)
         labels = np.load(self.labels_path)
 
