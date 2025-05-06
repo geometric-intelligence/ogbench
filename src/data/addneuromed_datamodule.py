@@ -46,6 +46,9 @@ class AddNeuroMedDataModule(LightningDataModule):
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
+        self.selected_data_path: str = os.path.join(self.hparams.data_dir, 'selected_data.npy')
+        self.adj_matrix_path: str = os.path.join(self.hparams.data_dir, 'adj_matrix.npy')
+        self.labels_path: str = os.path.join(self.hparams.data_dir, 'labels.npy')
 
         self.batch_size_per_device: int = batch_size
         self.train_val_test_split: Tuple[float, float, float] = train_val_test_split
@@ -88,7 +91,12 @@ class AddNeuroMedDataModule(LightningDataModule):
         # Create output directory if it doesn't exist
         if not os.path.exists(self.hparams.data_dir):
             os.makedirs(self.hparams.data_dir)
-        
+
+        # Check if all cache files exist
+        if all(os.path.exists(path) for path in [self.selected_data_path, self.adj_matrix_path, self.labels_path]):
+            print("All cache files exist, skipping data preparation")
+            return
+
         # GEO dataset URLs
         datasets: Dict[str, str] = {
             'GPL10558': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL10558_series_matrix.txt.gz',
@@ -139,29 +147,23 @@ class AddNeuroMedDataModule(LightningDataModule):
         raw_data = pd.concat(frames, axis=0)
         self.labels = raw_data['label']
         self.raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]
-        # Select nodes based on graph label
-        selected_nodes_path = os.path.join(self.hparams.data_dir, 'selected_nodes.npy')
-        adj_matrix_path = os.path.join(self.hparams.data_dir, 'adj_matrix.npy')
 
-        if os.path.exists(selected_nodes_path):
-            print("Loading cached selected nodes")
-            self._selected_nodes = np.load(selected_nodes_path)
-        else:
+        # Select nodes based on graph label
+        if not os.path.exists(self.selected_data_path):
             print("start selecting nodes")
-            self._selected_nodes = self.select_nodes(self.raw_data, self.labels, n_selected=50)
-            np.save(selected_nodes_path, self._selected_nodes)
+            selected_nodes = self.select_nodes(self.raw_data, self.labels, n_selected=50)
+            self._selected_data = self.raw_data.iloc[:, selected_nodes]
+            np.save(self.selected_data_path, self._selected_data)
             print("done selecting nodes")
         
-        self._selected_data = self.raw_data.iloc[:, self._selected_nodes]
-        
-        if os.path.exists(adj_matrix_path):
-            print("Loading cached adjacency matrix")
-            self._adj_matrix = np.load(adj_matrix_path)
-        else:
+        if not os.path.exists(self.adj_matrix_path):
             print("start calculating adjacency matrix")
             self._adj_matrix = self.calculate_adjacency_matrix(self._selected_data)
-            np.save(adj_matrix_path, self._adj_matrix)
+            np.save(self.adj_matrix_path, self._adj_matrix)
             print("done calculating adjacency matrix")
+
+        # Save labels
+        np.save(self.labels_path, self.labels)
 
     def select_nodes(self, data, labels, n_selected=1000):
         """Select nodes based on graph label."""
@@ -233,11 +235,22 @@ class AddNeuroMedDataModule(LightningDataModule):
         This method is called by Lightning before `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and
         `trainer.predict()`, so be careful not to execute things like random split twice!
         """
+        if not os.path.exists(self.selected_data_path):
+            raise FileNotFoundError(f"Selected data file not found at {self.selected_data_path}")
+        if not os.path.exists(self.adj_matrix_path):
+            raise FileNotFoundError(f"Adjacency matrix file not found at {self.adj_matrix_path}")
+        if not os.path.exists(self.labels_path):
+            raise FileNotFoundError(f"Labels file not found at {self.labels_path}")
+        
+        selected_data = np.load(self.selected_data_path)
+        adj_matrix = np.load(self.adj_matrix_path)
+        labels = np.load(self.labels_path)
+
         graph_data_list = []
-        for (_, subject_data), subject_label in zip(self._selected_data.iterrows(), self.labels):
+        for (_, subject_data), subject_label in zip(selected_data.iterrows(), labels):
 
             graph_data_list.append(
-                self.create_graph_data(subject_data, subject_label, self._adj_matrix))
+                self.create_graph_data(subject_data, subject_label, adj_matrix))
    
         self.n_graphs = len(graph_data_list)
         i_train = int(self.n_graphs * self.train_val_test_split[0]) 

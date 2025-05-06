@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: addneuromed
-  - override /model: gatv2
+  - override /model: gcn
   - override /callbacks: default
   - override /trainer: default
 
@@ -19,14 +19,13 @@ trainer:
   gradient_clip_val: 0.5
 
 model:
-  optimizer:
-    lr: 0.002
   net:
+    _target_: torch_geometric.nn.GCN
+    num_layers: 4
     in_channels: 1
     hidden_channels: 2048
     out_channels: 4
-    heads: 4
-  compile: false
+    #graph_pooling: mean
 
 data:
   batch_size: 64
@@ -35,5 +34,3 @@ logger:
   wandb:
     tags: ${tags}
     group: "addneuromed"
-  aim:
-    experiment: "addneuromed" 
