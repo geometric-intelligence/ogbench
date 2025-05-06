@@ -4,17 +4,15 @@ import pandas as pd
 import requests
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import transforms
 from tqdm import tqdm
-import gzip
 import torch_geometric.data
 import torch_geometric.transforms as T
 import PyWGCNA
 from sklearn.feature_selection import mutual_info_regression
 from sklearn.impute import SimpleImputer
 import numpy as np
-from pathlib import Path
 
 
 class ProteomicsDataModule(LightningDataModule):

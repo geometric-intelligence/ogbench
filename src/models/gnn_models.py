@@ -1,11 +1,10 @@
-from typing import Optional, Tuple, Union, List
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.nn import GATv2Conv, GCNConv, SAGEConv
-from torch_geometric.typing import Adj, OptTensor
+from torch_geometric.typing import Adj
 from torch_geometric.utils import add_self_loops, degree
 
 
