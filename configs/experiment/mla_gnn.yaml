@@ -1,0 +1,46 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=mla_gnn
+
+defaults:
+  - override /data: addneuromed
+  - override /model: mla_gnn
+  - override /callbacks: default
+  - override /trainer: default
+
+tags: ["addneuromed", "mla_gnn"]
+
+seed: 12345
+
+trainer:
+  min_epochs: 20
+  max_epochs: 50
+  gradient_clip_val: 0.5
+
+model:
+  optimizer:
+    lr: 1e-2
+    weight_decay: 1e-4
+  net:
+    in_channels: 1
+    hidden_channels: 128
+    out_channels: 4
+    num_layers: 2
+    dropout: 0.2
+    num_propagations: 20
+    aggregation_ratio: 0.75
+    adj_norm: "AD"
+    auto_scale: true
+    num_mlp_layers: 2
+  compile: false
+
+data:
+  batch_size: 1000
+
+logger:
+  wandb:
+    tags: ${tags}
+    group: "addneuromed"
+  aim:
+    experiment: "addneuromed" 

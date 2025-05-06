@@ -4,17 +4,15 @@ import pandas as pd
 import requests
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import transforms
 from tqdm import tqdm
-import gzip
 import torch_geometric.data
 import torch_geometric.transforms as T
 import PyWGCNA
 from sklearn.feature_selection import mutual_info_regression
 from sklearn.impute import SimpleImputer
 import numpy as np
-from pathlib import Path
 
 
 class ProteomicsDataModule(LightningDataModule):
@@ -103,7 +101,7 @@ class ProteomicsDataModule(LightningDataModule):
 
         # Load data
         proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_proteomics.xlsx"), header=3)
-        analytes_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
+        _ = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
 
         # Extract features and target
         self.raw_data = proteomics_df.iloc[:, 9:]  # Protein expression values
