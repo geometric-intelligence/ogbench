@@ -46,6 +46,9 @@ class AddNeuroMedDataModule(LightningDataModule):
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
+        self.selected_data_path: str = os.path.join(self.hparams.data_dir, 'selected_data.npy')
+        self.adj_matrix_path: str = os.path.join(self.hparams.data_dir, 'adj_matrix.npy')
+        self.labels_path: str = os.path.join(self.hparams.data_dir, 'labels.npy')
 
         self.batch_size_per_device: int = batch_size
         self.train_val_test_split: Tuple[float, float, float] = train_val_test_split
@@ -88,14 +91,19 @@ class AddNeuroMedDataModule(LightningDataModule):
         # Create output directory if it doesn't exist
         if not os.path.exists(self.hparams.data_dir):
             os.makedirs(self.hparams.data_dir)
-        
+
+        # Check if all cache files exist
+        if all(os.path.exists(path) for path in [self.selected_data_path, self.adj_matrix_path, self.labels_path]):
+            print("All cache files exist, skipping data preparation")
+            return
+
         # GEO dataset URLs
         datasets: Dict[str, str] = {
             'GPL10558': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL10558_series_matrix.txt.gz',
             'GPL6947': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL6947_series_matrix.txt.gz'
         }
         
-        self.raw_data: pd.DataFrame = pd.DataFrame()
+        raw_data: pd.DataFrame = pd.DataFrame()
         common_genes: set[str] | None = None
         frames: list[pd.DataFrame] = []
         for dataset, url in datasets.items():
@@ -131,37 +139,31 @@ class AddNeuroMedDataModule(LightningDataModule):
         assert len(common_patients) == 0, "Common patients found between the two datasets"
 
         # Find common genes between the two datasets (or common "label" column)
-        common_genes = list(set(frames[0].columns).intersection(set(frames[1].columns)))    
+        common_genes = list(set(frames[0].columns).intersection(set(frames[1].columns)))
+
         # Filter the two datasets to only include common genes
         frames[0] = frames[0][common_genes]
         frames[1] = frames[1][common_genes]
+
         # Concatenate the two datasets
         raw_data = pd.concat(frames, axis=0)
-        self.labels = raw_data['label']
-        self.raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]
-        # Select nodes based on graph label
-        selected_nodes_path = os.path.join(self.hparams.data_dir, 'selected_nodes.npy')
-        adj_matrix_path = os.path.join(self.hparams.data_dir, 'adj_matrix.npy')
+        labels = raw_data['label']
+        np.save(self.labels_path, labels)
 
-        if os.path.exists(selected_nodes_path):
-            print("Loading cached selected nodes")
-            self._selected_nodes = np.load(selected_nodes_path)
-        else:
-            print("start selecting nodes")
-            self._selected_nodes = self.select_nodes(self.raw_data, self.labels, n_selected=50)
-            np.save(selected_nodes_path, self._selected_nodes)
-            print("done selecting nodes")
-        
-        self._selected_data = self.raw_data.iloc[:, self._selected_nodes]
-        
-        if os.path.exists(adj_matrix_path):
-            print("Loading cached adjacency matrix")
-            self._adj_matrix = np.load(adj_matrix_path)
-        else:
-            print("start calculating adjacency matrix")
-            self._adj_matrix = self.calculate_adjacency_matrix(self._selected_data)
-            np.save(adj_matrix_path, self._adj_matrix)
-            print("done calculating adjacency matrix")
+        # TODO: Make the number of features a parameter
+        raw_data = raw_data.drop(columns=['label']).iloc[:, :1000]
+
+        print("start selecting nodes")
+        selected_nodes = self.select_nodes(raw_data, labels, n_selected=50)
+        selected_data = raw_data.iloc[:, selected_nodes]
+        print(f"Saving selected data to {self.selected_data_path}")
+        selected_data.to_parquet(self.selected_data_path)
+    
+        print("start calculating adjacency matrix")
+        adj_matrix = self.calculate_adjacency_matrix(selected_data)
+        print(f"Saving adjacency matrix to {self.adj_matrix_path}")
+        np.save(self.adj_matrix_path, adj_matrix)
+
 
     def select_nodes(self, data, labels, n_selected=1000):
         """Select nodes based on graph label."""
@@ -233,11 +235,22 @@ class AddNeuroMedDataModule(LightningDataModule):
         This method is called by Lightning before `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and
         `trainer.predict()`, so be careful not to execute things like random split twice!
         """
+        if not os.path.exists(self.selected_data_path):
+            raise FileNotFoundError(f"Selected data file not found at {self.selected_data_path}")
+        if not os.path.exists(self.adj_matrix_path):
+            raise FileNotFoundError(f"Adjacency matrix file not found at {self.adj_matrix_path}")
+        if not os.path.exists(self.labels_path):
+            raise FileNotFoundError(f"Labels file not found at {self.labels_path}")
+        
+        selected_data = pd.read_parquet(self.selected_data_path)
+        adj_matrix = np.load(self.adj_matrix_path)
+        labels = np.load(self.labels_path)
+
         graph_data_list = []
-        for (_, subject_data), subject_label in zip(self._selected_data.iterrows(), self.labels):
+        for (_, subject_data), subject_label in zip(selected_data.iterrows(), labels):
 
             graph_data_list.append(
-                self.create_graph_data(subject_data, subject_label, self._adj_matrix))
+                self.create_graph_data(subject_data, subject_label, adj_matrix))
    
         self.n_graphs = len(graph_data_list)
         i_train = int(self.n_graphs * self.train_val_test_split[0]) 

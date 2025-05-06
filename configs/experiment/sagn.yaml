@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: addneuromed
-  - override /model: sagn
+  - override /model: gcn
   - override /callbacks: default
   - override /trainer: default
 
@@ -23,6 +23,7 @@ model:
     lr: 1e-2
     weight_decay: 1e-4
   net:
+    _target_: src.models.gnn_models.SAGN
     in_channels: 1
     hidden_channels: 128
     out_channels: 4

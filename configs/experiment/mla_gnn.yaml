@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: addneuromed
-  - override /model: mla_gnn
+  - override /model: gcn
   - override /callbacks: default
   - override /trainer: default
 
@@ -23,6 +23,7 @@ model:
     lr: 1e-2
     weight_decay: 1e-4
   net:
+    _target_: src.models.gnn_models.MLAGNN
     in_channels: 1
     hidden_channels: 128
     out_channels: 4
@@ -42,5 +43,3 @@ logger:
   wandb:
     tags: ${tags}
     group: "addneuromed"
-  aim:
-    experiment: "addneuromed" 
