@@ -101,7 +101,7 @@ class ProteomicsDataModule(LightningDataModule):
 
         # Load data
         proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_proteomics.xlsx"), header=3)
-        analytes_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
+        _ = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
 
         # Extract features and target
         self.raw_data = proteomics_df.iloc[:, 9:]  # Protein expression values
