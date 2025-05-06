@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: addneuromed
-  - override /model: rtgnn
+  - override /model: gcn
   - override /callbacks: default
   - override /trainer: default
 
@@ -22,6 +22,7 @@ model:
   optimizer:
     lr: 0.002
   net:
+    _target_: src.models.gnn_models.RTGNN
     in_channels: 1
     hidden_channels: 2048
     out_channels: 4
