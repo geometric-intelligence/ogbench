@@ -101,7 +101,6 @@ class EnGCN(nn.Module):
         dropout: float = 0.2,
         num_propagations: int = 20,
         aggregation_ratio: float = 0.75,
-        auto_scale: bool = True,
         num_mlp_layers: int = 2,
         diffusion_type: str = "residual",
     ) -> None:
@@ -114,7 +113,6 @@ class EnGCN(nn.Module):
         
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
-        self.auto_scale = auto_scale
         self.diffusion_type = diffusion_type
         self.dropout = dropout
         
@@ -161,7 +159,6 @@ class SAGN(nn.Module):
         dropout: float = 0.2,
         num_propagations: int = 20,
         aggregation_ratio: float = 0.75,
-        auto_scale: bool = True,
         num_mlp_layers: int = 2,
     ) -> None:
         super().__init__()
@@ -173,7 +170,6 @@ class SAGN(nn.Module):
         
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
-        self.auto_scale = auto_scale
         self.dropout = dropout
         
         # MLP layers for feature transformation
@@ -216,7 +212,6 @@ class MLAGNN(nn.Module):
         dropout: float = 0.2,
         num_propagations: int = 20,
         aggregation_ratio: float = 0.75,
-        auto_scale: bool = True,
         num_mlp_layers: int = 2,
     ) -> None:
         super().__init__()
@@ -228,7 +223,6 @@ class MLAGNN(nn.Module):
         
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
-        self.auto_scale = auto_scale
         self.dropout = dropout
         
         # Multiple MLP layers for feature transformation
