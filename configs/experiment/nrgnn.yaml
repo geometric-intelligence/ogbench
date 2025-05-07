@@ -37,6 +37,3 @@ data:
 logger:
   wandb:
     tags: ${tags}
-    group: "addneuromed"
-  aim:
-    experiment: "addneuromed" 

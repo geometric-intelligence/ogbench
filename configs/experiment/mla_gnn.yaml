@@ -42,4 +42,3 @@ data:
 logger:
   wandb:
     tags: ${tags}
-    group: "addneuromed"

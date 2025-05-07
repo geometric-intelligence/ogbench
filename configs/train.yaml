@@ -7,7 +7,7 @@ defaults:
   - data: addneuromed
   - model: gcn
   - callbacks: default
-  - logger: null # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
+  - logger: wandb
   - trainer: default
   - paths: default
   - extras: default

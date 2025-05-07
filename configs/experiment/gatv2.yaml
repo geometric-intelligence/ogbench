@@ -15,16 +15,18 @@ seed: 12345
 
 trainer:
   min_epochs: 10
-  max_epochs: 10
+  max_epochs: 50
   gradient_clip_val: 0.5
 
 model:
   net:
-    _target_: torch_geometric.nn.GCN
+    _target_: torch_geometric.nn.models.GAT
     num_layers: 4
     in_channels: 1
     hidden_channels: 2048
     out_channels: 4
+    v2: true
+
     #graph_pooling: mean
 
 data:
@@ -33,4 +35,3 @@ data:
 logger:
   wandb:
     tags: ${tags}
-    group: "addneuromed"

@@ -1,0 +1,18 @@
+# @package _global_
+
+# hyperparameter optimization of some experiment with basic sweeper:
+# python train.py -m trainer=ddp hparams_search=gcn_optuna experiment=gcn
+
+defaults:
+  - override /hydra/sweeper: basic
+
+hydra:
+  # set hydra to multirun by default if this config is attached
+  mode: "MULTIRUN"
+
+  sweeper:
+    # how many jobs to launch in parallel
+    max_batch_size: 8
+    params:
+      model.optimizer.lr: 0.0001,0.001,0.01,0.1
+      model.net.hidden_channels: 64,128,256
