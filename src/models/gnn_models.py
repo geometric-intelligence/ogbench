@@ -101,7 +101,6 @@ class EnGCN(nn.Module):
         dropout: float = 0.2,
         num_propagations: int = 20,
         aggregation_ratio: float = 0.75,
-        adj_norm: str = "AD",
         auto_scale: bool = True,
         num_mlp_layers: int = 2,
         diffusion_type: str = "residual",
@@ -115,7 +114,6 @@ class EnGCN(nn.Module):
         
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
-        self.adj_norm = adj_norm
         self.auto_scale = auto_scale
         self.diffusion_type = diffusion_type
         self.dropout = dropout
@@ -132,9 +130,6 @@ class EnGCN(nn.Module):
         for layer in self.mlp:
             x = layer(x)
         
-        # Normalize adjacency matrix
-        edge_weight = normalize_adj(edge_index, self.adj_norm)
-        
         # Multiple propagation steps
         for _ in range(self.num_propagations):
             if self.diffusion_type == "residual":
@@ -144,7 +139,7 @@ class EnGCN(nn.Module):
             
             # Apply GCN layers
             for conv in self.convs[:-1]:
-                x_new = conv(x_new, edge_index, edge_weight)
+                x_new = conv(x_new, edge_index)
                 x_new = F.relu(x_new)
                 x_new = F.dropout(x_new, p=self.dropout, training=self.training)
             
@@ -152,7 +147,7 @@ class EnGCN(nn.Module):
             x = self.aggregation_ratio * x_new + (1 - self.aggregation_ratio) * x
         
         # Final layer
-        x = self.convs[-1](x, edge_index, edge_weight)
+        x = self.convs[-1](x, edge_index)
         return x
 
 
@@ -166,7 +161,6 @@ class SAGN(nn.Module):
         dropout: float = 0.2,
         num_propagations: int = 20,
         aggregation_ratio: float = 0.75,
-        adj_norm: str = "AD",
         auto_scale: bool = True,
         num_mlp_layers: int = 2,
     ) -> None:
@@ -179,7 +173,6 @@ class SAGN(nn.Module):
         
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
-        self.adj_norm = adj_norm
         self.auto_scale = auto_scale
         self.dropout = dropout
         
@@ -195,16 +188,13 @@ class SAGN(nn.Module):
         for layer in self.mlp:
             x = layer(x)
         
-        # Normalize adjacency matrix
-        edge_weight = normalize_adj(edge_index, self.adj_norm)
-        
         # Multiple propagation steps
         for _ in range(self.num_propagations):
             x_new = torch.zeros_like(x)
             
             # Apply SAGE layers
             for conv in self.convs[:-1]:
-                x_new = conv(x_new, edge_index, edge_weight)
+                x_new = conv(x_new, edge_index)
                 x_new = F.relu(x_new)
                 x_new = F.dropout(x_new, p=self.dropout, training=self.training)
             
@@ -212,7 +202,7 @@ class SAGN(nn.Module):
             x = self.aggregation_ratio * x_new + (1 - self.aggregation_ratio) * x
         
         # Final layer
-        x = self.convs[-1](x, edge_index, edge_weight)
+        x = self.convs[-1](x, edge_index)
         return x
 
 
@@ -226,7 +216,6 @@ class MLAGNN(nn.Module):
         dropout: float = 0.2,
         num_propagations: int = 20,
         aggregation_ratio: float = 0.75,
-        adj_norm: str = "AD",
         auto_scale: bool = True,
         num_mlp_layers: int = 2,
     ) -> None:
@@ -239,7 +228,6 @@ class MLAGNN(nn.Module):
         
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
-        self.adj_norm = adj_norm
         self.auto_scale = auto_scale
         self.dropout = dropout
         
@@ -261,16 +249,13 @@ class MLAGNN(nn.Module):
         for mlp in self.mlps:
             x = mlp(x)
         
-        # Normalize adjacency matrix
-        edge_weight = normalize_adj(edge_index, self.adj_norm)
-        
         # Multiple propagation steps
         for _ in range(self.num_propagations):
             x_new = torch.zeros_like(x)
             
             # Apply GCN layers
             for conv in self.convs[:-1]:
-                x_new = conv(x_new, edge_index, edge_weight)
+                x_new = conv(x_new, edge_index)
                 x_new = F.relu(x_new)
                 x_new = F.dropout(x_new, p=self.dropout, training=self.training)
             
@@ -278,44 +263,5 @@ class MLAGNN(nn.Module):
             x = self.aggregation_ratio * x_new + (1 - self.aggregation_ratio) * x
         
         # Final layer
-        x = self.convs[-1](x, edge_index, edge_weight)
+        x = self.convs[-1](x, edge_index)
         return x 
-
-
-def normalize_adj(adj: Adj, norm_type: str = "AD") -> Adj:
-    """Normalize adjacency matrix.
-    
-    Args:
-        adj: Adjacency matrix
-        norm_type: Normalization type
-            - "AD": A + I, D^(-1/2)AD^(-1/2)
-            - "DAD": D^(-1/2)AD^(-1/2)
-            - "DA": D^(-1)A
-            - "AD": AD^(-1)
-    """
-    if norm_type == "AD":
-        # Add self-loops
-        adj = add_self_loops(adj)[0]
-        # Get degree matrix
-        deg = degree(adj[0], adj.size(1))
-        # Normalize
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        return (deg_inv_sqrt[adj[0]] * deg_inv_sqrt[adj[1]]).view(-1)
-    elif norm_type == "DAD":
-        deg = degree(adj[0], adj.size(1))
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        return (deg_inv_sqrt[adj[0]] * deg_inv_sqrt[adj[1]]).view(-1)
-    elif norm_type == "DA":
-        deg = degree(adj[0], adj.size(1))
-        deg_inv = deg.pow(-1)
-        deg_inv[deg_inv == float('inf')] = 0
-        return deg_inv[adj[0]].view(-1)
-    elif norm_type == "AD":
-        deg = degree(adj[1], adj.size(1))
-        deg_inv = deg.pow(-1)
-        deg_inv[deg_inv == float('inf')] = 0
-        return deg_inv[adj[1]].view(-1)
-    else:
-        raise ValueError(f"Unknown normalization type: {norm_type}") 
