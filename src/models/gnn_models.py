@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.nn import GCNConv, SAGEConv
 from torch_geometric.typing import Adj
-from torch_geometric.utils import add_self_loops, degree
 
 
 class NRGNN(nn.Module):
