@@ -1,3 +1,4 @@
+import abc
 from typing import Any, Dict, Optional, Tuple
 import os
 import pandas as pd
@@ -5,7 +6,6 @@ import requests
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
-from torchvision.transforms import transforms
 from tqdm import tqdm
 import torch_geometric.data
 import torch_geometric.transforms as T
@@ -14,14 +14,29 @@ from sklearn.feature_selection import mutual_info_regression
 from sklearn.impute import SimpleImputer
 import numpy as np
 
+def download_file(self, url: str, output_path: str) -> None:
+    """Download a file with progress bar."""
+    response: requests.Response = requests.get(url, stream=True)
+    total_size: int = int(response.headers.get('content-length', 0))
+    
+    with open(output_path, 'wb') as f, tqdm(
+        desc=os.path.basename(output_path),
+        total=total_size,
+        unit='iB',
+        unit_scale=True,
+        unit_divisor=1024,
+    ) as pbar:
+        for data in response.iter_content(chunk_size=1024):
+            size: int = f.write(data)
+            pbar.update(size)
 
-class ProteomicsDataModule(LightningDataModule):
+
+class OmicsDataModule(LightningDataModule, abc.ABC):
     """`LightningDataModule` for MortrPac and PanCancer proteomics datasets."""
 
     def __init__(
         self,
         data_dir: str = "data/proteomics/",
-        dataset: str = "mortrpac",  # or "pancancer"
         train_val_test_split: Tuple[float, float, float] = (0.7, 0.15, 0.15),
         batch_size: int = 64,
         num_workers: int = 0,
@@ -44,83 +59,30 @@ class ProteomicsDataModule(LightningDataModule):
         super().__init__()
 
         self.save_hyperparameters(logger=False)
-        self.dataset = dataset
         self.imputer = SimpleImputer(strategy=imputation_method)
 
-        # data transformations
-        self.transforms: transforms.Compose = transforms.Compose([
-            transforms.Normalize(mean=[0.0], std=[1.0])
-        ])
+        self.raw_data_path: str = os.path.join(data_dir, f"{self.dataset}_raw_data.parquet")
+        self.targets_path: str = os.path.join(data_dir, f"{self.dataset}_targets.npy")
 
-        self.data_train: Optional[Dataset] = None
-        self.data_val: Optional[Dataset] = None
-        self.data_test: Optional[Dataset] = None
+        self.data_train: Dataset | None = None
+        self.data_val: Dataset | None = None
+        self.data_test: Dataset | None = None
 
         self.batch_size_per_device: int = batch_size
         self.train_val_test_split: Tuple[float, float, float] = train_val_test_split
-
-    def _download_file(self, url: str, output_path: str) -> None:
-        """Download a file with progress bar."""
-        response: requests.Response = requests.get(url, stream=True)
-        total_size: int = int(response.headers.get('content-length', 0))
-        
-        with open(output_path, 'wb') as f, tqdm(
-            desc=os.path.basename(output_path),
-            total=total_size,
-            unit='iB',
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as pbar:
-            for data in response.iter_content(chunk_size=1024):
-                size: int = f.write(data)
-                pbar.update(size)
 
     def prepare_data(self) -> None:
         """Download and prepare data."""
         if not os.path.exists(self.hparams.data_dir):
             os.makedirs(self.hparams.data_dir)
-
-        if self.dataset == "mortrpac":
-            self._prepare_mortrpac()
-        else:
-            self._prepare_pancancer()
-
-    def _prepare_mortrpac(self) -> None:
-        """Prepare MortrPac dataset."""
-        # Download files
-        urls = {
-            'proteomics': 'https://d1yw74buhe0ts0.cloudfront.net/static/motrpac-data-hub/publications/data/related-studies/heritage-proteomics/HERITAGE_proteomics_somalogic.xlsx',
-            'analytes': 'https://d1yw74buhe0ts0.cloudfront.net/static/motrpac-data-hub/publications/data/related-studies/heritage-proteomics/HERITAGE_somalogic_analytes.xlsx'
-        }
-
-        for name, url in urls.items():
-            file_path = os.path.join(self.hparams.data_dir, f"mortrpac_{name}.xlsx")
-            if not os.path.exists(file_path):
-                print(f"Downloading {name}...")
-                self._download_file(url, file_path)
-
-        # Load data
-        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_proteomics.xlsx"), header=3)
-        _ = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
-
-        # Extract features and target
-        self.raw_data = proteomics_df.iloc[:, 9:]  # Protein expression values
-        self.targets = proteomics_df['Delta VO2MX (ml/min)'].values
-
-        # Remove rows with missing targets
-        mask = ~pd.isna(self.targets)
-        self.raw_data = self.raw_data[mask]
-        self.targets = self.targets[mask]
-
-        # Impute missing values in features
-        self.raw_data = pd.DataFrame(
-            self.imputer.fit_transform(self.raw_data),
-            columns=self.raw_data.columns,
-            index=self.raw_data.index
-        )
-
-        # Select nodes and create adjacency matrix
-        self._prepare_graph_data()
+        
+        if os.path.exists(self.raw_data_path) and os.path.exists(self.targets_path):
+            return
+        
+        print("Preparing dataset...")
+        raw_data, targets = self.prepare_dataset()
+        raw_data.to_parquet(self.raw_data_path)
+        np.save(self.targets_path, targets)
 
     def _prepare_pancancer(self) -> None:
         """Prepare PanCancer dataset."""
@@ -308,21 +270,156 @@ class ProteomicsDataModule(LightningDataModule):
         pass
 
 
+class MortrPacDataModule(OmicsDataModule):
+    """`LightningDataModule` for MortrPac proteomics datasets."""
+
+    def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
+        super().__init__(data_dir=data_dir, *args, **kwargs)
+        self.dataset = "mortrpac"
+
+    def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
+        """Prepare MortrPac dataset."""
+        # Download files
+        urls = {
+            'proteomics': 'https://d1yw74buhe0ts0.cloudfront.net/static/motrpac-data-hub/publications/data/related-studies/heritage-proteomics/HERITAGE_proteomics_somalogic.xlsx',
+            'analytes': 'https://d1yw74buhe0ts0.cloudfront.net/static/motrpac-data-hub/publications/data/related-studies/heritage-proteomics/HERITAGE_somalogic_analytes.xlsx'
+        }
+
+        for name, url in urls.items():
+            file_path = os.path.join(self.hparams.data_dir, f"mortrpac_{name}.xlsx")
+            if not os.path.exists(file_path):
+                print(f"Downloading {name}...")
+                download_file(url, file_path)
+
+        # Load data
+        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_proteomics.xlsx"), header=3)
+        _ = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
+
+        # Extract features and target
+        raw_data = proteomics_df.iloc[:, 9:]  # Protein expression values
+        targets = proteomics_df['Delta VO2MX (ml/min)'].values
+
+        # Remove rows with missing targets
+        mask = ~pd.isna(targets)
+        raw_data = raw_data[mask]
+        targets = targets[mask]
+
+        # Impute missing values in features
+        raw_data = pd.DataFrame(
+            self.imputer.fit_transform(raw_data),
+            columns=raw_data.columns,
+            index=raw_data.index
+        )
+
+        return raw_data, targets
+
+
+class PanCancerDataModule(OmicsDataModule):
+    """`LightningDataModule` for PanCancer proteomics datasets."""
+
+    def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
+        super().__init__(data_dir=data_dir, *args, **kwargs)
+        self.dataset = "pancancer"   
+
+    def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
+        """Prepare PanCancer dataset."""
+        # Download files
+        urls = {
+            'proteomics': 'https://ars.els-cdn.com/content/image/1-s2.0-S1535610822002744-mmc3.xlsx',
+            'drug_response': 'https://figshare.com/ndownloader/files/34355645'
+        }
+
+        for name, url in urls.items():
+            file_path = os.path.join(self.hparams.data_dir, f"pancancer_{name}.{'xlsx' if name == 'proteomics' else 'csv.gz'}")
+            if not os.path.exists(file_path):
+                print(f"Downloading {name}...")
+                self._download_file(url, file_path)
+
+        # Load data
+        print('Loading data...')
+        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "pancancer_proteomics.xlsx"), sheet_name="Full protein matrix", header=1)
+        drug_df = pd.read_csv(os.path.join(self.hparams.data_dir, "pancancer_drug_response.csv.gz"), compression='gzip')
+
+        # Filter for Avagacestat
+        drug_df = drug_df[drug_df['drug_name'] == 'Avagacestat']
+        drug_df = drug_df.dropna(subset=['ln_IC50'])
+
+        # Split Project_Identifier
+        proteomics_df[['model_id', 'cell_line_name']] = proteomics_df['Project_Identifier'].str.split(';', expand=True)
+
+        # Merge datasets
+        merged_df = pd.merge(
+            proteomics_df,
+            drug_df,
+            on=['model_id', 'cell_line_name'],
+            how='inner'
+        )
+
+        # Extract features and target
+        protein_cols = [col for col in merged_df.columns if col not in 
+                       ['Project_Identifier', 'model_id', 'cell_line_name', 
+                        'drug_name', 'ln_IC50']]
+        
+        # Convert protein expression values to numeric, replacing non-numeric values with NaN
+        print('Converting data to numeric...')
+        numeric_data = merged_df[protein_cols].apply(pd.to_numeric, errors='coerce')
+        
+        # Remove columns that are all NaN after conversion
+        valid_cols = numeric_data.columns[~numeric_data.isna().all()]
+        numeric_data = numeric_data[valid_cols]
+        
+        print(f'Number of valid protein columns: {len(valid_cols)}')
+        
+        # Store original column names and index
+        original_columns = numeric_data.columns
+        original_index = numeric_data.index
+        
+        # Impute missing values in features
+        print('Imputing missing values...')
+        imputed_data = self.imputer.fit_transform(numeric_data)
+        
+        # Create DataFrame with imputed data, preserving original structure
+        raw_data = pd.DataFrame(
+            imputed_data,
+            columns=original_columns,
+            index=original_index
+        )
+        
+        targets = merged_df['ln_IC50'].values
+
+        return raw_data, targets
+
+
 if __name__ == "__main__":
     # Example usage
-    for dataset in ["mortrpac", "pancancer"]:
-        datamodule = ProteomicsDataModule(dataset=dataset)
-        datamodule.prepare_data()
-        datamodule.setup()
-        
-        train_loader = datamodule.train_dataloader()
-        val_loader = datamodule.val_dataloader()
-        test_loader = datamodule.test_dataloader()
+    pancancer_datamodule = PanCancerDataModule()
+    pancancer_datamodule.prepare_data()
+    pancancer_datamodule.setup()
+    
+    train_loader = pancancer_datamodule.train_dataloader()
+    val_loader = pancancer_datamodule.val_dataloader()
+    test_loader = pancancer_datamodule.test_dataloader()
 
-        print(f"Number of training samples: {len(train_loader.dataset)}")
-        print(f"Number of validation samples: {len(val_loader.dataset)}")
-        print(f"Number of test samples: {len(test_loader.dataset)}")
-        
-        print(f"\nNumber of training batches: {len(train_loader)}")
-        print(f"Number of validation batches: {len(val_loader)}")
-        print(f"Number of test batches: {len(test_loader)}") 
+    print(f"Number of training samples: {len(train_loader.dataset)}")
+    print(f"Number of validation samples: {len(val_loader.dataset)}")
+    print(f"Number of test samples: {len(test_loader.dataset)}")
+    
+    print(f"\nNumber of training batches: {len(train_loader)}")
+    print(f"Number of validation batches: {len(val_loader)}")
+    print(f"Number of test batches: {len(test_loader)}")
+
+    mortrpac_datamodule = MortrPacDataModule()
+    mortrpac_datamodule.prepare_data()
+    mortrpac_datamodule.setup()
+    
+    train_loader = mortrpac_datamodule.train_dataloader()
+    val_loader = mortrpac_datamodule.val_dataloader()
+    test_loader = mortrpac_datamodule.test_dataloader()
+
+    print(f"Number of training samples: {len(train_loader.dataset)}")
+    print(f"Number of validation samples: {len(val_loader.dataset)}")
+    print(f"Number of test samples: {len(test_loader.dataset)}")
+
+    print(f"\nNumber of training batches: {len(train_loader)}")
+    print(f"Number of validation batches: {len(val_loader)}")
+    print(f"Number of test batches: {len(test_loader)}")
