@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 from tqdm import tqdm
 import torch_geometric.data
 import torch_geometric.transforms as T
@@ -60,7 +60,8 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
 
-        self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_raw_data.parquet")
+        #TODO: These depend on the n_selected_nodes, 
+        self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_selected_data.parquet")
         self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_targets.npy")
         self.adj_matrix_path: str = os.path.join(data_dir, f"{self.dataset_name}_adj_matrix.npy")
 
@@ -138,7 +139,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features,
             power=power,
-            adjacencyType="signed hybrid",
+            type="signed",
         )
         
         # Binarize adjacency matrix
@@ -171,7 +172,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             graph_data_list.append(
                 self.create_graph_data(subject_data, subject_target, adj_matrix)
             )
-
+        
         self.n_graphs = len(graph_data_list)
         i_train = int(self.n_graphs * self.train_val_test_split[0])
         i_val = int(self.n_graphs * (self.train_val_test_split[0] + self.train_val_test_split[1]))
@@ -180,7 +181,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.val_graph_data_list = graph_data_list[i_train:i_val]
         self.test_graph_data_list = graph_data_list[i_val:]
 
-    def train_dataloader(self) -> DataLoader[Any]:
+    def train_dataloader(self) -> torch_geometric.data.DataLoader[Any]:
         """Create and return the train dataloader."""
         return torch_geometric.data.DataLoader(
             dataset=self.train_graph_data_list,
@@ -190,7 +191,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             shuffle=True,
         )
 
-    def val_dataloader(self) -> DataLoader[Any]:
+    def val_dataloader(self) -> torch_geometric.data.DataLoader[Any]:
         """Create and return the validation dataloader."""
         return torch_geometric.data.DataLoader(
             dataset=self.val_graph_data_list,
@@ -200,7 +201,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             shuffle=False,
         )
 
-    def test_dataloader(self) -> DataLoader[Any]:
+    def test_dataloader(self) -> torch_geometric.data.DataLoader[Any]:
         """Create and return the test dataloader."""
         return torch_geometric.data.DataLoader(
             dataset=self.test_graph_data_list,

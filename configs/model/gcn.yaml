@@ -18,8 +18,7 @@ net:
   num_layers: 4
   in_channels: 1
   hidden_channels: 2048
-  out_channels: 4
-  #graph_pooling: mean
+  out_channels: 1
 
 # compile model for faster training with pytorch 2.0
 compile: false
