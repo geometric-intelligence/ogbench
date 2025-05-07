@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Final, Optional, Tuple
 import os
 import pandas as pd
 import requests
@@ -14,7 +14,7 @@ from sklearn.feature_selection import mutual_info_regression
 from sklearn.impute import SimpleImputer
 import numpy as np
 
-def download_file(self, url: str, output_path: str) -> None:
+def download_file(url: str, output_path: str) -> None:
     """Download a file with progress bar."""
     response: requests.Response = requests.get(url, stream=True)
     total_size: int = int(response.headers.get('content-length', 0))
@@ -61,8 +61,8 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
 
-        self.raw_data_path: str = os.path.join(data_dir, f"{self.dataset}_raw_data.parquet")
-        self.targets_path: str = os.path.join(data_dir, f"{self.dataset}_targets.npy")
+        self.raw_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_raw_data.parquet")
+        self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_targets.npy")
 
         self.data_train: Dataset | None = None
         self.data_val: Dataset | None = None
@@ -96,7 +96,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             file_path = os.path.join(self.hparams.data_dir, f"pancancer_{name}.{'xlsx' if name == 'proteomics' else 'csv.gz'}")
             if not os.path.exists(file_path):
                 print(f"Downloading {name}...")
-                self._download_file(url, file_path)
+                download_file(url, file_path)
 
         # Load data
         print('Loading data...')
@@ -156,8 +156,8 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
     def _prepare_graph_data(self) -> None:
         """Prepare graph data by selecting nodes and creating adjacency matrix."""
         # Select nodes based on feature importance
-        selected_nodes_path = os.path.join(self.hparams.data_dir, f'{self.dataset}_selected_nodes.npy')
-        adj_matrix_path = os.path.join(self.hparams.data_dir, f'{self.dataset}_adj_matrix.npy')
+        selected_nodes_path = os.path.join(self.hparams.data_dir, f'{self.dataset_name}_selected_nodes.npy')
+        adj_matrix_path = os.path.join(self.hparams.data_dir, f'{self.dataset_name}_adj_matrix.npy')
 
         if os.path.exists(selected_nodes_path):
             print("Loading cached selected nodes")
@@ -213,8 +213,10 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data and create train/val/test splits."""
+        raw_data = pd.read_parquet(self.raw_data_path)
+        targets = np.load(self.targets_path)
         graph_data_list = []
-        for (_, subject_data), subject_target in zip(self._selected_data.iterrows(), self.targets):
+        for (_, subject_data), subject_target in zip(raw_data.iterrows(), targets):
             graph_data_list.append(
                 self.create_graph_data(subject_data, subject_target, self._adj_matrix)
             )
@@ -272,10 +274,11 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
 class MortrPacDataModule(OmicsDataModule):
     """`LightningDataModule` for MortrPac proteomics datasets."""
+    dataset_name: Final[str] = "mortrpac"
 
     def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
-        self.dataset = "mortrpac"
+
 
     def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
         """Prepare MortrPac dataset."""
@@ -316,10 +319,11 @@ class MortrPacDataModule(OmicsDataModule):
 
 class PanCancerDataModule(OmicsDataModule):
     """`LightningDataModule` for PanCancer proteomics datasets."""
+    dataset_name: Final[str] = "pancancer"
 
     def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
-        self.dataset = "pancancer"   
+  
 
     def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
         """Prepare PanCancer dataset."""
@@ -333,7 +337,7 @@ class PanCancerDataModule(OmicsDataModule):
             file_path = os.path.join(self.hparams.data_dir, f"pancancer_{name}.{'xlsx' if name == 'proteomics' else 'csv.gz'}")
             if not os.path.exists(file_path):
                 print(f"Downloading {name}...")
-                self._download_file(url, file_path)
+                download_file(url, file_path)
 
         # Load data
         print('Loading data...')
