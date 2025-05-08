@@ -387,7 +387,6 @@ class AddNeuroMedOmicsDataModule(OmicsDataModule):
             # Extract ages from the data
             with gzip.open(gz_path, 'rt') as f:
                 for line in f:
-                    print(line)
                     if line.startswith('!Sample_characteristics_ch1') and 'age:' in line:
                         ages.extend([int(x.split(': ')[1].strip().strip('"')) for x in line.split('\t')[1:]])
                         break
