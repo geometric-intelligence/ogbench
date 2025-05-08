@@ -309,7 +309,7 @@ class PanCancerDataModule(OmicsDataModule):
 
         # Extract features and target
         protein_cols = [col for col in merged_df.columns if col not in 
-                       ['Project_Identifier', 'model_id', 'cell_line_name', 
+                       ['Project_Identifier', 'model_id', 'cell_line_name', 'drug_id',
                         'drug_name', 'ln_IC50', 'COSMIC_ID', 'master_cell_id', 'model_name']]
         
         # Convert protein expression values to numeric, replacing non-numeric values with NaN
