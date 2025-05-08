@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import torch_geometric.data
 import torch_geometric.transforms as T
@@ -139,7 +139,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features,
             power=power,
-            type="signed",
+            adjacencyType="signed",
         )
         
         # Binarize adjacency matrix
@@ -163,6 +163,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data and create train/val/test splits."""
+        print("Loading data...")
         selected_data = pd.read_parquet(self.selected_data_path)
         targets = np.load(self.targets_path)
         adj_matrix = np.load(self.adj_matrix_path)
@@ -180,8 +181,9 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.train_graph_data_list = graph_data_list[:i_train]
         self.val_graph_data_list = graph_data_list[i_train:i_val]
         self.test_graph_data_list = graph_data_list[i_val:]
+        print("data loaded")
 
-    def train_dataloader(self) -> torch_geometric.data.DataLoader[Any]:
+    def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader."""
         return torch_geometric.data.DataLoader(
             dataset=self.train_graph_data_list,
@@ -191,7 +193,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             shuffle=True,
         )
 
-    def val_dataloader(self) -> torch_geometric.data.DataLoader[Any]:
+    def val_dataloader(self) -> DataLoader[Any]:
         """Create and return the validation dataloader."""
         return torch_geometric.data.DataLoader(
             dataset=self.val_graph_data_list,
@@ -201,7 +203,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             shuffle=False,
         )
 
-    def test_dataloader(self) -> torch_geometric.data.DataLoader[Any]:
+    def test_dataloader(self) -> DataLoader[Any]:
         """Create and return the test dataloader."""
         return torch_geometric.data.DataLoader(
             dataset=self.test_graph_data_list,

@@ -83,12 +83,8 @@ class GCNLitModule(LightningModule):
         x, adj_t, y = batch.x, batch.adj_t, batch.y
         x = x.unsqueeze(1)
         y_nodes = self.forward(x, adj_t)
-        print(y_nodes.shape)
-        print(batch.batch.shape)
-        
         preds = global_mean_pool(y_nodes, batch.batch)
         preds = preds.squeeze(-1)  # Remove last dimension to match target shape
-        print(preds.shape)
         loss = self.criterion(preds, y)
         return loss, preds, y
 

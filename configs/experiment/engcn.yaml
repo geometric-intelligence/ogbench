@@ -26,13 +26,11 @@ model:
     _target_: src.models.gnn_models.EnGCN
     in_channels: 1
     hidden_channels: 128
-    out_channels: 4
+    out_channels: 1
     num_layers: 2
     dropout: 0.2
     num_propagations: 20
     aggregation_ratio: 0.75
-    adj_norm: "AD"
-    auto_scale: true
     num_mlp_layers: 2
     diffusion_type: "residual"
   compile: false
