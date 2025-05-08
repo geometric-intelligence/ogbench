@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Final, Optional, Tuple
 import os
 import pandas as pd
 import requests
@@ -10,11 +10,10 @@ from tqdm import tqdm
 import torch_geometric.data
 import torch_geometric.transforms as T
 import PyWGCNA
-from sklearn.feature_selection import mutual_info_regression
 from sklearn.impute import SimpleImputer
 import numpy as np
 
-def download_file(self, url: str, output_path: str) -> None:
+def download_file(url: str, output_path: str) -> None:
     """Download a file with progress bar."""
     response: requests.Response = requests.get(url, stream=True)
     total_size: int = int(response.headers.get('content-length', 0))
@@ -61,8 +60,9 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
 
-        self.raw_data_path: str = os.path.join(data_dir, f"{self.dataset}_raw_data.parquet")
-        self.targets_path: str = os.path.join(data_dir, f"{self.dataset}_targets.npy")
+        self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_raw_data.parquet")
+        self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_targets.npy")
+        self.adj_matrix_path: str = os.path.join(data_dir, f"{self.dataset_name}_adj_matrix.npy")
 
         self.data_train: Dataset | None = None
         self.data_val: Dataset | None = None
@@ -76,126 +76,75 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         if not os.path.exists(self.hparams.data_dir):
             os.makedirs(self.hparams.data_dir)
         
-        if os.path.exists(self.raw_data_path) and os.path.exists(self.targets_path):
+        if os.path.exists(self.selected_data_path) and os.path.exists(self.targets_path) and os.path.exists(self.adj_matrix_path):
             return
         
         print("Preparing dataset...")
         raw_data, targets = self.prepare_dataset()
-        raw_data.to_parquet(self.raw_data_path)
         np.save(self.targets_path, targets)
 
-    def _prepare_pancancer(self) -> None:
-        """Prepare PanCancer dataset."""
-        # Download files
-        urls = {
-            'proteomics': 'https://ars.els-cdn.com/content/image/1-s2.0-S1535610822002744-mmc3.xlsx',
-            'drug_response': 'https://figshare.com/ndownloader/files/34355645'
-        }
-
-        for name, url in urls.items():
-            file_path = os.path.join(self.hparams.data_dir, f"pancancer_{name}.{'xlsx' if name == 'proteomics' else 'csv.gz'}")
-            if not os.path.exists(file_path):
-                print(f"Downloading {name}...")
-                self._download_file(url, file_path)
-
-        # Load data
-        print('Loading data...')
-        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "pancancer_proteomics.xlsx"), sheet_name="Full protein matrix", header=1)
-        drug_df = pd.read_csv(os.path.join(self.hparams.data_dir, "pancancer_drug_response.csv.gz"), compression='gzip')
-
-        # Filter for Avagacestat
-        drug_df = drug_df[drug_df['drug_name'] == 'Avagacestat']
-        drug_df = drug_df.dropna(subset=['ln_IC50'])
-
-        # Split Project_Identifier
-        proteomics_df[['model_id', 'cell_line_name']] = proteomics_df['Project_Identifier'].str.split(';', expand=True)
-
-        # Merge datasets
-        merged_df = pd.merge(
-            proteomics_df,
-            drug_df,
-            on=['model_id', 'cell_line_name'],
-            how='inner'
+        print("Selecting nodes...")
+        selected_nodes = self.select_nodes(
+            raw_data.values,
+            targets,
+            n_selected=self.hparams.n_selected_nodes,
+            method="correlation"
         )
+        selected_data = raw_data.iloc[:, selected_nodes]
+        selected_data.to_parquet(self.selected_data_path)
 
-        # Extract features and target
-        protein_cols = [col for col in merged_df.columns if col not in 
-                       ['Project_Identifier', 'model_id', 'cell_line_name', 
-                        'drug_name', 'ln_IC50']]
-        
-        # Convert protein expression values to numeric, replacing non-numeric values with NaN
-        print('Converting data to numeric...')
-        numeric_data = merged_df[protein_cols].apply(pd.to_numeric, errors='coerce')
-        
-        # Remove columns that are all NaN after conversion
-        valid_cols = numeric_data.columns[~numeric_data.isna().all()]
-        numeric_data = numeric_data[valid_cols]
-        
-        print(f'Number of valid protein columns: {len(valid_cols)}')
-        
-        # Store original column names and index
-        original_columns = numeric_data.columns
-        original_index = numeric_data.index
-        
-        # Impute missing values in features
-        print('Imputing missing values...')
-        imputed_data = self.imputer.fit_transform(numeric_data)
-        
-        # Create DataFrame with imputed data, preserving original structure
-        self.raw_data = pd.DataFrame(
-            imputed_data,
-            columns=original_columns,
-            index=original_index
-        )
-        
-        self.targets = merged_df['ln_IC50'].values
+        print("Calculating adjacency matrix...")
+        adj_matrix = self.calculate_adjacency_matrix(selected_data)
+        np.save(self.adj_matrix_path, adj_matrix)
 
-        # Select nodes and create adjacency matrix
-        self._prepare_graph_data()
 
-    def _prepare_graph_data(self) -> None:
-        """Prepare graph data by selecting nodes and creating adjacency matrix."""
-        # Select nodes based on feature importance
-        selected_nodes_path = os.path.join(self.hparams.data_dir, f'{self.dataset}_selected_nodes.npy')
-        adj_matrix_path = os.path.join(self.hparams.data_dir, f'{self.dataset}_adj_matrix.npy')
-
-        if os.path.exists(selected_nodes_path):
-            print("Loading cached selected nodes")
-            self._selected_nodes = np.load(selected_nodes_path)
-        else:
-            print("Selecting nodes...")
-            self._selected_nodes = self.select_nodes(
-                self.raw_data.values,
-                self.targets,
-                n_selected=self.hparams.n_selected_nodes
-            )
-            np.save(selected_nodes_path, self._selected_nodes)
-
-        self._selected_data = self.raw_data.iloc[:, self._selected_nodes]
-
-        if os.path.exists(adj_matrix_path):
-            print("Loading cached adjacency matrix")
-            self._adj_matrix = np.load(adj_matrix_path)
-        else:
-            print("Calculating adjacency matrix...")
-            self._adj_matrix = self.calculate_adjacency_matrix(self._selected_data)
-            np.save(adj_matrix_path, self._adj_matrix)
-
-    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 1000) -> np.ndarray:
-        """Select nodes based on feature importance using mutual information."""
-        mi_scores = mutual_info_regression(data, targets)
-        ranked_nodes = np.argsort(mi_scores)[::-1]
+    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 1000, method: str = "correlation") -> np.ndarray:
+        """Select nodes based on feature importance.
+        
+        Args:
+            data: Feature matrix
+            targets: Target values
+            n_selected: Number of features to select
+            method: Selection method ("variance" or "correlation")
+            
+        Returns:
+            Indices of selected features
+        """
+        if method == "variance":
+            # Variance-based filtering
+            variances = np.std(data, axis=0)
+            ranked_nodes = np.argsort(variances)[::-1]
+        else:  # correlation
+            # Correlation-based filtering
+            correlations = np.abs(np.corrcoef(data.T, targets)[:-1, -1])
+            ranked_nodes = np.argsort(correlations)[::-1]
+            
         return ranked_nodes[:n_selected]
 
     def calculate_adjacency_matrix(self, node_features: pd.DataFrame) -> np.ndarray:
-        """Calculate adjacency matrix using WGCNA."""
+        """Calculate adjacency matrix using WGCNA with soft-thresholding and binarization.
+        
+        Args:
+            node_features: DataFrame containing selected node features
+            
+        Returns:
+            Binary adjacency matrix
+        """
+        # Use WGCNA to find optimal power for scale-free topology
         soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features)
+        power = soft_threshold[0]
+        
+        # Apply soft-thresholding
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features,
-            power=soft_threshold[0],
+            power=power,
             adjacencyType="signed hybrid",
         )
-        return adjacency
+        
+        # Binarize adjacency matrix
+        binary_adjacency = (adjacency > 0).astype(np.float32)
+        
+        return binary_adjacency
 
     def create_graph_data(self, subject_data: pd.Series, subject_target: float, adj_matrix: np.ndarray) -> torch_geometric.data.Data:
         """Create graph data object."""
@@ -213,10 +162,14 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data and create train/val/test splits."""
+        selected_data = pd.read_parquet(self.selected_data_path)
+        targets = np.load(self.targets_path)
+        adj_matrix = np.load(self.adj_matrix_path)
+
         graph_data_list = []
-        for (_, subject_data), subject_target in zip(self._selected_data.iterrows(), self.targets):
+        for (_, subject_data), subject_target in zip(selected_data.iterrows(), targets):
             graph_data_list.append(
-                self.create_graph_data(subject_data, subject_target, self._adj_matrix)
+                self.create_graph_data(subject_data, subject_target, adj_matrix)
             )
 
         self.n_graphs = len(graph_data_list)
@@ -272,10 +225,11 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
 class MortrPacDataModule(OmicsDataModule):
     """`LightningDataModule` for MortrPac proteomics datasets."""
+    dataset_name: Final[str] = "mortrpac"
 
     def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
-        self.dataset = "mortrpac"
+
 
     def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
         """Prepare MortrPac dataset."""
@@ -316,10 +270,11 @@ class MortrPacDataModule(OmicsDataModule):
 
 class PanCancerDataModule(OmicsDataModule):
     """`LightningDataModule` for PanCancer proteomics datasets."""
+    dataset_name: Final[str] = "pancancer"
 
     def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
-        self.dataset = "pancancer"   
+  
 
     def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
         """Prepare PanCancer dataset."""
@@ -333,7 +288,7 @@ class PanCancerDataModule(OmicsDataModule):
             file_path = os.path.join(self.hparams.data_dir, f"pancancer_{name}.{'xlsx' if name == 'proteomics' else 'csv.gz'}")
             if not os.path.exists(file_path):
                 print(f"Downloading {name}...")
-                self._download_file(url, file_path)
+                download_file(url, file_path)
 
         # Load data
         print('Loading data...')
@@ -407,7 +362,7 @@ if __name__ == "__main__":
     print(f"\nNumber of training batches: {len(train_loader)}")
     print(f"Number of validation batches: {len(val_loader)}")
     print(f"Number of test batches: {len(test_loader)}")
-
+    
     mortrpac_datamodule = MortrPacDataModule()
     mortrpac_datamodule.prepare_data()
     mortrpac_datamodule.setup()
