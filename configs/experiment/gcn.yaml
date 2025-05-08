@@ -22,7 +22,7 @@ model:
   net:
     in_channels: 1
     hidden_channels: 2048
-    out_channels: 4
+    out_channels: 1
     #graph_pooling: mean
   compile: false
 

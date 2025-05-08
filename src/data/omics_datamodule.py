@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import torch_geometric.data
 import torch_geometric.transforms as T
@@ -60,7 +60,8 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
 
-        self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_raw_data.parquet")
+        #TODO: These depend on the n_selected_nodes, 
+        self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_selected_data.parquet")
         self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_targets.npy")
         self.adj_matrix_path: str = os.path.join(data_dir, f"{self.dataset_name}_adj_matrix.npy")
 
@@ -88,7 +89,6 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             raw_data.values,
             targets,
             n_selected=self.hparams.n_selected_nodes,
-            method="correlation"
         )
         selected_data = raw_data.iloc[:, selected_nodes]
         selected_data.to_parquet(self.selected_data_path)
@@ -98,26 +98,20 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         np.save(self.adj_matrix_path, adj_matrix)
 
 
-    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 1000, method: str = "correlation") -> np.ndarray:
+    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 1000) -> np.ndarray:
         """Select nodes based on feature importance.
         
         Args:
             data: Feature matrix
             targets: Target values
             n_selected: Number of features to select
-            method: Selection method ("variance" or "correlation")
             
         Returns:
             Indices of selected features
         """
-        if method == "variance":
-            # Variance-based filtering
-            variances = np.std(data, axis=0)
-            ranked_nodes = np.argsort(variances)[::-1]
-        else:  # correlation
-            # Correlation-based filtering
-            correlations = np.abs(np.corrcoef(data.T, targets)[:-1, -1])
-            ranked_nodes = np.argsort(correlations)[::-1]
+        # Variance-based filtering
+        variances = np.std(data, axis=0)
+        ranked_nodes = np.argsort(variances)[::-1]
             
         return ranked_nodes[:n_selected]
 
@@ -138,7 +132,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features,
             power=power,
-            adjacencyType="signed hybrid",
+            adjacencyType="signed",
         )
         
         # Binarize adjacency matrix
@@ -162,6 +156,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data and create train/val/test splits."""
+        print("Loading data...")
         selected_data = pd.read_parquet(self.selected_data_path)
         targets = np.load(self.targets_path)
         adj_matrix = np.load(self.adj_matrix_path)
@@ -171,7 +166,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             graph_data_list.append(
                 self.create_graph_data(subject_data, subject_target, adj_matrix)
             )
-
+        
         self.n_graphs = len(graph_data_list)
         i_train = int(self.n_graphs * self.train_val_test_split[0])
         i_val = int(self.n_graphs * (self.train_val_test_split[0] + self.train_val_test_split[1]))
@@ -179,6 +174,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.train_graph_data_list = graph_data_list[:i_train]
         self.val_graph_data_list = graph_data_list[i_train:i_val]
         self.test_graph_data_list = graph_data_list[i_val:]
+        print("data loaded")
 
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader."""

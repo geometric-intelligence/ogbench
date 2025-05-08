@@ -2,44 +2,13 @@ from typing import Any, Dict, Tuple
 
 import torch
 from lightning import LightningModule
-from torchmetrics import MaxMetric, MeanMetric
-from torchmetrics.classification.accuracy import Accuracy
+from torchmetrics import MinMetric, MeanMetric
+from torchmetrics.regression import MeanSquaredError, R2Score
 from torch_geometric.nn import global_mean_pool
 
 
-
 class GCNLitModule(LightningModule):
-    """Example of a `LightningModule` for GNN.
-
-    A `LightningModule` implements 8 key methods:
-
-    ```python
-    def __init__(self):
-    # Define initialization code here.
-
-    def setup(self, stage):
-    # Things to setup before each stage, 'fit', 'validate', 'test', 'predict'.
-    # This hook is called on every process when using DDP.
-
-    def training_step(self, batch, batch_idx):
-    # The complete training step.
-
-    def validation_step(self, batch, batch_idx):
-    # The complete validation step.
-
-    def test_step(self, batch, batch_idx):
-    # The complete test step.
-
-    def predict_step(self, batch, batch_idx):
-    # The complete predict step.
-
-    def configure_optimizers(self):
-    # Define and configure optimizers and LR schedulers.
-    ```
-
-    Docs:
-        https://lightning.ai/docs/pytorch/latest/common/lightning_module.html
-    """
+    """Example of a `LightningModule` for GNN regression."""
 
     def __init__(
         self,
@@ -48,7 +17,7 @@ class GCNLitModule(LightningModule):
         scheduler: torch.optim.lr_scheduler,
         compile: bool,
     ) -> None:
-        """Initialize a `MNISTLitModule`.
+        """Initialize a `GCNLitModule`.
 
         :param net: The model to train.
         :param optimizer: The optimizer to use for training.
@@ -63,26 +32,30 @@ class GCNLitModule(LightningModule):
         self.net = net
 
         # loss function
-        self.criterion = torch.nn.CrossEntropyLoss()
+        self.criterion = torch.nn.MSELoss()
 
-        # metric objects for calculating and averaging accuracy across batches
-        self.train_acc = Accuracy(task="multiclass", num_classes=4)
-        self.val_acc = Accuracy(task="multiclass", num_classes=4)
-        self.test_acc = Accuracy(task="multiclass", num_classes=4)
+        # metric objects for calculating and averaging metrics across batches
+        self.train_mse = MeanSquaredError()
+        self.val_mse = MeanSquaredError()
+        self.test_mse = MeanSquaredError()
+
+        self.train_r2 = R2Score()
+        self.val_r2 = R2Score()
+        self.test_r2 = R2Score()
 
         # for averaging loss across batches
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
         self.test_loss = MeanMetric()
 
-        # for tracking best so far validation accuracy
-        self.val_acc_best = MaxMetric()
+        # for tracking best so far validation loss
+        self.val_loss_best = MinMetric()
 
     def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
 
-        :param x: A tensor of images.
-        :return: A tensor of logits.
+        :param x: A tensor of features.
+        :return: A tensor of predictions.
         """
         return self.net(x, adj_t)
 
@@ -91,27 +64,28 @@ class GCNLitModule(LightningModule):
         # by default lightning executes validation step sanity checks before training starts,
         # so it's worth to make sure validation metrics don't store results from these checks
         self.val_loss.reset()
-        self.val_acc.reset()
-        self.val_acc_best.reset()
+        self.val_mse.reset()
+        self.val_r2.reset()
+        self.val_loss_best.reset()
 
     def model_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor]
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Perform a single model step on a batch of data.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of images and target labels.
+        :param batch: A batch of data (a tuple) containing the input tensor of features and target values.
 
         :return: A tuple containing (in order):
             - A tensor of losses.
             - A tensor of predictions.
-            - A tensor of target labels.
+            - A tensor of target values.
         """
         x, adj_t, y = batch.x, batch.adj_t, batch.y
         x = x.unsqueeze(1)
         y_nodes = self.forward(x, adj_t)
-        logits = global_mean_pool(y_nodes, batch.batch)
-        loss = self.criterion(logits, y)
-        preds = torch.argmax(logits, dim=1)
+        preds = global_mean_pool(y_nodes, batch.batch)
+        preds = preds.squeeze(-1)  # Remove last dimension to match target shape
+        loss = self.criterion(preds, y)
         return loss, preds, y
 
     def training_step(
@@ -119,8 +93,7 @@ class GCNLitModule(LightningModule):
     ) -> torch.Tensor:
         """Perform a single training step on a batch of data from the training set.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of images and target
-            labels.
+        :param batch: A batch of data (a tuple) containing the input tensor of features and target values.
         :param batch_idx: The index of the current batch.
         :return: A tensor of losses between model predictions and targets.
         """
@@ -128,9 +101,11 @@ class GCNLitModule(LightningModule):
 
         # update and log metrics
         self.train_loss(loss)
-        self.train_acc(preds, targets)
+        self.train_mse(preds, targets)
+        self.train_r2(preds, targets)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train/acc", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train/mse", self.train_mse, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train/r2", self.train_r2, on_step=False, on_epoch=True, prog_bar=True)
 
         # return loss or backpropagation will fail
         return loss
@@ -142,40 +117,42 @@ class GCNLitModule(LightningModule):
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single validation step on a batch of data from the validation set.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of images and target
-            labels.
+        :param batch: A batch of data (a tuple) containing the input tensor of features and target values.
         :param batch_idx: The index of the current batch.
         """
         loss, preds, targets = self.model_step(batch)
 
         # update and log metrics
         self.val_loss(loss)
-        self.val_acc(preds, targets)
+        self.val_mse(preds, targets)
+        self.val_r2(preds, targets)
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val/acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/mse", self.val_mse, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/r2", self.val_r2, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_validation_epoch_end(self) -> None:
         "Lightning hook that is called when a validation epoch ends."
-        acc = self.val_acc.compute()  # get current val acc
-        self.val_acc_best(acc)  # update best so far val acc
-        # log `val_acc_best` as a value through `.compute()` method, instead of as a metric object
+        loss = self.val_loss.compute()  # get current val loss
+        self.val_loss_best(loss)  # update best so far val loss
+        # log `val_loss_best` as a value through `.compute()` method, instead of as a metric object
         # otherwise metric would be reset by lightning after each epoch
-        self.log("val/acc_best", self.val_acc_best.compute(), sync_dist=True, prog_bar=True)
+        self.log("val/loss_best", self.val_loss_best.compute(), sync_dist=True, prog_bar=True)
 
     def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single test step on a batch of data from the test set.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of images and target
-            labels.
+        :param batch: A batch of data (a tuple) containing the input tensor of features and target values.
         :param batch_idx: The index of the current batch.
         """
         loss, preds, targets = self.model_step(batch)
 
         # update and log metrics
         self.test_loss(loss)
-        self.test_acc(preds, targets)
+        self.test_mse(preds, targets)
+        self.test_r2(preds, targets)
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test/mse", self.test_mse, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test/r2", self.test_r2, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_test_epoch_end(self) -> None:
         """Lightning hook that is called when a test epoch ends."""
