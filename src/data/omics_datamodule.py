@@ -89,7 +89,6 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             raw_data.values,
             targets,
             n_selected=self.hparams.n_selected_nodes,
-            method="correlation"
         )
         selected_data = raw_data.iloc[:, selected_nodes]
         selected_data.to_parquet(self.selected_data_path)
@@ -99,26 +98,20 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         np.save(self.adj_matrix_path, adj_matrix)
 
 
-    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 1000, method: str = "correlation") -> np.ndarray:
+    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 1000) -> np.ndarray:
         """Select nodes based on feature importance.
         
         Args:
             data: Feature matrix
             targets: Target values
             n_selected: Number of features to select
-            method: Selection method ("variance" or "correlation")
             
         Returns:
             Indices of selected features
         """
-        if method == "variance":
-            # Variance-based filtering
-            variances = np.std(data, axis=0)
-            ranked_nodes = np.argsort(variances)[::-1]
-        else:  # correlation
-            # Correlation-based filtering
-            correlations = np.abs(np.corrcoef(data.T, targets)[:-1, -1])
-            ranked_nodes = np.argsort(correlations)[::-1]
+        # Variance-based filtering
+        variances = np.std(data, axis=0)
+        ranked_nodes = np.argsort(variances)[::-1]
             
         return ranked_nodes[:n_selected]
 
