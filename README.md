@@ -28,26 +28,17 @@ conda activate bgbench
 pip install -r requirements.txt
 ```
 
-## How to run
+## How to run one train
 
-Train model with default configuration
+Example: Train model with default configuration for gatv2 as model and pancancer as dataset:
 
 ```bash
-# train on CPU
-python src/train.py trainer=cpu
-
-# train on GPU
-python src/train.py trainer=gpu
+# train on GPU with DDP
+python src/train.py trainer=ddp experiment=gatv2 data=pancancer
 ```
 
-Train model with chosen experiment configuration from [configs/experiment/](configs/experiment/)
+## Run a grid search over parameters:
 
 ```bash
-python src/train.py experiment=experiment_name.yaml
-```
-
-You can override any parameter from command line like this
-
-```bash
-python src/train.py trainer.max_epochs=20 data.batch_size=64
+python src/train.py trainer=ddp hparams_search=gcn_basic experiment=gatv2 data=pancancer
 ```
