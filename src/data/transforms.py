@@ -1,6 +1,5 @@
-from typing import Dict, Final, Optional, Tuple
+from typing import Optional
 import torch
-import numpy as np
 from torch import nn
 
 class MeanStdNormalizer(nn.Module):
