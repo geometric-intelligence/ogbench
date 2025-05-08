@@ -310,7 +310,7 @@ class PanCancerDataModule(OmicsDataModule):
         # Extract features and target
         protein_cols = [col for col in merged_df.columns if col not in 
                        ['Project_Identifier', 'model_id', 'cell_line_name', 
-                        'drug_name', 'ln_IC50']]
+                        'drug_name', 'ln_IC50', 'COSMIC_ID', 'master_cell_id', 'model_name']]
         
         # Convert protein expression values to numeric, replacing non-numeric values with NaN
         print('Converting data to numeric...')
@@ -367,7 +367,7 @@ class AddNeuroMedOmicsDataModule(OmicsDataModule):
         
         raw_data: pd.DataFrame = pd.DataFrame()
         frames: list[pd.DataFrame] = []
-        cognitive_scores: list[float] = []
+        ages: list[int] = []
         
         for dataset, url in datasets.items():
             gz_path: str = os.path.join(self.hparams.data_dir, f"{dataset}.txt.gz")
@@ -384,12 +384,12 @@ class AddNeuroMedOmicsDataModule(OmicsDataModule):
             with gzip.open(gz_path, 'rt') as f:
                 data = pd.read_csv(f, sep='\t', comment='!', index_col="ID_REF").transpose()
             
-            # Extract cognitive scores from the data
+            # Extract ages from the data
             with gzip.open(gz_path, 'rt') as f:
                 for line in f:
-                    if line.startswith('!Sample_characteristics_ch1.2'):  # MMSE scores
-                        scores = [float(x.split(': ')[1].strip().strip('"')) for x in line.split('\t')[1:]]
-                        cognitive_scores.extend(scores)
+                    print(line)
+                    if line.startswith('!Sample_characteristics_ch1') and 'age:' in line:
+                        ages.extend([int(x.split(': ')[1].strip().strip('"')) for x in line.split('\t')[1:]])
                         break
             
             frames.append(data)
@@ -405,7 +405,7 @@ class AddNeuroMedOmicsDataModule(OmicsDataModule):
 
         # Combine datasets
         raw_data = pd.concat(frames, axis=0)
-        targets = np.array(cognitive_scores)
+        targets = np.array(ages)
 
         # Impute missing values
         raw_data = pd.DataFrame(

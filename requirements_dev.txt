@@ -1,0 +1,8 @@
+ipython
+jupyter
+seaborn
+matplotlib
+pandas
+numpy
+torch
+torch-geometric
