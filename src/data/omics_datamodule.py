@@ -12,6 +12,7 @@ import torch_geometric.transforms as T
 import PyWGCNA
 from sklearn.impute import SimpleImputer
 import numpy as np
+import gzip
 
 def download_file(url: str, output_path: str) -> None:
     """Download a file with progress bar."""
@@ -308,8 +309,8 @@ class PanCancerDataModule(OmicsDataModule):
 
         # Extract features and target
         protein_cols = [col for col in merged_df.columns if col not in 
-                       ['Project_Identifier', 'model_id', 'cell_line_name', 
-                        'drug_name', 'ln_IC50']]
+                       ['Project_Identifier', 'model_id', 'cell_line_name', 'drug_id',
+                        'drug_name', 'ln_IC50', 'COSMIC_ID', 'master_cell_id', 'model_name']]
         
         # Convert protein expression values to numeric, replacing non-numeric values with NaN
         print('Converting data to numeric...')
@@ -337,6 +338,80 @@ class PanCancerDataModule(OmicsDataModule):
         )
         
         targets = merged_df['ln_IC50'].values
+
+        return raw_data, targets
+
+
+class AddNeuroMedOmicsDataModule(OmicsDataModule):
+    """`LightningDataModule` for AddNeuroMed-style omics datasets."""
+    dataset_name: Final[str] = "addneuromed_omics"
+
+    def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
+        super().__init__(data_dir=data_dir, *args, **kwargs)
+
+    def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
+        """Prepare dataset in AddNeuroMed style.
+        
+        Returns:
+            Tuple of (raw_data, targets) where targets are cognitive scores
+        """
+        # Create output directory if it doesn't exist
+        if not os.path.exists(self.hparams.data_dir):
+            os.makedirs(self.hparams.data_dir)
+
+        # GEO dataset URLs
+        datasets: Dict[str, str] = {
+            'GPL10558': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL10558_series_matrix.txt.gz',
+            'GPL6947': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63063/matrix/GSE63063-GPL6947_series_matrix.txt.gz'
+        }
+        
+        raw_data: pd.DataFrame = pd.DataFrame()
+        frames: list[pd.DataFrame] = []
+        ages: list[int] = []
+        
+        for dataset, url in datasets.items():
+            gz_path: str = os.path.join(self.hparams.data_dir, f"{dataset}.txt.gz")
+            if not os.path.exists(gz_path):
+                print(f"Downloading {dataset}...")
+                try:
+                    download_file(url, gz_path)
+                    print(f"Successfully downloaded {dataset}")
+                except Exception as e:
+                    print(f"Error downloading {dataset}: {str(e)}")
+                    raise
+                    
+            # Read microarray data
+            with gzip.open(gz_path, 'rt') as f:
+                data = pd.read_csv(f, sep='\t', comment='!', index_col="ID_REF").transpose()
+            
+            # Extract ages from the data
+            with gzip.open(gz_path, 'rt') as f:
+                for line in f:
+                    if line.startswith('!Sample_characteristics_ch1') and 'age:' in line:
+                        ages.extend([int(x.split(': ')[1].strip().strip('"')) for x in line.split('\t')[1:]])
+                        break
+            
+            frames.append(data)
+
+        # Verify no common patients between datasets
+        common_patients = set(frames[0].index).intersection(set(frames[1].index))
+        assert len(common_patients) == 0, "Common patients found between the two datasets"
+
+        # Find and use common genes
+        common_genes = list(set(frames[0].columns).intersection(set(frames[1].columns)))
+        frames[0] = frames[0][common_genes]
+        frames[1] = frames[1][common_genes]
+
+        # Combine datasets
+        raw_data = pd.concat(frames, axis=0)
+        targets = np.array(ages)
+
+        # Impute missing values
+        raw_data = pd.DataFrame(
+            self.imputer.fit_transform(raw_data),
+            columns=raw_data.columns,
+            index=raw_data.index
+        )
 
         return raw_data, targets
 
@@ -374,3 +449,20 @@ if __name__ == "__main__":
     print(f"\nNumber of training batches: {len(train_loader)}")
     print(f"Number of validation batches: {len(val_loader)}")
     print(f"Number of test batches: {len(test_loader)}")
+
+    addneuromed_omics_datamodule = AddNeuroMedOmicsDataModule()
+    addneuromed_omics_datamodule.prepare_data()
+    addneuromed_omics_datamodule.setup()
+
+    train_loader = addneuromed_omics_datamodule.train_dataloader()
+    val_loader = addneuromed_omics_datamodule.val_dataloader()
+    test_loader = addneuromed_omics_datamodule.test_dataloader()
+
+    print(f"Number of training samples: {len(train_loader.dataset)}")
+    print(f"Number of validation samples: {len(val_loader.dataset)}")
+    print(f"Number of test samples: {len(test_loader.dataset)}")
+
+    print(f"\nNumber of training batches: {len(train_loader)}")
+    print(f"Number of validation batches: {len(val_loader)}")
+    print(f"Number of test batches: {len(test_loader)}")
+    
