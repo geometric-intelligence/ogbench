@@ -2,7 +2,7 @@ from typing import Any, Dict, Tuple
 
 import torch
 from lightning import LightningModule
-from torchmetrics import MaxMetric, MeanMetric
+from torchmetrics import MinMetric, MeanMetric
 from torchmetrics.regression import MeanSquaredError, R2Score
 from torch_geometric.nn import global_mean_pool
 
@@ -49,7 +49,7 @@ class GCNLitModule(LightningModule):
         self.test_loss = MeanMetric()
 
         # for tracking best so far validation loss
-        self.val_loss_best = MaxMetric()
+        self.val_loss_best = MinMetric()
 
     def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
