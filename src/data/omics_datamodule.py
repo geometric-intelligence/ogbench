@@ -13,6 +13,7 @@ import PyWGCNA
 from sklearn.impute import SimpleImputer
 import numpy as np
 import gzip
+from src.data import transforms
 
 def download_file(url: str, output_path: str) -> None:
     """Download a file with progress bar."""
@@ -60,6 +61,8 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
         self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
+        self.feature_normalizer = transforms.MeanStdNormalizer()
+        self.target_normalizer = transforms.MeanStdNormalizer()
 
         #TODO: These depend on the n_selected_nodes, 
         self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_selected_data.parquet")
@@ -146,10 +149,15 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         x = torch.tensor(subject_data.values, dtype=torch.float)
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t()
         
+        # Normalize features and target
+        x = self.feature_normalizer(x)
+        y = torch.tensor([subject_target], dtype=torch.float)
+        y = self.target_normalizer(y)
+        
         graph_data = torch_geometric.data.Data(
             x=x,
             edge_index=edge_index,
-            y=torch.tensor([subject_target], dtype=torch.float)
+            y=y
         )
         
         transform = T.ToSparseTensor()
@@ -161,6 +169,14 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         selected_data = pd.read_parquet(self.selected_data_path)
         targets = np.load(self.targets_path)
         adj_matrix = np.load(self.adj_matrix_path)
+
+        # Fit normalizers on training data
+        train_idx = int(len(selected_data) * self.train_val_test_split[0])
+        train_data = torch.tensor(selected_data.iloc[:train_idx].values, dtype=torch.float)
+        train_targets = torch.tensor(targets[:train_idx], dtype=torch.float)
+        
+        self.feature_normalizer.fit(train_data)
+        self.target_normalizer.fit(train_targets)
 
         graph_data_list = []
         for (_, subject_data), subject_target in zip(selected_data.iterrows(), targets):
