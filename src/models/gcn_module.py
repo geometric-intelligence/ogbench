@@ -81,7 +81,7 @@ class GCNLitModule(LightningModule):
             - A tensor of target values.
         """
         x, adj_t, y = batch.x, batch.adj_t, batch.y
-        x = x.unsqueeze(1)
+        #x = x.unsqueeze(1)
         y_nodes = self.forward(x, adj_t)
         preds = global_mean_pool(y_nodes, batch.batch)
         preds = preds.squeeze(-1)  # Remove last dimension to match target shape
