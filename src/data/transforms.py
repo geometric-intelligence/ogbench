@@ -12,8 +12,8 @@ class MeanStdNormalizer(nn.Module):
         
     def fit(self, data: torch.Tensor) -> None:
         """Compute mean and standard deviation from data."""
-        self.mean = data.mean(dim=0)
-        self.std = data.std(dim=0)
+        self.mean = data.mean(dim=0, keepdim=True).T  # shape [3000, 1]
+        self.std = data.std(dim=0, keepdim=True).T    # shape [3000, 1]
         # Avoid division by zero
         self.std[self.std == 0] = 1.0
         
