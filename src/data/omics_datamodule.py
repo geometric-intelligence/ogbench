@@ -14,6 +14,11 @@ from sklearn.impute import SimpleImputer
 import numpy as np
 import gzip
 from src.data import transforms
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def download_file(url: str, output_path: str) -> None:
     """Download a file with progress bar."""
@@ -42,7 +47,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
-        n_selected_nodes: int = 1000,
+        n_selected_nodes: int = 3000,
         imputation_method: str = "mean",
     ) -> None:
         """Initialize a `ProteomicsDataModule`.
@@ -58,7 +63,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             imputation_method: Method for handling missing values ("mean", "median", "most_frequent")
         """
         super().__init__()
-
+        self.n_selected_nodes = n_selected_nodes
         self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
         self.feature_normalizer = transforms.MeanStdNormalizer()
@@ -101,8 +106,16 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         adj_matrix = self.calculate_adjacency_matrix(selected_data)
         np.save(self.adj_matrix_path, adj_matrix)
 
+        # Calculate and log node degrees
+        node_degrees = np.sum(adj_matrix, axis=1)
+        print(f"Node degrees statistics:")
+        print(f"Mean degree: {np.mean(node_degrees):.2f}")
+        print(f"Median degree: {np.median(node_degrees):.2f}")
+        print(f"Min degree: {np.min(node_degrees):.2f}")
+        print(f"Max degree: {np.max(node_degrees):.2f}")
+        print(f"Total edges: {np.sum(node_degrees)/2:.0f}")
 
-    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 1000) -> np.ndarray:
+    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 3000) -> np.ndarray:
         """Select nodes based on feature importance.
         
         Args:
@@ -136,13 +149,13 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features,
             power=power,
-            adjacencyType="signed",
+            adjacencyType="signed hybrid",
         )
-        
+        print(adjacency)
         # Binarize adjacency matrix
-        binary_adjacency = (adjacency > 0).astype(np.float32)
+        adj_matrix = np.where(adjacency > 0.01, 1, 0)
         
-        return binary_adjacency
+        return adj_matrix
 
     def create_graph_data(self, subject_data: pd.Series, subject_target: float, adj_matrix: np.ndarray) -> torch_geometric.data.Data:
         """Create graph data object."""
