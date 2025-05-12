@@ -160,6 +160,8 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
     def create_graph_data(self, subject_data: pd.Series, subject_target: float, adj_matrix: np.ndarray) -> torch_geometric.data.Data:
         """Create graph data object."""
         x = torch.tensor(subject_data.values, dtype=torch.float)
+        if x.dim() == 1:
+            x = x.view(-1, 1)  # convert from [n_nodes] to [n_nodes, 1]
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t()
         
         # Normalize features and target
