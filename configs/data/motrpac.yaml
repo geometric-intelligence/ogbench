@@ -1,4 +1,4 @@
-_target_: src.data.omics_datamodule.MortrPacDataModule
+_target_: src.data.omics_datamodule.MotrPacDataModule
 data_dir: ${paths.data_dir}
 batch_size: 128
 train_val_test_split: [0.7, 0.15, 0.15]

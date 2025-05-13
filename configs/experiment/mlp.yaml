@@ -24,14 +24,14 @@ model:
     _target_: torch_geometric.nn.MLP
     in_channels: 1
     out_channels: 1
-    num_layers: 5
+    num_layers: 4
     channel_list: [16384, 8192, 4096, 2048, 1024]
-    hidden_channels: 8192
+    hidden_channels: 1024
     dropout: 0.2
-  compile: false
+  compile: true
 
 data:
-  batch_size: 16
+  batch_size: 64
 
 logger:
   wandb:
