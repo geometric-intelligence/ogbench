@@ -207,7 +207,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader."""
-        return torch_geometric.data.DataLoader(
+        return torch_geometric.loader.DataLoader(
             dataset=self.train_graph_data_list,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
@@ -217,7 +217,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def val_dataloader(self) -> DataLoader[Any]:
         """Create and return the validation dataloader."""
-        return torch_geometric.data.DataLoader(
+        return torch_geometric.loader.DataLoader(
             dataset=self.val_graph_data_list,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
@@ -227,7 +227,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def test_dataloader(self) -> DataLoader[Any]:
         """Create and return the test dataloader."""
-        return torch_geometric.data.DataLoader(
+        return torch_geometric.loader.DataLoader(
             dataset=self.test_graph_data_list,
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
