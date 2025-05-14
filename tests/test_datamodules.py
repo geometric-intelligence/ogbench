@@ -42,7 +42,7 @@ def test_omics_datamodule(batch_size: int) -> None:
 @pytest.mark.parametrize("batch_size", [32])
 def test_omics_datamodule(batch_size: int) -> None:
     with tempfile.TemporaryDirectory() as data_dir:
-        dm = omics_datamodule.MortrPacDataModule(data_dir=data_dir, batch_size=batch_size)
+        dm = omics_datamodule.MotrPacDataModule(data_dir=data_dir, batch_size=batch_size)
         dm.prepare_data()
 
         # Updated file checks

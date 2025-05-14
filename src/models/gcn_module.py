@@ -4,7 +4,6 @@ import torch
 from lightning import LightningModule
 from torchmetrics import MinMetric, MeanMetric
 from torchmetrics.regression import MeanSquaredError, R2Score
-from torch_geometric.nn import global_mean_pool
 
 
 class GCNLitModule(LightningModule):
@@ -24,17 +23,11 @@ class GCNLitModule(LightningModule):
         :param scheduler: The learning rate scheduler to use for training.
         """
         super().__init__()
-
-        # this line allows to access init params with 'self.hparams' attribute
-        # also ensures init params will be stored in ckpt
-        self.save_hyperparameters(logger=False)
-
+        self.optimizer_partial = optimizer
+        self.scheduler_partial = scheduler
+        self.save_hyperparameters(logger=False, ignore=['net'])
         self.net = net
-
-        # loss function
         self.criterion = torch.nn.MSELoss()
-
-        # metric objects for calculating and averaging metrics across batches
         self.train_mse = MeanSquaredError()
         self.val_mse = MeanSquaredError()
         self.test_mse = MeanSquaredError()
@@ -51,18 +44,16 @@ class GCNLitModule(LightningModule):
         # for tracking best so far validation loss
         self.val_loss_best = MinMetric()
 
-    def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
 
         :param x: A tensor of features.
         :return: A tensor of predictions.
         """
-        return self.net(x, adj_t)
+        return self.net(x, adj_t, batch_vector)
 
     def on_train_start(self) -> None:
         """Lightning hook that is called when training begins."""
-        # by default lightning executes validation step sanity checks before training starts,
-        # so it's worth to make sure validation metrics don't store results from these checks
         self.val_loss.reset()
         self.val_mse.reset()
         self.val_r2.reset()
@@ -80,13 +71,10 @@ class GCNLitModule(LightningModule):
             - A tensor of predictions.
             - A tensor of target values.
         """
-        x, adj_t, y = batch.x, batch.adj_t, batch.y
-        #x = x.unsqueeze(1)
-        y_nodes = self.forward(x, adj_t)
-        preds = global_mean_pool(y_nodes, batch.batch)
-        preds = preds.squeeze(-1)  # Remove last dimension to match target shape
-        loss = self.criterion(preds, y)
-        return loss, preds, y
+        x, adj_t, y, batch_vector = batch.x, batch.adj_t, batch.y, batch.batch
+        predictions = self.forward(x, adj_t, batch_vector)
+        loss = self.criterion(predictions, y.reshape(-1, 1))
+        return loss, predictions, y
 
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
@@ -98,18 +86,17 @@ class GCNLitModule(LightningModule):
         :return: A tensor of losses between model predictions and targets.
         """
         loss, preds, targets = self.model_step(batch)
-
         # update and log metrics
         self.train_loss(loss)
-        self.train_mse(preds, targets)
-        self.train_r2(preds, targets)
+        self.train_mse(preds, targets.reshape(-1, 1))
+        self.train_r2(preds, targets.reshape(-1, 1))
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/mse", self.train_mse, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/r2", self.train_r2, on_step=False, on_epoch=True, prog_bar=True)
 
-        # return loss or backpropagation will fail
         return loss
 
+                
     def on_train_epoch_end(self) -> None:
         "Lightning hook that is called when a training epoch ends."
         pass
@@ -121,22 +108,16 @@ class GCNLitModule(LightningModule):
         :param batch_idx: The index of the current batch.
         """
         loss, preds, targets = self.model_step(batch)
-
-        # update and log metrics
         self.val_loss(loss)
-        self.val_mse(preds, targets)
-        self.val_r2(preds, targets)
+        self.val_mse(preds, targets.reshape(-1, 1))
+        self.val_r2(preds, targets.reshape(-1, 1))
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/mse", self.val_mse, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/r2", self.val_r2, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_validation_epoch_end(self) -> None:
         "Lightning hook that is called when a validation epoch ends."
-        loss = self.val_loss.compute()  # get current val loss
-        self.val_loss_best(loss)  # update best so far val loss
-        # log `val_loss_best` as a value through `.compute()` method, instead of as a metric object
-        # otherwise metric would be reset by lightning after each epoch
-        self.log("val/loss_best", self.val_loss_best.compute(), sync_dist=True, prog_bar=True)
+        pass
 
     def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single test step on a batch of data from the test set.
@@ -145,11 +126,10 @@ class GCNLitModule(LightningModule):
         :param batch_idx: The index of the current batch.
         """
         loss, preds, targets = self.model_step(batch)
-
         # update and log metrics
         self.test_loss(loss)
-        self.test_mse(preds, targets)
-        self.test_r2(preds, targets)
+        self.test_mse(preds, targets.reshape(-1, 1))
+        self.test_r2(preds, targets.reshape(-1, 1))
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test/mse", self.test_mse, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test/r2", self.test_r2, on_step=False, on_epoch=True, prog_bar=True)
@@ -171,22 +151,17 @@ class GCNLitModule(LightningModule):
             self.net = torch.compile(self.net)
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        """Choose what optimizers and learning-rate schedulers to use in your optimization.
-        Normally you'd need one. But in the case of GANs or similar you might have multiple.
+        """Choose what optimizers and learning-rate schedulers to use."""
+        # optimizer = self.hparams.optimizer(params=self.trainer.model.parameters()) # Old way
+        optimizer = self.optimizer_partial(params=self.parameters()) # Use self.parameters()
 
-        Examples:
-            https://lightning.ai/docs/pytorch/latest/common/lightning_module.html#configure-optimizers
-
-        :return: A dict containing the configured optimizers and learning-rate schedulers to be used for training.
-        """
-        optimizer = self.hparams.optimizer(params=self.trainer.model.parameters())
-        if self.hparams.scheduler is not None:
-            scheduler = self.hparams.scheduler(optimizer=optimizer)
+        if self.scheduler_partial is not None:
+            scheduler = self.scheduler_partial(optimizer=optimizer)
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
-                    "monitor": "val/loss",
+                    "monitor": "val/loss", # Ensure you have validation
                     "interval": "epoch",
                     "frequency": 1,
                 },

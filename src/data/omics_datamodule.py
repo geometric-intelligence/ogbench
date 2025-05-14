@@ -38,23 +38,23 @@ def download_file(url: str, output_path: str) -> None:
 
 
 class OmicsDataModule(LightningDataModule, abc.ABC):
-    """`LightningDataModule` for MortrPac and PanCancer proteomics datasets."""
+    """`LightningDataModule` for MotrPac and PanCancer proteomics datasets."""
 
     def __init__(
         self,
         data_dir: str = "data/proteomics/",
-        train_val_test_split: Tuple[float, float, float] = (0.7, 0.15, 0.15),
+        train_val_test_split: Tuple[float, float, float] = (0.8, 0.2, 0.0),
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
-        n_selected_nodes: int = 3000,
+        n_selected_nodes: int = 100,
         imputation_method: str = "mean",
     ) -> None:
         """Initialize a `ProteomicsDataModule`.
 
         Args:
             data_dir: The data directory
-            dataset: Which dataset to use ("mortrpac" or "pancancer")
+            dataset: Which dataset to use ("motrpac" or "pancancer")
             train_val_test_split: The train, validation and test split ratios
             batch_size: The batch size
             num_workers: The number of workers
@@ -108,14 +108,14 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
         # Calculate and log node degrees
         node_degrees = np.sum(adj_matrix, axis=1)
-        print(f"Node degrees statistics:")
+        print("Node degrees statistics:")
         print(f"Mean degree: {np.mean(node_degrees):.2f}")
         print(f"Median degree: {np.median(node_degrees):.2f}")
         print(f"Min degree: {np.min(node_degrees):.2f}")
         print(f"Max degree: {np.max(node_degrees):.2f}")
         print(f"Total edges: {np.sum(node_degrees)/2:.0f}")
 
-    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 3000) -> np.ndarray:
+    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 100) -> np.ndarray:
         """Select nodes based on feature importance.
         
         Args:
@@ -157,23 +157,22 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         
         return adj_matrix
 
-    def create_graph_data(self, subject_data: pd.Series, subject_target: float, adj_matrix: np.ndarray) -> torch_geometric.data.Data:
+    def create_graph_data(self, subject_data: np.ndarray, subject_target: float, adj_matrix: np.ndarray) -> torch_geometric.data.Data:
         """Create graph data object."""
-        x = torch.tensor(subject_data.values, dtype=torch.float).unsqueeze(1)
-        edge_index = torch.nonzero(torch.tensor(adj_matrix)).t()
+        node_features_raw = subject_data
+        node_features_normalized = torch.from_numpy(self.feature_normalizer.transform(node_features_raw)).to(torch.float32)
+        edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
         
-        # Normalize features and target
-        x = self.feature_normalizer(x)
-        y = torch.tensor([subject_target], dtype=torch.float)
-        y = self.target_normalizer(y)
+        y_tensor = np.array([subject_target])
+        y_normalized = torch.from_numpy(self.target_normalizer.transform(y_tensor)).to(torch.float32)
         
-        graph_data = torch_geometric.data.Data(
-            x=x,
+        graph = torch_geometric.data.Data(
+            x=node_features_normalized,
             edge_index=edge_index,
-            y=y
+            y=y_normalized
         )
         transform = T.ToSparseTensor()
-        return transform(graph_data)
+        return transform(graph)
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data and create train/val/test splits."""
@@ -184,18 +183,20 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
         # Fit normalizers on training data
         train_idx = int(len(selected_data) * self.train_val_test_split[0])
-        train_data = torch.tensor(selected_data.iloc[:train_idx].values, dtype=torch.float)
-        train_targets = torch.tensor(targets[:train_idx], dtype=torch.float)
-        
-        self.feature_normalizer.fit(train_data)
+        train_data = selected_data.iloc[:train_idx]
+        train_targets = targets[:train_idx]
+        print('fitting normalizers')
+        self.feature_normalizer.fit(train_data.values)
         self.target_normalizer.fit(train_targets)
 
+        print('normalizers fitted')
         graph_data_list = []
         for (_, subject_data), subject_target in zip(selected_data.iterrows(), targets):
             graph_data_list.append(
-                self.create_graph_data(subject_data, subject_target, adj_matrix)
+                self.create_graph_data(subject_data.values, subject_target, adj_matrix)
             )
-        
+        print(f'graph data list length: {len(graph_data_list)}')
+        print('graph data list created, shape: ', graph_data_list[0].x.shape)
         self.n_graphs = len(graph_data_list)
         i_train = int(self.n_graphs * self.train_val_test_split[0])
         i_val = int(self.n_graphs * (self.train_val_test_split[0] + self.train_val_test_split[1]))
@@ -212,7 +213,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
-            shuffle=True,
+            shuffle=False,
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
@@ -248,16 +249,16 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         pass
 
 
-class MortrPacDataModule(OmicsDataModule):
-    """`LightningDataModule` for MortrPac proteomics datasets."""
-    dataset_name: Final[str] = "mortrpac"
+class MotrPacDataModule(OmicsDataModule):
+    """`LightningDataModule` for MotrPac proteomics datasets."""
+    dataset_name: Final[str] = "motrpac"
 
     def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
 
 
     def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
-        """Prepare MortrPac dataset."""
+        """Prepare MotrPac dataset."""
         # Download files
         urls = {
             'proteomics': 'https://d1yw74buhe0ts0.cloudfront.net/static/motrpac-data-hub/publications/data/related-studies/heritage-proteomics/HERITAGE_proteomics_somalogic.xlsx',
@@ -265,14 +266,14 @@ class MortrPacDataModule(OmicsDataModule):
         }
 
         for name, url in urls.items():
-            file_path = os.path.join(self.hparams.data_dir, f"mortrpac_{name}.xlsx")
+            file_path = os.path.join(self.hparams.data_dir, f"motrpac_{name}.xlsx")
             if not os.path.exists(file_path):
                 print(f"Downloading {name}...")
                 download_file(url, file_path)
 
         # Load data
-        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_proteomics.xlsx"), header=3)
-        _ = pd.read_excel(os.path.join(self.hparams.data_dir, "mortrpac_analytes.xlsx"))
+        proteomics_df = pd.read_excel(os.path.join(self.hparams.data_dir, "motrpac_proteomics.xlsx"), header=3)
+        _ = pd.read_excel(os.path.join(self.hparams.data_dir, "motrpac_analytes.xlsx"))
 
         # Extract features and target
         raw_data = proteomics_df.iloc[:, 9:]  # Protein expression values
@@ -346,26 +347,16 @@ class PanCancerDataModule(OmicsDataModule):
         
         # Remove columns that are all NaN after conversion
         valid_cols = numeric_data.columns[~numeric_data.isna().all()]
-        numeric_data = numeric_data[valid_cols]
+        raw_data = numeric_data[valid_cols]
         
         print(f'Number of valid protein columns: {len(valid_cols)}')
-        
-        # Store original column names and index
-        original_columns = numeric_data.columns
-        original_index = numeric_data.index
-        
-        # Impute missing values in features
-        print('Imputing missing values...')
-        imputed_data = self.imputer.fit_transform(numeric_data)
-        
-        # Create DataFrame with imputed data, preserving original structure
-        raw_data = pd.DataFrame(
-            imputed_data,
-            columns=original_columns,
-            index=original_index
-        )
-        
+
         targets = merged_df['ln_IC50'].values
+         
+        print(f'Number of valid protein columns: {len(valid_cols)}')
+        mask = ~pd.isna(targets)
+        raw_data = raw_data[mask]
+        targets = targets[mask]
 
         return raw_data, targets
 
@@ -462,13 +453,13 @@ if __name__ == "__main__":
     print(f"Number of validation batches: {len(val_loader)}")
     print(f"Number of test batches: {len(test_loader)}")
     
-    mortrpac_datamodule = MortrPacDataModule()
-    mortrpac_datamodule.prepare_data()
-    mortrpac_datamodule.setup()
+    motrpac_datamodule = MotrPacDataModule()
+    motrpac_datamodule.prepare_data()
+    motrpac_datamodule.setup()
     
-    train_loader = mortrpac_datamodule.train_dataloader()
-    val_loader = mortrpac_datamodule.val_dataloader()
-    test_loader = mortrpac_datamodule.test_dataloader()
+    train_loader = motrpac_datamodule.train_dataloader()
+    val_loader = motrpac_datamodule.val_dataloader()
+    test_loader = motrpac_datamodule.test_dataloader()
 
     print(f"Number of training samples: {len(train_loader.dataset)}")
     print(f"Number of validation samples: {len(val_loader.dataset)}")
