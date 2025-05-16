@@ -3,12 +3,12 @@
 import torch.nn as nn
 from torch import Tensor
 import torch
-from torch_geometric.typing import Adj
 
 class MLP4(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, num_layers: int = 4, hidden_channels: int = 1024, num_nodes: int = 100) -> None:
         self.num_nodes = num_nodes
         super().__init__()
+        self.out_channels = out_channels
         layers = []
         for i in range(num_layers):
             if i == 0:
@@ -19,6 +19,8 @@ class MLP4(nn.Module):
                 layers.extend([nn.Linear(hidden_channels, hidden_channels), nn.ReLU()])
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x: Tensor, adj_t: Adj, batch_vector: Tensor) -> Tensor:
+    def forward(self, x: Tensor, batch: Tensor) -> Tensor:
         x = torch.reshape(x, (-1, self.num_nodes))
-        return self.model(x)
+        x = self.model(x)
+        return torch.reshape(x, (-1,))
+        

@@ -12,8 +12,8 @@ defaults:
 seed: 12345
 
 trainer:
-  min_epochs: 20
-  max_epochs: 50
+  min_epochs: 100
+  max_epochs: 100
   gradient_clip_val: 0.5
 
 model:
@@ -27,6 +27,7 @@ model:
     hidden_channels: 128
     num_layers: 2
     dropout: 0.2
+    #dropout: 0.2
     #num_propagations: 20
     #aggregation_ratio: 0.75
     #adj_norm: "AD"

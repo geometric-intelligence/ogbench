@@ -5,7 +5,8 @@
 
 defaults:
   - override /hydra/sweeper: basic
-
+  - override /trainer: gpu
+  - override /hydra/launcher: joblib
 hydra:
   # set hydra to multirun by default if this config is attached
   mode: "MULTIRUN"
@@ -14,5 +15,17 @@ hydra:
     # how many jobs to launch in parallel
     max_batch_size: 8
     params:
-      model.optimizer.lr: 0.0001,0.001,0.01,0.1
-      model.net.hidden_channels: 64,128,256
+      seed: 12345
+      model.optimizer.lr: 0.0001
+      model.optimizer.weight_decay: 0.001
+      model.net.hidden_channels: 1024
+      model.net.dropout: 0.2
+      model.net.num_layers: 2
+      model.head_channels: 64
+      trainer.gradient_clip_val: 0.0
+      data.batch_size: 64
+      data.node_sample_ratio: 1.0,0.5,0.2,0.125,0.1
+      trainer.min_epochs: 50
+      trainer.max_epochs: 100
+      logger.wandb.project: biggraphbench
+      #device_id: ${hydra:job.num}

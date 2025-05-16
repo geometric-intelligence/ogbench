@@ -43,12 +43,13 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
     def __init__(
         self,
         data_dir: str = "data/proteomics/",
-        train_val_test_split: Tuple[float, float, float] = (0.8, 0.2, 0.0),
+        train_val_test_split: Tuple[float, float, float] = (0.7, 0.15, 0.15),
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
-        n_selected_nodes: int = 100,
+        method: str = "variance",
         imputation_method: str = "mean",
+        node_sample_ratio: float = 1.0,
     ) -> None:
         """Initialize a `ProteomicsDataModule`.
 
@@ -63,16 +64,16 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             imputation_method: Method for handling missing values ("mean", "median", "most_frequent")
         """
         super().__init__()
-        self.n_selected_nodes = n_selected_nodes
+        self.node_sample_ratio = node_sample_ratio
+        self.method = method
         self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
         self.feature_normalizer = transforms.MeanStdNormalizer()
         self.target_normalizer = transforms.MeanStdNormalizer()
 
-        #TODO: These depend on the n_selected_nodes, 
-        self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_selected_data.parquet")
-        self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_targets.npy")
-        self.adj_matrix_path: str = os.path.join(data_dir, f"{self.dataset_name}_adj_matrix.npy")
+        self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_sr{node_sample_ratio}_{method}_nodes_selected_data.parquet")
+        self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_sr{node_sample_ratio}_{method}_nodes_targets.npy")
+        self.adj_matrix_path: str = os.path.join(data_dir, f"{self.dataset_name}_sr{node_sample_ratio}_{method}_adj_matrix.npy")
 
         self.data_train: Dataset | None = None
         self.data_val: Dataset | None = None
@@ -92,12 +93,16 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         print("Preparing dataset...")
         raw_data, targets = self.prepare_dataset()
         np.save(self.targets_path, targets)
-
+        
+        n_training_samples = int(raw_data.shape[0] * self.train_val_test_split[0])
+        n_nodes = int(n_training_samples / self.node_sample_ratio)
+        print(f"Training sample: raw_data.shape: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}")
         print("Selecting nodes...")
         selected_nodes = self.select_nodes(
             raw_data.values,
             targets,
-            n_selected=self.hparams.n_selected_nodes,
+            n_selected=n_nodes,
+            method=self.method
         )
         selected_data = raw_data.iloc[:, selected_nodes]
         selected_data.to_parquet(self.selected_data_path)
@@ -115,7 +120,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         print(f"Max degree: {np.max(node_degrees):.2f}")
         print(f"Total edges: {np.sum(node_degrees)/2:.0f}")
 
-    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 100) -> np.ndarray:
+    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = "variance") -> np.ndarray:
         """Select nodes based on feature importance.
         
         Args:
@@ -126,9 +131,16 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         Returns:
             Indices of selected features
         """
-        # Variance-based filtering
-        variances = np.std(data, axis=0)
-        ranked_nodes = np.argsort(variances)[::-1]
+        if method == "variance":
+            # Variance-based filtering
+            variances = np.std(data, axis=0)
+            ranked_nodes = np.argsort(variances)[::-1]
+        elif method == "correlation":
+            # Correlation-based filtering
+            correlations = np.abs(np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])]))
+            ranked_nodes = np.argsort(correlations)[::-1]
+        else:
+            raise ValueError(f"Invalid method: {method}")
             
         return ranked_nodes[:n_selected]
 
@@ -154,7 +166,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         print(adjacency)
         # Binarize adjacency matrix
         adj_matrix = np.where(adjacency > 0.01, 1, 0)
-        
+        print(adj_matrix)
         return adj_matrix
 
     def create_graph_data(self, subject_data: np.ndarray, subject_target: float, adj_matrix: np.ndarray) -> torch_geometric.data.Data:
@@ -167,7 +179,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         y_normalized = torch.from_numpy(self.target_normalizer.transform(y_tensor)).to(torch.float32)
         
         graph = torch_geometric.data.Data(
-            x=node_features_normalized,
+            x=node_features_normalized.unsqueeze(1),
             edge_index=edge_index,
             y=y_normalized
         )
@@ -213,7 +225,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
-            shuffle=False,
+            shuffle=True,
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
@@ -279,8 +291,8 @@ class MotrPacDataModule(OmicsDataModule):
         raw_data = proteomics_df.iloc[:, 9:]  # Protein expression values
         targets = proteomics_df['Delta VO2MX (ml/min)'].values
 
-        # Remove rows with missing targets
-        mask = ~pd.isna(targets)
+        # Remove rows with nan values
+        mask = ~pd.isna(raw_data)
         raw_data = raw_data[mask]
         targets = targets[mask]
 
@@ -357,6 +369,13 @@ class PanCancerDataModule(OmicsDataModule):
         mask = ~pd.isna(targets)
         raw_data = raw_data[mask]
         targets = targets[mask]
+
+        # Impute missing values in features
+        raw_data = pd.DataFrame(
+            self.imputer.fit_transform(raw_data),
+            columns=raw_data.columns,
+            index=raw_data.index
+        )
 
         return raw_data, targets
 

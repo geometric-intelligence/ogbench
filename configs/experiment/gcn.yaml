@@ -7,27 +7,29 @@ defaults:
   - override /data: pancancer
   - override /model: gcn
   - override /callbacks: default
-  - override /trainer: default
+  - override /trainer: gpu
 
 seed: 12345
-
+device_id: "2"
 trainer:
-  min_epochs: 5
-  max_epochs: 100
-  gradient_clip_val: 0.5
+  min_epochs: 1000
+  max_epochs: 1000
+  gradient_clip_val: 0
 
 model:
   optimizer:
-    lr: 0.01
+    lr: 0.001
   net:
     in_channels: 1
-    hidden_channels: 256
+    hidden_channels: 512
     out_channels: 1
-    #graph_pooling: mean
-  compile: false
+    num_layers: 6
 
+  compile: false
+  adjacency_aware: true
 data:
-  batch_size: 64
+  batch_size: 457
+  method: correlation
 
 logger:
   wandb:
