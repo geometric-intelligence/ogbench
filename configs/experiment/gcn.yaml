@@ -23,12 +23,12 @@ model:
     in_channels: 1
     hidden_channels: 512
     out_channels: 1
-    num_layers: 6
+    num_layers: 2
 
   compile: false
   adjacency_aware: true
 data:
-  batch_size: 457
+  batch_size: 64
   method: correlation
 
 logger:

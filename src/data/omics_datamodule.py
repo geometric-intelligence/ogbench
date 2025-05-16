@@ -13,6 +13,8 @@ import PyWGCNA
 from sklearn.impute import SimpleImputer
 import numpy as np
 import gzip
+
+import wandb
 from src.data import transforms
 import logging
 
@@ -38,7 +40,7 @@ def download_file(url: str, output_path: str) -> None:
 
 
 class OmicsDataModule(LightningDataModule, abc.ABC):
-    """`LightningDataModule` for MotrPac and PanCancer proteomics datasets."""
+    """`LightningDataModule` for omics datasets."""
 
     def __init__(
         self,
@@ -49,6 +51,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         pin_memory: bool = False,
         method: str = "variance",
         imputation_method: str = "mean",
+        adjacency_threshold: float = 0.01,
         node_sample_ratio: float = 1.0,
     ) -> None:
         """Initialize a `ProteomicsDataModule`.
@@ -64,6 +67,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             imputation_method: Method for handling missing values ("mean", "median", "most_frequent")
         """
         super().__init__()
+        self.adjacency_threshold = adjacency_threshold
         self.node_sample_ratio = node_sample_ratio
         self.method = method
         self.save_hyperparameters(logger=False)
@@ -72,7 +76,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.target_normalizer = transforms.MeanStdNormalizer()
 
         self.selected_data_path: str = os.path.join(data_dir, f"{self.dataset_name}_sr{node_sample_ratio}_{method}_nodes_selected_data.parquet")
-        self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_sr{node_sample_ratio}_{method}_nodes_targets.npy")
+        self.targets_path: str = os.path.join(data_dir, f"{self.dataset_name}_sr{node_sample_ratio}_{method}_{adjacency_threshold}_nodes_targets.npy")
         self.adj_matrix_path: str = os.path.join(data_dir, f"{self.dataset_name}_sr{node_sample_ratio}_{method}_adj_matrix.npy")
 
         self.data_train: Dataset | None = None
@@ -165,7 +169,10 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         )
         print(adjacency)
         # Binarize adjacency matrix
-        adj_matrix = np.where(adjacency > 0.01, 1, 0)
+        adjacency = np.nan_to_num(adjacency, nan=0.0)
+        adj_matrix = np.where(adjacency > self.adjacency_threshold, 1, 0)
+        np.fill_diagonal(adj_matrix, 1)
+        assert not np.isnan(adj_matrix).any(), "Adjacency matrix has nan values"
         print(adj_matrix)
         return adj_matrix
 
@@ -185,6 +192,18 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         )
         transform = T.ToSparseTensor()
         return transform(graph)
+    
+    def log_stats(self, log_callback, wandb_handler) -> None:
+        adj_matrix = np.load(self.adj_matrix_path)
+        node_degrees = np.sum(adj_matrix, axis=1)
+        log_callback("mean_degree", np.mean(node_degrees))
+        log_callback("median_degree", np.median(node_degrees))
+        log_callback("min_degree", np.min(node_degrees))
+        log_callback("max_degree", np.max(node_degrees))
+        log_callback("total_edges", np.sum(node_degrees)/2)
+        log_callback("num_nodes", adj_matrix.shape[0])
+        wandb_handler.config["dataset_name"] = self.dataset_name
+        wandb_handler.config.update({"dataset_name": self.dataset_name})
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data and create train/val/test splits."""
@@ -216,7 +235,8 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         self.train_graph_data_list = graph_data_list[:i_train]
         self.val_graph_data_list = graph_data_list[i_train:i_val]
         self.test_graph_data_list = graph_data_list[i_val:]
-        print("data loaded")
+        
+
 
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader."""
@@ -292,7 +312,9 @@ class MotrPacDataModule(OmicsDataModule):
         targets = proteomics_df['Delta VO2MX (ml/min)'].values
 
         # Remove rows with nan values
-        mask = ~pd.isna(raw_data)
+        mask = ~pd.isna(targets)
+        
+
         raw_data = raw_data[mask]
         targets = targets[mask]
 
@@ -302,7 +324,8 @@ class MotrPacDataModule(OmicsDataModule):
             columns=raw_data.columns,
             index=raw_data.index
         )
-
+        assert not raw_data.isna().any().any(), "Raw data has nan values"
+        assert not np.isnan(targets).any(), "Targets have nan values"
         return raw_data, targets
 
 
@@ -366,7 +389,10 @@ class PanCancerDataModule(OmicsDataModule):
         targets = merged_df['ln_IC50'].values
          
         print(f'Number of valid protein columns: {len(valid_cols)}')
+
+        # Remove rows with nan values
         mask = ~pd.isna(targets)
+
         raw_data = raw_data[mask]
         targets = targets[mask]
 
@@ -382,7 +408,7 @@ class PanCancerDataModule(OmicsDataModule):
 
 class AddNeuroMedOmicsDataModule(OmicsDataModule):
     """`LightningDataModule` for AddNeuroMed-style omics datasets."""
-    dataset_name: Final[str] = "addneuromed_omics"
+    dataset_name: Final[str] = "addneuromed"
 
     def __init__(self, data_dir: str = "data/proteomics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -444,12 +470,22 @@ class AddNeuroMedOmicsDataModule(OmicsDataModule):
         raw_data = pd.concat(frames, axis=0)
         targets = np.array(ages)
 
+        # Remove rows with nan values
+        # Remove rows with nan values
+        mask = (~pd.isna(raw_data)).any(axis=1).values & ~pd.isna(targets)
+
+        raw_data = raw_data[mask]
+        targets = targets[mask]
+        # Raise if raw data or targets have nan values
+        assert not raw_data.isna().any().any(), "Raw data has nan values"
+        assert not np.isnan(targets).any(), "Targets have nan values"
+
         # Impute missing values
-        raw_data = pd.DataFrame(
-            self.imputer.fit_transform(raw_data),
-            columns=raw_data.columns,
-            index=raw_data.index
-        )
+        # raw_data = pd.DataFrame(
+        #     self.imputer.fit_transform(raw_data),
+        #     columns=raw_data.columns,
+        #     index=raw_data.index
+        # )
 
         return raw_data, targets
 

@@ -5,6 +5,7 @@ from lightning import LightningModule
 from torchmetrics import MinMetric, MeanMetric
 from torchmetrics.regression import MeanSquaredError, R2Score
 from torch_geometric.nn import global_mean_pool
+import wandb
 
 class GCNLitModule(LightningModule):
     """Example of a `LightningModule` for GNN regression."""
@@ -71,6 +72,7 @@ class GCNLitModule(LightningModule):
         self.val_mse.reset()
         self.val_r2.reset()
         self.val_loss_best.reset()
+        self.trainer.datamodule.log_stats(self.log, wandb)
 
     def model_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor]
