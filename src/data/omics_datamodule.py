@@ -167,7 +167,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             power=power,
             adjacencyType="signed hybrid",
         )
-        print(adjacency)
+        print(f"adjacency: {adjacency}")
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
         adj_matrix = np.where(adjacency > self.adjacency_threshold, 1, 0)
@@ -314,7 +314,6 @@ class MotrPacDataModule(OmicsDataModule):
         # Remove rows with nan values
         mask = ~pd.isna(targets)
         
-
         raw_data = raw_data[mask]
         targets = targets[mask]
 
@@ -479,13 +478,6 @@ class AddNeuroMedOmicsDataModule(OmicsDataModule):
         # Raise if raw data or targets have nan values
         assert not raw_data.isna().any().any(), "Raw data has nan values"
         assert not np.isnan(targets).any(), "Targets have nan values"
-
-        # Impute missing values
-        # raw_data = pd.DataFrame(
-        #     self.imputer.fit_transform(raw_data),
-        #     columns=raw_data.columns,
-        #     index=raw_data.index
-        # )
 
         return raw_data, targets
 
