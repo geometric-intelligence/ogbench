@@ -9,28 +9,22 @@ defaults:
   - override /callbacks: default
   - override /trainer: default
 
-tags: ["addneuromed", "gatv2"]
-
 seed: 12345
 
 trainer:
-  min_epochs: 10
-  max_epochs: 50
-  gradient_clip_val: 0.5
+  gradient_clip_val: 0
 
 model:
   net:
     _target_: torch_geometric.nn.models.GAT
     num_layers: 4
     in_channels: 1
-    hidden_channels: 256
+    hidden_channels: 1024
     out_channels: 1
+    dropout: 0.2
     v2: true
-
-    #graph_pooling: mean
-
 data:
-  batch_size: 4
+  batch_size: 128
 
 logger:
   wandb:

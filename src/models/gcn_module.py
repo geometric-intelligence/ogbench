@@ -4,7 +4,8 @@ import torch
 from lightning import LightningModule
 from torchmetrics import MinMetric, MeanMetric
 from torchmetrics.regression import MeanSquaredError, R2Score
-
+from torch_geometric.nn import global_mean_pool
+import wandb
 
 class GCNLitModule(LightningModule):
     """Example of a `LightningModule` for GNN regression."""
@@ -15,6 +16,8 @@ class GCNLitModule(LightningModule):
         optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler,
         compile: bool,
+        adjacency_aware: bool = False,
+        head_channels: int = 128,
     ) -> None:
         """Initialize a `GCNLitModule`.
 
@@ -23,6 +26,7 @@ class GCNLitModule(LightningModule):
         :param scheduler: The learning rate scheduler to use for training.
         """
         super().__init__()
+        self.adjacency_aware = adjacency_aware
         self.optimizer_partial = optimizer
         self.scheduler_partial = scheduler
         self.save_hyperparameters(logger=False, ignore=['net'])
@@ -40,9 +44,16 @@ class GCNLitModule(LightningModule):
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
         self.test_loss = MeanMetric()
-
+        self.head_channels = head_channels
         # for tracking best so far validation loss
         self.val_loss_best = MinMetric()
+        self.regression_head = torch.nn.Sequential(
+            torch.nn.Linear(1, self.head_channels),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.head_channels, self.head_channels),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.head_channels, 1)
+        )
 
     def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
@@ -50,7 +61,10 @@ class GCNLitModule(LightningModule):
         :param x: A tensor of features.
         :return: A tensor of predictions.
         """
-        return self.net(x, adj_t, batch_vector)
+        if self.adjacency_aware:
+            return self.net(x=x, edge_index=adj_t, batch=batch_vector)
+        else:
+            return self.net(x=x, batch=batch_vector)
 
     def on_train_start(self) -> None:
         """Lightning hook that is called when training begins."""
@@ -58,6 +72,7 @@ class GCNLitModule(LightningModule):
         self.val_mse.reset()
         self.val_r2.reset()
         self.val_loss_best.reset()
+        self.trainer.datamodule.log_stats(self.log, wandb)
 
     def model_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor]
@@ -72,7 +87,9 @@ class GCNLitModule(LightningModule):
             - A tensor of target values.
         """
         x, adj_t, y, batch_vector = batch.x, batch.adj_t, batch.y, batch.batch
-        predictions = self.forward(x, adj_t, batch_vector)
+        embeddings = self.forward(x=x, adj_t=adj_t, batch_vector=batch_vector)
+        predictions = global_mean_pool(embeddings, batch_vector)
+        predictions = self.regression_head(predictions)
         loss = self.criterion(predictions, y.reshape(-1, 1))
         return loss, predictions, y
 
@@ -109,11 +126,13 @@ class GCNLitModule(LightningModule):
         """
         loss, preds, targets = self.model_step(batch)
         self.val_loss(loss)
+        self.val_loss_best(loss)
         self.val_mse(preds, targets.reshape(-1, 1))
         self.val_r2(preds, targets.reshape(-1, 1))
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/mse", self.val_mse, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/r2", self.val_r2, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/loss_best", self.val_loss_best, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_validation_epoch_end(self) -> None:
         "Lightning hook that is called when a validation epoch ends."
