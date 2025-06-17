@@ -72,7 +72,8 @@ class GCNLitModule(LightningModule):
         self.val_mse.reset()
         self.val_r2.reset()
         self.val_loss_best.reset()
-        self.trainer.datamodule.log_stats(self.log, wandb)
+        if self.adjacency_aware:
+            self.trainer.datamodule.log_stats(self.log)
 
     def model_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor]

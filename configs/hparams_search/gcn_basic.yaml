@@ -31,5 +31,5 @@ hydra:
       trainer.min_epochs: 5
       trainer.max_epochs: 100
       logger.wandb.project: biggraphbench
-      data.method: correlation,variance
+      data.method: correlation,variance,random
       #device_id: "3"

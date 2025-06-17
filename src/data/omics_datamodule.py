@@ -125,12 +125,13 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         print(f"Total edges: {np.sum(node_degrees)/2:.0f}")
 
     def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = "variance") -> np.ndarray:
-        """Select nodes based on feature importance.
+        """Select nodes based on feature importance or randomly.
         
         Args:
             data: Feature matrix
             targets: Target values
             n_selected: Number of features to select
+            method: Method to use for selection
             
         Returns:
             Indices of selected features
@@ -143,6 +144,9 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
             # Correlation-based filtering
             correlations = np.abs(np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])]))
             ranked_nodes = np.argsort(correlations)[::-1]
+        elif method == "random":
+            # Random selection
+            ranked_nodes = np.random.permutation(data.shape[1])
         else:
             raise ValueError(f"Invalid method: {method}")
             
@@ -193,7 +197,7 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         transform = T.ToSparseTensor()
         return transform(graph)
     
-    def log_stats(self, log_callback, wandb_handler) -> None:
+    def log_stats(self, log_callback) -> None:
         adj_matrix = np.load(self.adj_matrix_path)
         node_degrees = np.sum(adj_matrix, axis=1)
         log_callback("mean_degree", np.mean(node_degrees))
@@ -202,8 +206,6 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
         log_callback("max_degree", np.max(node_degrees))
         log_callback("total_edges", np.sum(node_degrees)/2)
         log_callback("num_nodes", adj_matrix.shape[0])
-        wandb_handler.config["dataset_name"] = self.dataset_name
-        wandb_handler.config.update({"dataset_name": self.dataset_name})
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data and create train/val/test splits."""
