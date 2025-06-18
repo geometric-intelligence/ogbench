@@ -472,7 +472,6 @@ class AddNeuroMedOmicsDataModule(OmicsDataModule):
         targets = np.array(ages)
 
         # Remove rows with nan values
-        # Remove rows with nan values
         mask = (~pd.isna(raw_data)).any(axis=1).values & ~pd.isna(targets)
 
         raw_data = raw_data[mask]
@@ -571,6 +570,118 @@ class CovidAKIOmicsDataModule(OmicsDataModule):
 
         return raw_data, targets
 
+
+class ParkinsonsOmicsDataModule(OmicsDataModule):
+    """LightningDataModule for GSE99039 (Parkinson's Disease) gene expression data."""
+    dataset_name: Final[str] = "parkinsons"
+
+    def __init__(self, data_dir: str = "data/gse99039/", *args, **kwargs) -> None:
+        super().__init__(data_dir=data_dir, *args, **kwargs)
+
+    def prepare_dataset(self) -> Tuple[pd.DataFrame, np.ndarray]:
+        """Prepare gene expression data and target onset age from GSE99039."""
+        os.makedirs(self.hparams.data_dir, exist_ok=True)
+
+        dataset = "GSE99039_series_matrix"
+        url = f"https://ftp.ncbi.nlm.nih.gov/geo/series/GSE99nnn/GSE99039/matrix/{dataset}.txt.gz"
+        gz_path = os.path.join(self.hparams.data_dir, f"{dataset}.txt.gz")
+
+        if not os.path.exists(gz_path):
+            print(f"Downloading {dataset}...")
+            try:
+                download_file(url, gz_path)
+                print(f"Successfully downloaded {dataset}")
+            except Exception as e:
+                print(f"Error downloading {dataset}: {str(e)}")
+                raise
+
+        # Read in metadata lines
+        metadata_lines = []
+        with gzip.open(gz_path, "rt") as f:
+            for line in f:
+                if line.startswith("!Sample_characteristics_ch1"):
+                    metadata_lines.append(line.strip().split("\t")[1:])  # skip label
+
+        if not metadata_lines:
+            raise ValueError("No !Sample_characteristics_ch1 lines found.")
+
+        # Transpose so each item corresponds to a sample
+        sample_metadata = list(zip(*metadata_lines))
+
+        # Extract 'moca score' for each sample
+        moca_scores = []
+        for fields in sample_metadata:
+            moca = None
+            for field in fields:
+                if "moca score:" in field.lower():
+                    try:
+                        moca = field.split(":")[1].strip().strip('"')
+                    except IndexError:
+                        pass
+            moca_scores.append(moca)
+
+        moca_scores = pd.to_numeric(moca_scores, errors="coerce")
+
+        # Load gene expression data (after metadata ends)
+        with gzip.open(gz_path, "rt") as f:
+            expression_df = pd.read_csv(f, sep="\t", comment="!", index_col="ID_REF").transpose()
+
+        # Filter and map to gene symbols
+        expression_df = self._map_probes_to_genes(expression_df, collapse=True)
+
+        # Match metadata with expression samples
+        assert len(moca_scores) == expression_df.shape[0], (
+            f"Mismatched samples: {len(moca_scores)} scores vs {expression_df.shape[0]} samples"
+        )
+
+        valid_mask = ~np.isnan(moca_scores)
+        raw_data = expression_df.loc[valid_mask]
+        targets = moca_scores[valid_mask]
+
+        assert not raw_data.isna().any().any(), "Raw data contains NaNs"
+        assert not np.isnan(targets).any(), "Targets contain NaNs"
+
+        return raw_data, targets
+
+    def _map_probes_to_genes(self, df: pd.DataFrame, collapse: bool = True) -> pd.DataFrame:
+        """Map Affymetrix probe IDs to gene symbols using GPL570 annotation."""
+        import urllib.request
+
+        url = "https://ftp.ncbi.nlm.nih.gov/geo/platforms/GPLnnn/GPL570/annot/GPL570.annot.gz"
+        annot_path = os.path.join(self.hparams.data_dir, "GPL570.annot.gz")
+
+        if not os.path.exists(annot_path):
+            print("Downloading GPL570 annotation...")
+            urllib.request.urlretrieve(url, annot_path)
+
+        # Skip to the data portion
+        with gzip.open(annot_path, "rt") as f:
+            lines = f.readlines()
+
+        start = next(i for i, line in enumerate(lines) if line.startswith("ID\t"))
+        from io import StringIO
+        gpl = pd.read_csv(StringIO("".join(lines[start:])), sep="\t", dtype=str, low_memory=False)
+
+        # Try to identify the gene symbol column flexibly
+        gene_symbol_col = next((col for col in gpl.columns if "gene symbol" in col.lower()), None)
+        if gene_symbol_col is None:
+            raise ValueError("No column with gene symbols found in GPL annotation file.")
+
+        print(f"Using gene symbol column: '{gene_symbol_col}'")
+
+        probe_map = gpl[["ID", gene_symbol_col]].dropna()
+        probe_map[gene_symbol_col] = probe_map[gene_symbol_col].str.split("///").str[0].str.strip()
+        probe_map = probe_map[probe_map[gene_symbol_col] != ""].set_index("ID")
+
+        df.columns = df.columns.astype(str)
+        common_probes = df.columns.intersection(probe_map.index)
+        df = df[common_probes]
+        df.columns = probe_map.loc[common_probes, gene_symbol_col].values
+
+        if collapse:
+            df = df.groupby(df.columns, axis=1).mean()
+
+        return df
 
 if __name__ == "__main__":
     # Example usage
