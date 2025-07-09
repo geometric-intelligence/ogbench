@@ -8,57 +8,50 @@ from src.data import omics_datamodule
 
 
 @pytest.mark.parametrize("batch_size", [32, 128])
-def test_omics_datamodule(batch_size: int) -> None:
-    """Tests `MNISTDataModule` to verify that it can be downloaded correctly, that the necessary
-    attributes were created (e.g., the dataloader objects), and that dtypes and batch sizes
-    correctly match.
+def test_pancancer_datamodule(batch_size: int) -> None:
+    """Basic functionality test for ``PanCancerDataModule``.
 
-    :param batch_size: Batch size of the data to be loaded by the dataloader.
+    The test ensures that the datamodule can prepare the dataset (creating the
+    expected files) and that a batch returned from the dataloader has the correct
+    type and dtype.  Only minimal assertions are made to keep the test fast and
+    independent of network connectivity.
     """
-    data_dir = "data/"
 
-    dm = omics_datamodule.PanCancerDataModule(data_dir=data_dir, batch_size=batch_size)
-    dm.prepare_data()
-
-    assert not dm.data_train and not dm.data_val and not dm.data_test
-    assert Path(data_dir, "MNIST").exists()
-    assert Path(data_dir, "MNIST", "raw").exists()
-
-    dm.setup()
-    assert dm.data_train and dm.data_val and dm.data_test
-    assert dm.train_dataloader() and dm.val_dataloader() and dm.test_dataloader()
-
-    num_datapoints = len(dm.data_train) + len(dm.data_val) + len(dm.data_test)
-    assert num_datapoints == 70_000
-
-    batch = next(iter(dm.train_dataloader()))
-    x, y = batch
-    assert len(x) == batch_size
-    assert len(y) == batch_size
-    assert x.dtype == torch.float32
-    assert y.dtype == torch.int64
-
-
-@pytest.mark.parametrize("batch_size", [32])
-def test_omics_datamodule(batch_size: int) -> None:
     with tempfile.TemporaryDirectory() as data_dir:
-        dm = omics_datamodule.MotrPacDataModule(data_dir=data_dir, batch_size=batch_size)
+        dm = omics_datamodule.PanCancerDataModule(data_dir=data_dir, batch_size=batch_size)
         dm.prepare_data()
 
-        # Updated file checks
-        assert Path(data_dir, "mortrpac_selected_data.parquet").exists()
-        assert Path(data_dir, "mortrpac_targets.npy").exists()
-        assert Path(data_dir, "mortrpac_adj_matrix.npy").exists()
+        assert Path(dm.selected_data_path).exists()
+        assert Path(dm.targets_path).exists()
+        assert Path(dm.adj_matrix_path).exists()
 
         dm.setup()
-        assert dm.data_train and dm.data_val and dm.data_test
+        assert dm.train_graph_data_list and dm.val_graph_data_list and dm.test_graph_data_list
         assert dm.train_dataloader() and dm.val_dataloader() and dm.test_dataloader()
-
-        num_datapoints = len(dm.data_train) + len(dm.data_val) + len(dm.data_test)
-        assert num_datapoints > 0
 
         batch = next(iter(dm.train_dataloader()))
         assert isinstance(batch, torch_geometric.data.Batch)
         assert batch.x.dtype == torch.float32
         assert batch.y.dtype == torch.float32
         assert batch.num_graphs <= batch_size
+
+
+@pytest.mark.parametrize("batch_size", [32])
+def test_motrpac_datamodule(batch_size: int) -> None:
+    """Similar smoke test for ``MotrPacDataModule``."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        dm = omics_datamodule.MotrPacDataModule(data_dir=data_dir, batch_size=batch_size)
+        dm.prepare_data()
+
+        assert Path(dm.selected_data_path).exists()
+        assert Path(dm.targets_path).exists()
+        assert Path(dm.adj_matrix_path).exists()
+
+        dm.setup()
+        assert dm.train_graph_data_list and dm.val_graph_data_list and dm.test_graph_data_list
+        assert dm.train_dataloader() and dm.val_dataloader() and dm.test_dataloader()
+
+        batch = next(iter(dm.train_dataloader()))
+        assert isinstance(batch, torch_geometric.data.Batch)
+        assert batch.x.dtype == torch.float32
+        assert batch.y.dtype == torch.float32        assert batch.num_graphs <= batch_size

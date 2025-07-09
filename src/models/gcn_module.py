@@ -55,16 +55,26 @@ class GCNLitModule(LightningModule):
             torch.nn.Linear(self.head_channels, 1)
         )
 
-    def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor) -> torch.Tensor:
-        """Perform a forward pass through the model `self.net`.
+    def forward(
+        self,
+        x: torch.Tensor,
+        adj_t: torch.sparse.Tensor,
+        batch_vector: torch.Tensor,
+    ) -> torch.Tensor:
+        """Perform a forward pass through ``self.net``.
 
-        :param x: A tensor of features.
-        :return: A tensor of predictions.
+        The original implementation attempted to pass the ``batch`` vector to
+        the underlying GNN models. However, all GNN models defined in
+        ``gnn_models.py`` expect an ``edge_index`` argument instead.  Passing the
+        batch tensor therefore resulted in a ``TypeError`` during the tests.
+
+        This method now consistently forwards the ``edge_index`` (``adj_t``)
+        to the wrapped model regardless of the ``adjacency_aware`` flag.
+        ``batch_vector`` is kept in the signature as it is still required by the
+        training step but is not forwarded to the model directly.
         """
-        if self.adjacency_aware:
-            return self.net(x=x, edge_index=adj_t, batch=batch_vector)
-        else:
-            return self.net(x=x, batch=batch_vector)
+
+        return self.net(x=x, edge_index=adj_t)
 
     def on_train_start(self) -> None:
         """Lightning hook that is called when training begins."""
@@ -90,8 +100,8 @@ class GCNLitModule(LightningModule):
         x, adj_t, y, batch_vector = batch.x, batch.adj_t, batch.y, batch.batch
         embeddings = self.forward(x=x, adj_t=adj_t, batch_vector=batch_vector)
         predictions = global_mean_pool(embeddings, batch_vector)
-        predictions = self.regression_head(predictions)
-        loss = self.criterion(predictions, y.reshape(-1, 1))
+        predictions = self.regression_head(predictions).squeeze(-1)
+        loss = self.criterion(predictions, y)
         return loss, predictions, y
 
     def training_step(
@@ -106,11 +116,12 @@ class GCNLitModule(LightningModule):
         loss, preds, targets = self.model_step(batch)
         # update and log metrics
         self.train_loss(loss)
-        self.train_mse(preds, targets.reshape(-1, 1))
-        self.train_r2(preds, targets.reshape(-1, 1))
+        self.train_mse(preds, targets)
+        if targets.numel() >= 2:
+            self.train_r2(preds, targets)
+            self.log("train/r2", self.train_r2, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/mse", self.train_mse, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train/r2", self.train_r2, on_step=False, on_epoch=True, prog_bar=True)
 
         return loss
 
@@ -128,11 +139,12 @@ class GCNLitModule(LightningModule):
         loss, preds, targets = self.model_step(batch)
         self.val_loss(loss)
         self.val_loss_best(loss)
-        self.val_mse(preds, targets.reshape(-1, 1))
-        self.val_r2(preds, targets.reshape(-1, 1))
+        self.val_mse(preds, targets)
+        if targets.numel() >= 2:
+            self.val_r2(preds, targets)
+            self.log("val/r2", self.val_r2, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/mse", self.val_mse, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val/r2", self.val_r2, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val/loss_best", self.val_loss_best, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_validation_epoch_end(self) -> None:
@@ -148,11 +160,12 @@ class GCNLitModule(LightningModule):
         loss, preds, targets = self.model_step(batch)
         # update and log metrics
         self.test_loss(loss)
-        self.test_mse(preds, targets.reshape(-1, 1))
-        self.test_r2(preds, targets.reshape(-1, 1))
+        self.test_mse(preds, targets)
+        if targets.numel() >= 2:
+            self.test_r2(preds, targets)
+            self.log("test/r2", self.test_r2, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test/mse", self.test_mse, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("test/r2", self.test_r2, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_test_epoch_end(self) -> None:
         """Lightning hook that is called when a test epoch ends."""
