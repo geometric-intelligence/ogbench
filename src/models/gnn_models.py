@@ -26,19 +26,19 @@ class NRGNN(nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
         self.convs.append(GCNConv(hidden_channels, out_channels))
-        
+
         self.alpha = alpha  # Node feature importance
-        self.beta = beta    # Edge importance
+        self.beta = beta  # Edge importance
         self.gamma = gamma  # Structure importance
         self.dropout = dropout
 
     def forward(self, x: Tensor, edge_index: Adj) -> Tensor:
         # Node feature transformation
         x = x * self.alpha
-        
+
         # Edge importance
         edge_weight = torch.ones(edge_index.size(1), device=edge_index.device) * self.beta
-        
+
         # Structure importance
         for conv in self.convs[:-1]:
             x = conv(x, edge_index, edge_weight)
@@ -67,19 +67,19 @@ class RTGNN(nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
         self.convs.append(GCNConv(hidden_channels, out_channels))
-        
+
         self.alpha = alpha  # Temporal importance
-        self.beta = beta    # Spatial importance
+        self.beta = beta  # Spatial importance
         self.gamma = gamma  # Feature importance
         self.dropout = dropout
 
     def forward(self, x: Tensor, edge_index: Adj) -> Tensor:
         # Feature importance
         x = x * self.gamma
-        
+
         # Spatial importance
         edge_weight = torch.ones(edge_index.size(1), device=edge_index.device) * self.beta
-        
+
         # Temporal importance
         for conv in self.convs[:-1]:
             x = conv(x, edge_index, edge_weight)
@@ -87,7 +87,7 @@ class RTGNN(nn.Module):
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = x * self.alpha  # Temporal importance scaling
         x = self.convs[-1](x, edge_index, edge_weight)
-        return x 
+        return x
 
 
 class EnGCN(nn.Module):
@@ -109,12 +109,12 @@ class EnGCN(nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
         self.convs.append(GCNConv(hidden_channels, out_channels))
-        
+
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
         self.diffusion_type = diffusion_type
         self.dropout = dropout
-        
+
         # MLP layers for feature transformation
         self.mlp = nn.ModuleList()
         for _ in range(num_mlp_layers):
@@ -126,23 +126,23 @@ class EnGCN(nn.Module):
         # Initial feature transformation
         for layer in self.mlp:
             x = layer(x)
-        
+
         # Multiple propagation steps
         for _ in range(self.num_propagations):
             if self.diffusion_type == "residual":
                 x_new = x
             else:  # zeros
                 x_new = torch.zeros_like(x)
-            
+
             # Apply GCN layers
             for conv in self.convs[:-1]:
                 x_new = conv(x_new, edge_index)
                 x_new = F.relu(x_new)
                 x_new = F.dropout(x_new, p=self.dropout, training=self.training)
-            
+
             # Aggregate with previous features
             x = self.aggregation_ratio * x_new + (1 - self.aggregation_ratio) * x
-        
+
         # Final layer
         x = self.convs[-1](x, edge_index)
         return x
@@ -166,11 +166,11 @@ class SAGN(nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(SAGEConv(hidden_channels, hidden_channels))
         self.convs.append(SAGEConv(hidden_channels, out_channels))
-        
+
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
         self.dropout = dropout
-        
+
         # MLP layers for feature transformation
         self.mlp = nn.ModuleList()
         for _ in range(num_mlp_layers):
@@ -182,20 +182,20 @@ class SAGN(nn.Module):
         # Initial feature transformation
         for layer in self.mlp:
             x = layer(x)
-        
+
         # Multiple propagation steps
         for _ in range(self.num_propagations):
             x_new = torch.zeros_like(x)
-            
+
             # Apply SAGE layers
             for conv in self.convs[:-1]:
                 x_new = conv(x_new, edge_index)
                 x_new = F.relu(x_new)
                 x_new = F.dropout(x_new, p=self.dropout, training=self.training)
-            
+
             # Aggregate with previous features
             x = self.aggregation_ratio * x_new + (1 - self.aggregation_ratio) * x
-        
+
         # Final layer
         x = self.convs[-1](x, edge_index)
         return x
@@ -219,11 +219,11 @@ class MLAGNN(nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
         self.convs.append(GCNConv(hidden_channels, out_channels))
-        
+
         self.num_propagations = num_propagations
         self.aggregation_ratio = aggregation_ratio
         self.dropout = dropout
-        
+
         # Multiple MLP layers for feature transformation
         self.mlps = nn.ModuleList()
         for _ in range(num_mlp_layers):
@@ -233,7 +233,7 @@ class MLAGNN(nn.Module):
                 nn.Dropout(dropout),
                 nn.Linear(hidden_channels, hidden_channels),
                 nn.ReLU(),
-                nn.Dropout(dropout)
+                nn.Dropout(dropout),
             )
             self.mlps.append(mlp)
 
@@ -241,20 +241,20 @@ class MLAGNN(nn.Module):
         # MLPs
         for mlp in self.mlps:
             x = mlp(x)
-        
+
         # Multiple propagation steps
         for _ in range(self.num_propagations):
             x_new = torch.zeros_like(x)
-            
+
             # Apply GCN layers
             for conv in self.convs[:-1]:
                 x_new = conv(x_new, edge_index)
                 x_new = F.relu(x_new)
                 x_new = F.dropout(x_new, p=self.dropout, training=self.training)
-            
+
             # Aggregate with previous features
             x = self.aggregation_ratio * x_new + (1 - self.aggregation_ratio) * x
-        
+
         # Final layer
         x = self.convs[-1](x, edge_index)
-        return x 
+        return x

@@ -14,7 +14,7 @@ scheduler:
   max_epochs: 200
   warmup_start_lr: 0.00001
   last_epoch: -1
-  
+
 net:
   _target_: torch_geometric.nn.GCN
   num_layers: 4

@@ -3,7 +3,7 @@ data_dir: ${paths.data_dir}
 batch_size: 32
 train_val_test_split: [0.7, 0.15, 0.15]
 num_workers: 2
-pin_memory: False 
+pin_memory: False
 adjacency_threshold: 0.4
 node_sample_ratio: 1.0
 method: variance

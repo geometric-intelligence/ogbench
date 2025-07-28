@@ -43,4 +43,4 @@ logger:
     tags: ${tags}
     group: "addneuromed"
   aim:
-    experiment: "addneuromed" 
+    experiment: "addneuromed"

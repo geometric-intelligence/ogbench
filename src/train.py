@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
@@ -6,7 +7,6 @@ import rootutils
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
-import os
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)  # noqa
 # ------------------------------------------------------------------------------------ #
