@@ -22,8 +22,15 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+import warnings
+
 def download_file(url: str, output_path: str) -> None:
     """Download a file with progress bar."""
+    warnings.warn(
+        "download_file is deprecated. Use scripts/download_datasets.py to download data to HuggingFace instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     response: requests.Response = requests.get(url, stream=True)
     total_size: int = int(response.headers.get('content-length', 0))
     
@@ -88,6 +95,11 @@ class OmicsDataModule(LightningDataModule, abc.ABC):
 
     def prepare_data(self) -> None:
         """Download and prepare data."""
+        warnings.warn(
+            f"{self.__class__.__name__} is deprecated. Use HF{self.__class__.__name__} from src.data.hf_datamodule instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if not os.path.exists(self.hparams.data_dir):
             os.makedirs(self.hparams.data_dir)
         
