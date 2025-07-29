@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class HFOmicsDataModule(LightningDataModule, abc.ABC):
     """`LightningDataModule` for omics datasets loaded from HuggingFace."""
 
-    revision: Final[str] = "a64a861"
+    revision: Final[str] = "bf5ef3f"
 
     def __init__(
         self,
@@ -329,7 +329,7 @@ class HFMotrPacDataModule(HFOmicsDataModule):
     """`LightningDataModule` for MotrPac proteomics datasets from HuggingFace."""
 
     dataset_name: Final[str] = "motrpac"
-    revision: Final[str] = "a64a861"
+    revision: Final[str] = "bf5ef3f"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -339,7 +339,7 @@ class HFPanCancerDataModule(HFOmicsDataModule):
     """`LightningDataModule` for PanCancer proteomics datasets from HuggingFace."""
 
     dataset_name: Final[str] = "pancancer"
-    revision: Final[str] = "a64a861"
+    revision: Final[str] = "bf5ef3f"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -349,7 +349,7 @@ class HFAddNeuroMedOmicsDataModule(HFOmicsDataModule):
     """`LightningDataModule` for AddNeuroMed-style omics datasets from HuggingFace."""
 
     dataset_name: Final[str] = "addneuromed"
-    revision: Final[str] = "a64a861"
+    revision: Final[str] = "bf5ef3f"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -359,7 +359,7 @@ class HFCovidAKIOmicsDataModule(HFOmicsDataModule):
     """`LightningDataModule` for COVID AKI omics datasets from HuggingFace."""
 
     dataset_name: Final[str] = "covidaki"
-    revision: Final[str] = "a64a861"
+    revision: Final[str] = "bf5ef3f"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -370,7 +370,7 @@ class HFParkinsonsOmicsDataModule(HFOmicsDataModule):
     HuggingFace."""
 
     dataset_name: Final[str] = "parkinsons"
-    revision: Final[str] = "a64a861"
+    revision: Final[str] = "bf5ef3f"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
