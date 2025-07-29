@@ -66,19 +66,26 @@ def process_pancancer(output_dir: str = "temp_data") -> None:
     targets = targets[mask]
 
     # Convert to numeric and handle non-numeric columns
-    numeric_data = pd.DataFrame()
+    numeric_columns = []
     for col in raw_data.columns:
         try:
-            numeric_data[col] = pd.to_numeric(raw_data[col], errors="coerce")
+            pd.to_numeric(raw_data[col], errors="coerce")
+            numeric_columns.append(col)
         except ValueError:
             print(f"Skipping non-numeric column: {col}")
             continue
 
+    numeric_data = raw_data[numeric_columns].apply(pd.to_numeric, errors="coerce")
+
     # Impute missing values in features
     imputer = SimpleImputer(strategy="mean")
-    raw_data = pd.DataFrame(
-        imputer.fit_transform(numeric_data), columns=numeric_data.columns, index=numeric_data.index
-    )
+    imputed_data = imputer.fit_transform(numeric_data)
+
+    # Get the feature names that remain after imputation (columns with at least one non-null value)
+    feature_mask = ~np.isnan(imputer.statistics_)
+    remaining_features = numeric_data.columns[feature_mask]
+
+    raw_data = pd.DataFrame(imputed_data, columns=remaining_features, index=numeric_data.index)
 
     assert not raw_data.isna().any().any(), "Raw data has nan values"
     assert not np.isnan(targets).any(), "Targets have nan values"
