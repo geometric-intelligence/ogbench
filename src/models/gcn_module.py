@@ -57,7 +57,7 @@ class GCNLitModule(LightningModule):
         )
 
     def forward(
-        self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor
+        self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor = None
     ) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
 
@@ -65,9 +65,12 @@ class GCNLitModule(LightningModule):
         :return: A tensor of predictions.
         """
         if self.adjacency_aware:
-            return self.net(x=x, edge_index=adj_t, batch=batch_vector)
+            return self.net(x=x, edge_index=adj_t)
         else:
-            return self.net(x=x, batch=batch_vector)
+            if batch_vector is not None:
+                return self.net(x=x, batch=batch_vector)
+            else:
+                raise ValueError("Batch vector is required for non-adjacency-aware models")
 
     def on_train_start(self) -> None:
         """Lightning hook that is called when training begins."""
@@ -91,7 +94,10 @@ class GCNLitModule(LightningModule):
             - A tensor of target values.
         """
         x, adj_t, y, batch_vector = batch.x, batch.adj_t, batch.y, batch.batch
-        embeddings = self.forward(x=x, adj_t=adj_t, batch_vector=batch_vector)
+        if self.adjacency_aware:
+            embeddings = self.forward(x=x, adj_t=adj_t)
+        else:
+            embeddings = self.forward(x=x, batch_vector=batch_vector)
         predictions = global_mean_pool(embeddings, batch_vector)
         predictions = self.regression_head(predictions)
         loss = self.criterion(predictions, y.reshape(-1, 1))

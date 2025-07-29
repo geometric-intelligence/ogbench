@@ -35,14 +35,16 @@ def test_lit_module_forward_pass(model_class):
         optimizer=torch.optim.Adam(model.parameters(), lr=1e-3),
         scheduler=None,
         compile=False,
+        adjacency_aware=True,
     )
 
     lit_model.eval()
     with torch.no_grad():
         loss, preds, targets = lit_model.model_step(data)
 
-    # ✅ Graph-level assertions
-    assert preds.shape == (1,), f"Expected graph-level output shape (1,) but got {preds.shape}"
+    assert preds.shape == torch.Size(
+        [1, 1]
+    ), f"Expected graph-level output shape (1,) but got {preds.shape}"
     assert torch.isfinite(preds).all(), "Predictions contain NaNs or Infs"
     assert torch.isfinite(loss), "Loss is NaN or Inf"
     assert preds.dtype == torch.float32, "Expected float32 predictions"
