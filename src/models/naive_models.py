@@ -1,11 +1,20 @@
 """Various GNN models."""
 
+import torch
 import torch.nn as nn
 from torch import Tensor
-import torch
+
 
 class MLP4(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, num_layers: int = 4, hidden_channels: int = 1024, num_nodes: int = 100, dropout: float = 0.2) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        num_layers: int = 4,
+        hidden_channels: int = 1024,
+        num_nodes: int = 100,
+        dropout: float = 0.2,
+    ) -> None:
         self.num_nodes = num_nodes
         super().__init__()
         self.out_channels = out_channels
@@ -21,4 +30,3 @@ class MLP4(nn.Module):
 
     def forward(self, x: Tensor, batch: Tensor) -> Tensor:
         x = self.model(x)
-        

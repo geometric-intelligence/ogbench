@@ -1,13 +1,13 @@
 """Parkinsons dataset processor."""
 
-import os
-import pandas as pd
-import numpy as np
 import gzip
-import urllib.request
+import os
 from typing import Dict, Tuple
 
-from scripts.utils import download_file, create_dataset_metadata, upload_to_huggingface
+import numpy as np
+import pandas as pd
+
+from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
 
 
 def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True) -> pd.DataFrame:
@@ -17,7 +17,7 @@ def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True)
 
     if not os.path.exists(annot_path):
         print("Downloading GPL570 annotation...")
-        urllib.request.urlretrieve(url, annot_path)
+        download_file(url, annot_path)
 
     # Skip to the data portion
     with gzip.open(annot_path, "rt") as f:
@@ -25,6 +25,7 @@ def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True)
 
     start = next(i for i, line in enumerate(lines) if line.startswith("ID\t"))
     from io import StringIO
+
     gpl = pd.read_csv(StringIO("".join(lines[start:])), sep="\t", dtype=str, low_memory=False)
 
     # Try to identify the gene symbol column flexibly
@@ -52,19 +53,19 @@ def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True)
 def process_parkinsons(output_dir: str = "temp_data") -> None:
     """Download and process Parkinsons dataset."""
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Download URL
     urls = {
-        'GSE99039': 'https://ftp.ncbi.nlm.nih.gov/geo/series/GSE99nnn/GSE99039/matrix/GSE99039_series_matrix.txt.gz'
+        "GSE99039": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE99nnn/GSE99039/matrix/GSE99039_series_matrix.txt.gz"
     }
-    
+
     dataset = "GSE99039_series_matrix"
     gz_path = os.path.join(output_dir, f"{dataset}.txt.gz")
 
     if not os.path.exists(gz_path):
         print(f"Downloading {dataset}...")
         try:
-            download_file(urls['GSE99039'], gz_path)
+            download_file(urls["GSE99039"], gz_path)
             print(f"Successfully downloaded {dataset}")
         except Exception as e:
             print(f"Error downloading {dataset}: {str(e)}")
@@ -105,9 +106,9 @@ def process_parkinsons(output_dir: str = "temp_data") -> None:
     expression_df = _map_probes_to_genes(expression_df, output_dir, collapse=True)
 
     # Match metadata with expression samples
-    assert len(moca_scores) == expression_df.shape[0], (
-        f"Mismatched samples: {len(moca_scores)} scores vs {expression_df.shape[0]} samples"
-    )
+    assert (
+        len(moca_scores) == expression_df.shape[0]
+    ), f"Mismatched samples: {len(moca_scores)} scores vs {expression_df.shape[0]} samples"
 
     valid_mask = ~np.isnan(moca_scores)
     raw_data = expression_df.loc[valid_mask]
@@ -115,41 +116,38 @@ def process_parkinsons(output_dir: str = "temp_data") -> None:
 
     assert not raw_data.isna().any().any(), "Raw data contains NaNs"
     assert not np.isnan(targets).any(), "Targets contain NaNs"
-    
+
     # Save as parquet
     data_file = os.path.join(output_dir, "parkinsons_data.parquet")
     targets_file = os.path.join(output_dir, "parkinsons_targets.parquet")
-    
+
     # Reset index to make it a proper DataFrame
     raw_data = raw_data.reset_index(drop=True)
     raw_data.to_parquet(data_file)
     pd.DataFrame({"target": targets}).to_parquet(targets_file)
-    
+
     # Create metadata
     target_stats = {
         "mean": float(np.mean(targets)),
         "std": float(np.std(targets)),
         "min": float(np.min(targets)),
-        "max": float(np.max(targets))
+        "max": float(np.max(targets)),
     }
-    
+
     metadata = create_dataset_metadata(
         dataset_name="parkinsons",
         download_urls=urls,
         num_samples=len(targets),
         num_features=raw_data.shape[1],
-        target_stats=target_stats
+        target_stats=target_stats,
     )
-    
+
     # Upload to HuggingFace
-    data_files = {
-        "data": data_file,
-        "targets": targets_file
-    }
-    
+    data_files = {"data": data_file, "targets": targets_file}
+
     upload_to_huggingface("parkinsons", data_files, metadata)
-    
-    print(f"Successfully processed and uploaded Parkinsons dataset")
+
+    print("Successfully processed and uploaded Parkinsons dataset")
     print(f"  Samples: {len(targets)}")
     print(f"  Features: {raw_data.shape[1]}")
-    print(f"  Target stats: {target_stats}") 
+    print(f"  Target stats: {target_stats}")

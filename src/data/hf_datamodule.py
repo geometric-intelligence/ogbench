@@ -1,19 +1,20 @@
 """HuggingFace datamodule for omics datasets."""
 
 import abc
+import logging
 import os
 from typing import Any, Dict, Final, Optional, Tuple
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+import PyWGCNA
 import torch
-from lightning import LightningDataModule
-from torch.utils.data import Dataset, DataLoader
 import torch_geometric.data
 import torch_geometric.transforms as T
-import PyWGCNA
-from sklearn.impute import SimpleImputer
 from huggingface_hub import hf_hub_download
-import logging
+from lightning import LightningDataModule
+from sklearn.impute import SimpleImputer
+from torch.utils.data import DataLoader, Dataset
 
 from src.data import transforms
 
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 class HFOmicsDataModule(LightningDataModule, abc.ABC):
     """`LightningDataModule` for omics datasets loaded from HuggingFace."""
+
+    revision: Final[str] = "a64a861"
 
     def __init__(
         self,
@@ -65,18 +68,18 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         # Cache paths for processed data
         self.cache_dir = os.path.join(data_dir, self.dataset_name)
         os.makedirs(self.cache_dir, exist_ok=True)
-        
+
         self.selected_data_path: str = os.path.join(
-            self.cache_dir, 
-            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_selected_data.parquet"
+            self.cache_dir,
+            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_selected_data.parquet",
         )
         self.targets_path: str = os.path.join(
-            self.cache_dir, 
-            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_targets.npy"
+            self.cache_dir,
+            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_targets.npy",
         )
         self.adj_matrix_path: str = os.path.join(
-            self.cache_dir, 
-            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_adj_matrix.npy"
+            self.cache_dir,
+            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_adj_matrix.npy",
         )
 
         self.data_train: Dataset | None = None
@@ -90,46 +93,52 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         """Download raw data from HuggingFace and prepare processed data."""
         if not os.path.exists(self.hparams.data_dir):
             os.makedirs(self.hparams.data_dir)
-        
+
         # Check if processed data already exists
-        if os.path.exists(self.selected_data_path) and os.path.exists(self.targets_path) and os.path.exists(self.adj_matrix_path):
+        if (
+            os.path.exists(self.selected_data_path)
+            and os.path.exists(self.targets_path)
+            and os.path.exists(self.adj_matrix_path)
+        ):
             logger.info(f"Processed data found in cache for {self.dataset_name}")
             return
-        
+
         logger.info(f"Processing dataset {self.dataset_name}...")
-        
+
         # Download raw data from HuggingFace
         raw_data, targets = self._download_raw_data()
-        
+
         # Process data (node selection, adjacency matrix calculation)
         self._process_data(raw_data, targets)
 
     def _download_raw_data(self) -> Tuple[pd.DataFrame, np.ndarray]:
         """Download raw data from HuggingFace."""
         logger.info(f"Downloading raw data for {self.dataset_name} from HuggingFace...")
-        
+
         # Download parquet files directly from HuggingFace
-        data_file = hf_hub_download(
+        data_file = hf_hub_download(  # nosec
             repo_id=self.hf_repo_id,
             repo_type="dataset",
-            filename=f"{self.dataset_name}_data.parquet"
+            revision=self.revision,
+            filename=f"{self.dataset_name}_data.parquet",
         )
-        targets_file = hf_hub_download(
+        targets_file = hf_hub_download(  # nosec
             repo_id=self.hf_repo_id,
             repo_type="dataset",
-            filename=f"{self.dataset_name}_targets.parquet"
+            revision=self.revision,
+            filename=f"{self.dataset_name}_targets.parquet",
         )
-        
+
         # Load data and targets using pandas
         raw_data = pd.read_parquet(data_file)
         targets_df = pd.read_parquet(targets_file)
-        
+
         # Convert to proper format - data should be features only
-        if 'target' in raw_data.columns:
-            raw_data = raw_data.drop('target', axis=1)
-            
-        targets = targets_df['target'].values
-        
+        if "target" in raw_data.columns:
+            raw_data = raw_data.drop("target", axis=1)
+
+        targets = targets_df["target"].values
+
         logger.info(f"Downloaded {len(targets)} samples with {raw_data.shape[1]} features")
         return raw_data, targets
 
@@ -137,19 +146,18 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         """Process raw data (node selection, adjacency matrix calculation)."""
         # Save raw targets
         np.save(self.targets_path, targets)
-        
+
         # Calculate number of nodes to select
         n_training_samples = int(raw_data.shape[0] * self.train_val_test_split[0])
         n_nodes = int(n_training_samples / self.node_sample_ratio)
-        logger.info(f"Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}")
-        
+        logger.info(
+            f"Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}"
+        )
+
         # Select nodes
         logger.info("Selecting nodes...")
         selected_nodes = self.select_nodes(
-            raw_data.values,
-            targets,
-            n_selected=n_nodes,
-            method=self.method
+            raw_data.values, targets, n_selected=n_nodes, method=self.method
         )
         selected_data = raw_data.iloc[:, selected_nodes]
         selected_data.to_parquet(self.selected_data_path)
@@ -168,7 +176,9 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         logger.info(f"Max degree: {np.max(node_degrees):.2f}")
         logger.info(f"Total edges: {np.sum(node_degrees)/2:.0f}")
 
-    def select_nodes(self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = "variance") -> np.ndarray:
+    def select_nodes(
+        self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = "variance"
+    ) -> np.ndarray:
         """Select nodes based on feature importance or randomly."""
         if method == "variance":
             # Variance-based filtering
@@ -176,14 +186,16 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
             ranked_nodes = np.argsort(variances)[::-1]
         elif method == "correlation":
             # Correlation-based filtering
-            correlations = np.abs(np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])]))
+            correlations = np.abs(
+                np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
+            )
             ranked_nodes = np.argsort(correlations)[::-1]
         elif method == "random":
             # Random selection
             ranked_nodes = np.random.permutation(data.shape[1])
         else:
             raise ValueError(f"Invalid method: {method}")
-            
+
         return ranked_nodes[:n_selected]
 
     def calculate_adjacency_matrix(self, node_features: pd.DataFrame) -> np.ndarray:
@@ -191,39 +203,43 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         # Use WGCNA to find optimal power for scale-free topology
         soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features)
         power = soft_threshold[0]
-        
+
         # Apply soft-thresholding
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features,
             power=power,
             adjacencyType="signed hybrid",
         )
-        
+
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
         adj_matrix = np.where(adjacency > self.adjacency_threshold, 1, 0)
         np.fill_diagonal(adj_matrix, 1)
-        
+
         assert not np.isnan(adj_matrix).any(), "Adjacency matrix has nan values"
         return adj_matrix
 
-    def create_graph_data(self, subject_data: np.ndarray, subject_target: float, adj_matrix: np.ndarray) -> torch_geometric.data.Data:
+    def create_graph_data(
+        self, subject_data: np.ndarray, subject_target: float, adj_matrix: np.ndarray
+    ) -> torch_geometric.data.Data:
         """Create graph data object."""
         node_features_raw = subject_data
-        node_features_normalized = torch.from_numpy(self.feature_normalizer.transform(node_features_raw)).to(torch.float32)
+        node_features_normalized = torch.from_numpy(
+            self.feature_normalizer.transform(node_features_raw)
+        ).to(torch.float32)
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
-        
+
         y_tensor = np.array([subject_target])
-        y_normalized = torch.from_numpy(self.target_normalizer.transform(y_tensor)).to(torch.float32)
-        
+        y_normalized = torch.from_numpy(self.target_normalizer.transform(y_tensor)).to(
+            torch.float32
+        )
+
         graph = torch_geometric.data.Data(
-            x=node_features_normalized.unsqueeze(1),
-            edge_index=edge_index,
-            y=y_normalized
+            x=node_features_normalized.unsqueeze(1), edge_index=edge_index, y=y_normalized
         )
         transform = T.ToSparseTensor()
         return transform(graph)
-    
+
     def log_stats(self, log_callback) -> None:
         """Log dataset statistics."""
         adj_matrix = np.load(self.adj_matrix_path)
@@ -232,7 +248,7 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         log_callback("median_degree", np.median(node_degrees))
         log_callback("min_degree", np.min(node_degrees))
         log_callback("max_degree", np.max(node_degrees))
-        log_callback("total_edges", np.sum(node_degrees)/2)
+        log_callback("total_edges", np.sum(node_degrees) / 2)
         log_callback("num_nodes", adj_matrix.shape[0])
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -246,18 +262,18 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         train_idx = int(len(selected_data) * self.train_val_test_split[0])
         train_data = selected_data.iloc[:train_idx]
         train_targets = targets[:train_idx]
-        logger.info('Fitting normalizers')
+        logger.info("Fitting normalizers")
         self.feature_normalizer.fit(train_data.values)
         self.target_normalizer.fit(train_targets)
 
-        logger.info('Normalizers fitted')
+        logger.info("Normalizers fitted")
         graph_data_list = []
         for (_, subject_data), subject_target in zip(selected_data.iterrows(), targets):
             graph_data_list.append(
                 self.create_graph_data(subject_data.values, subject_target, adj_matrix)
             )
-        logger.info(f'Graph data list length: {len(graph_data_list)}')
-        logger.info(f'Graph data list created, shape: {graph_data_list[0].x.shape}')
+        logger.info(f"Graph data list length: {len(graph_data_list)}")
+        logger.info(f"Graph data list created, shape: {graph_data_list[0].x.shape}")
         self.n_graphs = len(graph_data_list)
         i_train = int(self.n_graphs * self.train_val_test_split[0])
         i_val = int(self.n_graphs * (self.train_val_test_split[0] + self.train_val_test_split[1]))
@@ -311,7 +327,9 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
 
 class HFMotrPacDataModule(HFOmicsDataModule):
     """`LightningDataModule` for MotrPac proteomics datasets from HuggingFace."""
+
     dataset_name: Final[str] = "motrpac"
+    revision: Final[str] = "a64a861"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -319,7 +337,9 @@ class HFMotrPacDataModule(HFOmicsDataModule):
 
 class HFPanCancerDataModule(HFOmicsDataModule):
     """`LightningDataModule` for PanCancer proteomics datasets from HuggingFace."""
+
     dataset_name: Final[str] = "pancancer"
+    revision: Final[str] = "a64a861"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -327,7 +347,9 @@ class HFPanCancerDataModule(HFOmicsDataModule):
 
 class HFAddNeuroMedOmicsDataModule(HFOmicsDataModule):
     """`LightningDataModule` for AddNeuroMed-style omics datasets from HuggingFace."""
+
     dataset_name: Final[str] = "addneuromed"
+    revision: Final[str] = "a64a861"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
@@ -335,15 +357,20 @@ class HFAddNeuroMedOmicsDataModule(HFOmicsDataModule):
 
 class HFCovidAKIOmicsDataModule(HFOmicsDataModule):
     """`LightningDataModule` for COVID AKI omics datasets from HuggingFace."""
+
     dataset_name: Final[str] = "covidaki"
+    revision: Final[str] = "a64a861"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
         super().__init__(data_dir=data_dir, *args, **kwargs)
 
 
 class HFParkinsonsOmicsDataModule(HFOmicsDataModule):
-    """LightningDataModule for GSE99039 (Parkinson's Disease) gene expression data from HuggingFace."""
+    """LightningDataModule for GSE99039 (Parkinson's Disease) gene expression data from
+    HuggingFace."""
+
     dataset_name: Final[str] = "parkinsons"
+    revision: Final[str] = "a64a861"
 
     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-        super().__init__(data_dir=data_dir, *args, **kwargs) 
+        super().__init__(data_dir=data_dir, *args, **kwargs)

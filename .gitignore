@@ -180,3 +180,7 @@ addneuromed_data/
 # Logs
 logs/
 *.log
+
+# Data
+*.npy
+*.parquet

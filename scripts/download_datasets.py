@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """CLI script for downloading and uploading datasets to HuggingFace."""
 
-import typer
-from typing import Optional
 import shutil
+from typing import Optional
 
-from scripts.processors.motrpac import process_motrpac
-from scripts.processors.pancancer import process_pancancer
+import typer
+
 from scripts.processors.addneuromed import process_addneuromed
 from scripts.processors.covidaki import process_covidaki
+from scripts.processors.motrpac import process_motrpac
+from scripts.processors.pancancer import process_pancancer
 from scripts.processors.parkinsons import process_parkinsons
 
 app = typer.Typer(help="Download and upload omics datasets to HuggingFace")
@@ -16,7 +17,9 @@ app = typer.Typer(help="Download and upload omics datasets to HuggingFace")
 
 @app.command()
 def motrpac(
-    output_dir: str = typer.Option("temp_data", "--output-dir", "-o", help="Output directory for temporary files")
+    output_dir: str = typer.Option(
+        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+    )
 ) -> None:
     """Download and upload MotrPac dataset to HuggingFace."""
     typer.echo("Processing MotrPac dataset...")
@@ -26,7 +29,9 @@ def motrpac(
 
 @app.command()
 def pancancer(
-    output_dir: str = typer.Option("temp_data", "--output-dir", "-o", help="Output directory for temporary files")
+    output_dir: str = typer.Option(
+        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+    )
 ) -> None:
     """Download and upload PanCancer dataset to HuggingFace."""
     typer.echo("Processing PanCancer dataset...")
@@ -36,7 +41,9 @@ def pancancer(
 
 @app.command()
 def addneuromed(
-    output_dir: str = typer.Option("temp_data", "--output-dir", "-o", help="Output directory for temporary files")
+    output_dir: str = typer.Option(
+        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+    )
 ) -> None:
     """Download and upload AddNeuroMed dataset to HuggingFace."""
     typer.echo("Processing AddNeuroMed dataset...")
@@ -46,7 +53,9 @@ def addneuromed(
 
 @app.command()
 def covidaki(
-    output_dir: str = typer.Option("temp_data", "--output-dir", "-o", help="Output directory for temporary files")
+    output_dir: str = typer.Option(
+        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+    )
 ) -> None:
     """Download and upload CovidAKI dataset to HuggingFace."""
     typer.echo("Processing CovidAKI dataset...")
@@ -56,7 +65,9 @@ def covidaki(
 
 @app.command()
 def parkinsons(
-    output_dir: str = typer.Option("temp_data", "--output-dir", "-o", help="Output directory for temporary files")
+    output_dir: str = typer.Option(
+        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+    )
 ) -> None:
     """Download and upload Parkinsons dataset to HuggingFace."""
     typer.echo("Processing Parkinsons dataset...")
@@ -66,41 +77,45 @@ def parkinsons(
 
 @app.command()
 def all(
-    output_dir: str = typer.Option("temp_data", "--output-dir", "-o", help="Output directory for temporary files"),
-    cleanup: bool = typer.Option(True, "--cleanup/--no-cleanup", help="Clean up temporary files after upload")
+    output_dir: str = typer.Option(
+        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+    ),
+    cleanup: bool = typer.Option(
+        True, "--cleanup/--no-cleanup", help="Clean up temporary files after upload"
+    ),
 ) -> None:
     """Download and upload all datasets to HuggingFace."""
     typer.echo("Processing all datasets...")
-    
+
     try:
         # Process each dataset
         typer.echo("\n📊 Processing MotrPac...")
         process_motrpac(output_dir)
-        
+
         typer.echo("\n📊 Processing PanCancer...")
         process_pancancer(output_dir)
-        
+
         typer.echo("\n📊 Processing AddNeuroMed...")
         process_addneuromed(output_dir)
-        
+
         typer.echo("\n📊 Processing CovidAKI...")
         process_covidaki(output_dir)
-        
+
         typer.echo("\n📊 Processing Parkinsons...")
         process_parkinsons(output_dir)
-        
+
         typer.echo("\n✅ All datasets processed and uploaded successfully!")
-        
+
         # Clean up temporary files
         if cleanup:
             typer.echo(f"\n🧹 Cleaning up temporary files in {output_dir}...")
             shutil.rmtree(output_dir, ignore_errors=True)
             typer.echo("✅ Cleanup completed!")
-            
+
     except Exception as e:
         typer.echo(f"❌ Error processing datasets: {str(e)}")
         raise typer.Exit(1)
 
 
 if __name__ == "__main__":
-    app() 
+    app()

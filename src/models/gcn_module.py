@@ -1,11 +1,12 @@
 from typing import Any, Dict, Tuple
 
 import torch
-from lightning import LightningModule
-from torchmetrics import MinMetric, MeanMetric
-from torchmetrics.regression import MeanSquaredError, R2Score
-from torch_geometric.nn import global_mean_pool
 import wandb
+from lightning import LightningModule
+from torch_geometric.nn import global_mean_pool
+from torchmetrics import MeanMetric, MinMetric
+from torchmetrics.regression import MeanSquaredError, R2Score
+
 
 class GCNLitModule(LightningModule):
     """Example of a `LightningModule` for GNN regression."""
@@ -29,7 +30,7 @@ class GCNLitModule(LightningModule):
         self.adjacency_aware = adjacency_aware
         self.optimizer_partial = optimizer
         self.scheduler_partial = scheduler
-        self.save_hyperparameters(logger=False, ignore=['net'])
+        self.save_hyperparameters(logger=False, ignore=["net"])
         self.net = net
         self.criterion = torch.nn.MSELoss()
         self.train_mse = MeanSquaredError()
@@ -52,10 +53,12 @@ class GCNLitModule(LightningModule):
             torch.nn.ReLU(),
             torch.nn.Linear(self.head_channels, self.head_channels),
             torch.nn.ReLU(),
-            torch.nn.Linear(self.head_channels, 1)
+            torch.nn.Linear(self.head_channels, 1),
         )
 
-    def forward(self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor
+    ) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
 
         :param x: A tensor of features.
@@ -99,7 +102,8 @@ class GCNLitModule(LightningModule):
     ) -> torch.Tensor:
         """Perform a single training step on a batch of data from the training set.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of features and target values.
+        :param batch: A batch of data (a tuple) containing the input tensor of features and target
+            values.
         :param batch_idx: The index of the current batch.
         :return: A tensor of losses between model predictions and targets.
         """
@@ -114,7 +118,6 @@ class GCNLitModule(LightningModule):
 
         return loss
 
-                
     def on_train_epoch_end(self) -> None:
         "Lightning hook that is called when a training epoch ends."
         pass
@@ -122,7 +125,8 @@ class GCNLitModule(LightningModule):
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single validation step on a batch of data from the validation set.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of features and target values.
+        :param batch: A batch of data (a tuple) containing the input tensor of features and target
+            values.
         :param batch_idx: The index of the current batch.
         """
         loss, preds, targets = self.model_step(batch)
@@ -142,7 +146,8 @@ class GCNLitModule(LightningModule):
     def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         """Perform a single test step on a batch of data from the test set.
 
-        :param batch: A batch of data (a tuple) containing the input tensor of features and target values.
+        :param batch: A batch of data (a tuple) containing the input tensor of features and target
+            values.
         :param batch_idx: The index of the current batch.
         """
         loss, preds, targets = self.model_step(batch)
@@ -173,7 +178,7 @@ class GCNLitModule(LightningModule):
     def configure_optimizers(self) -> Dict[str, Any]:
         """Choose what optimizers and learning-rate schedulers to use."""
         # optimizer = self.hparams.optimizer(params=self.trainer.model.parameters()) # Old way
-        optimizer = self.optimizer_partial(params=self.parameters()) # Use self.parameters()
+        optimizer = self.optimizer_partial(params=self.parameters())  # Use self.parameters()
 
         if self.scheduler_partial is not None:
             scheduler = self.scheduler_partial(optimizer=optimizer)
@@ -181,7 +186,7 @@ class GCNLitModule(LightningModule):
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
-                    "monitor": "val/loss", # Ensure you have validation
+                    "monitor": "val/loss",  # Ensure you have validation
                     "interval": "epoch",
                     "frequency": 1,
                 },

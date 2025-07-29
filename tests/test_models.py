@@ -1,8 +1,10 @@
 import pytest
 import torch
 from torch_geometric.data import Data
-from src.models.gnn_models import NRGNN, RTGNN, EnGCN, SAGN, MLAGNN
+
 from src.models.gcn_module import GCNLitModule
+from src.models.gnn_models import MLAGNN, NRGNN, RTGNN, SAGN, EnGCN
+
 
 @pytest.mark.parametrize("model_class", [NRGNN, RTGNN, EnGCN, SAGN, MLAGNN])
 def test_lit_module_forward_pass(model_class):
@@ -25,14 +27,14 @@ def test_lit_module_forward_pass(model_class):
         hidden_channels=32,
         out_channels=out_channels,
         num_layers=2,
-        dropout=0.1
+        dropout=0.1,
     )
 
     lit_model = GCNLitModule(
         net=model,
         optimizer=torch.optim.Adam(model.parameters(), lr=1e-3),
         scheduler=None,
-        compile=False
+        compile=False,
     )
 
     lit_model.eval()
