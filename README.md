@@ -1,18 +1,8 @@
-<div align="center">
-
 # Big Graph Bench
 
-.. list-table::
-:header-rows: 0
-
-- - **Code**
-  - |PyPI version|\\ |Downloads|\\ |Zenodo|\\
-- - **Continuous Integration**
-  - |Build Status|\\ |python|\\
-- - **Code coverage (np, autograd, torch)**
-  - |Coverage Status np|\\ |Coverage Status autograd|\\ |Coverage Status torch|
-
-</div>
+[![Code Quality](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml)
+[![Dependencies](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates)
+[![Tests](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml)
 
 ## Description
 
