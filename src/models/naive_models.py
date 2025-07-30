@@ -30,3 +30,4 @@ class MLP4(nn.Module):
 
     def forward(self, x: Tensor, batch: Tensor) -> Tensor:
         x = self.model(x)
+        return x

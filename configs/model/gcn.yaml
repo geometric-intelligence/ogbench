@@ -1,4 +1,4 @@
-_target_: src.models.gcn_module.GCNLitModule
+_target_: src.models.gnn_module.GNNLitModule
 
 optimizer:
   _target_: torch.optim.Adam

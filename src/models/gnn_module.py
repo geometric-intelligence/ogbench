@@ -1,14 +1,13 @@
 from typing import Any, Dict, Tuple
 
 import torch
-import wandb
 from lightning import LightningModule
 from torch_geometric.nn import global_mean_pool
 from torchmetrics import MeanMetric, MinMetric
 from torchmetrics.regression import MeanSquaredError, R2Score
 
 
-class GCNLitModule(LightningModule):
+class GNNLitModule(LightningModule):
     """Example of a `LightningModule` for GNN regression."""
 
     def __init__(
@@ -20,7 +19,7 @@ class GCNLitModule(LightningModule):
         adjacency_aware: bool = False,
         head_channels: int = 128,
     ) -> None:
-        """Initialize a `GCNLitModule`.
+        """Initialize a `GNNLitModule`.
 
         :param net: The model to train.
         :param optimizer: The optimizer to use for training.
@@ -57,7 +56,7 @@ class GCNLitModule(LightningModule):
         )
 
     def forward(
-        self, x: torch.Tensor, adj_t: torch.sparse.Tensor, batch_vector: torch.Tensor = None
+        self, x: torch.Tensor, adj_t: torch.sparse.Tensor = None, batch_vector: torch.Tensor = None
     ) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
 
@@ -65,7 +64,10 @@ class GCNLitModule(LightningModule):
         :return: A tensor of predictions.
         """
         if self.adjacency_aware:
-            return self.net(x=x, edge_index=adj_t)
+            if adj_t is not None:
+                return self.net(x=x, edge_index=adj_t)
+            else:
+                raise ValueError("Adjacency matrix is required for adjacency-aware models")
         else:
             if batch_vector is not None:
                 return self.net(x=x, batch=batch_vector)
