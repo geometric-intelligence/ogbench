@@ -2,8 +2,8 @@ import pytest
 import torch
 from torch_geometric.data import Data
 
-from src.models.gnn_module import GNNLitModule
 from src.models.gnn_models import MLAGNN, NRGNN, RTGNN, SAGN, EnGCN
+from src.models.gnn_module import GNNLitModule
 from src.models.naive_models import MLP4
 
 
