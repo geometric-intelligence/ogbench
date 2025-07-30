@@ -1,8 +1,8 @@
-# Big Graph Bench
-
 [![Code Quality](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml)
 [![Dependencies](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates)
 [![Tests](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml)
+
+# Big Graph Bench
 
 ## Description
 
