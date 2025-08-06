@@ -19,6 +19,13 @@ conda create -n bgbench python=3.12
 conda activate bgbench
 
 pip install -r requirements.txt
+pip install -r requirements_dev.txt
+# Install pre commit
+pre-commit run -a
+pre-commit install
+
+# try to run tests
+make test-all
 ```
 
 ## How to run one train
