@@ -12,7 +12,7 @@
 
 ```bash
 # clone project
-git clone https://github.com/geometric-intelligence/bgbench
+git clone git@github.com:geometric-intelligence/bgbench.git
 cd bgbench
 
 conda create -n bgbench python=3.12
