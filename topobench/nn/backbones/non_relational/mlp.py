@@ -171,7 +171,7 @@ class MLP(nn.Module):
             Dictionary containing the updated model output.
         """
         model_out["x_0"] = self.forward(
-            model_out["x_0"], model_out["batch_size"]
+            model_out["x_0"], model_out.batch_size
         )
         model_out["logits"] = model_out["x_0"]
 

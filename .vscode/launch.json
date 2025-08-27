@@ -5,11 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "topobench"
+        },
+        {
             "name": "Python Debugger: File",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
-            "args": ["trainer=ddp", "experiment=gatv2", "data=covidaki"]
+            "args": [
+                "trainer=ddp",
+                "experiment=gatv2",
+                "data=covidaki"
+            ]
         },
         // {
         //     "name": "Python Debugger: Current File with Arguments",

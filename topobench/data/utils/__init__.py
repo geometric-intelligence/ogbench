@@ -8,9 +8,7 @@ from .utils import (
     get_combinatorial_complex_connectivity,  # noqa: F401
     get_complex_connectivity,  # noqa: F401
     get_routes_from_neighborhoods,  # noqa: F401
-    load_cell_complex_dataset,  # noqa: F401
     load_manual_graph,  # noqa: F401
-    load_simplicial_dataset,  # noqa: F401
     make_hash,  # noqa: F401
     select_neighborhoods_of_interest,  # noqa: F401
 )
@@ -31,7 +29,6 @@ utils_functions = [
 ]
 
 from .split_utils import (  # noqa: E402
-    load_coauthorship_hypergraph_splits,  # noqa: F401
     load_inductive_splits,  # noqa: F401
     load_transductive_splits,  # noqa: F401
     # import function here, add noqa: F401 for PR
@@ -46,18 +43,10 @@ split_helper_functions = [
 
 from .io_utils import (  # noqa: E402
     download_file_from_drive,  # noqa: F401
-    download_file_from_link,  # noqa: F401
-    load_hypergraph_content_dataset,  # noqa: F401
-    load_hypergraph_pickle_dataset,  # noqa: F401
-    read_ndim_manifolds,  # noqa: F401
-    read_us_county_demos,  # noqa: F401
     # import function here, add noqa: F401 for PR
 )
 
 io_helper_functions = [
-    "load_hypergraph_pickle_dataset",
-    "load_hypergraph_content_dataset",
-    "read_us_county_demos",
     "download_file_from_drive",
     # add function name here
 ]
