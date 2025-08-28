@@ -40,6 +40,10 @@ class DatasetManager:
         "tolokers",
     ]
 
+    OMICS_DATASETS: ClassVar[list[str]] = [
+        "HFOmicsDataset",
+    ]
+
     @classmethod
     def discover_datasets(
         cls, package_path: str
@@ -117,6 +121,7 @@ PLANETOID_DATASETS = manager.PLANETOID_DATASETS
 TU_DATASETS = manager.TU_DATASETS
 FIXED_SPLITS_DATASETS = manager.FIXED_SPLITS_DATASETS
 HETEROPHILIC_DATASETS = manager.HETEROPHILIC_DATASETS
+OMICS_DATASETS = manager.OMICS_DATASETS
 
 # Automatically generate __all__
 __all__ = [
@@ -126,6 +131,7 @@ __all__ = [
     "TU_DATASETS",
     "FIXED_SPLITS_DATASETS",
     "HETEROPHILIC_DATASETS",
+    "OMICS_DATASETS",
     "MANUAL_DATASETS",
     # Discovered dataset classes
     *MANUAL_DATASETS.keys(),

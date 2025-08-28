@@ -23,97 +23,122 @@ from src.data import transforms
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from omegaconf import DictConfig, OmegaConf
+from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.io import fs
+import os.path as osp
 
-class HFOmicsDataModule(LightningDataModule, abc.ABC):
-    """`LightningDataModule` for omics datasets loaded from HuggingFace."""
+class HFOmicsDataset(InMemoryDataset):
+    """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
     revision: Final[str] = "bf5ef3f"
 
     def __init__(
         self,
-        data_dir: str = "data/hf_omics/",
-        train_val_test_split: Tuple[float, float, float] = (0.7, 0.15, 0.15),
-        batch_size: int = 64,
-        num_workers: int = 0,
-        pin_memory: bool = False,
+        root: str,
+        dataset_name: str,
         method: str = "variance",
         imputation_method: str = "mean",
-        adjacency_threshold: float = 0.01,
+        adjacency_threshold: float = 0.3,
         node_sample_ratio: float = 1.0,
+        train_val_test_split: list[float] = [0.7, 0.15, 0.15],
         hf_repo_id: str = "geometric-intelligence/bgbench",
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
 
         Args:
-            data_dir: The local data directory for caching
-            train_val_test_split: The train, validation and test split ratios
-            batch_size: The batch size
-            num_workers: The number of workers
-            pin_memory: Whether to pin memory
+            root: The local data directory for caching
+            dataset_name: The name of the dataset
             method: Method for node selection ("variance", "correlation", "random")
             imputation_method: Method for handling missing values
             adjacency_threshold: Threshold for adjacency matrix binarization
             node_sample_ratio: Ratio of nodes to sample
             hf_repo_id: HuggingFace repository ID
         """
-        super().__init__()
+        self.dataset_name = dataset_name
         self.adjacency_threshold = adjacency_threshold
         self.node_sample_ratio = node_sample_ratio
         self.method = method
+        self.train_val_test_split = train_val_test_split
         self.hf_repo_id = hf_repo_id
-        self.save_hyperparameters(logger=False)
         self.imputer = SimpleImputer(strategy=imputation_method)
         self.feature_normalizer = transforms.MeanStdNormalizer()
         self.target_normalizer = transforms.MeanStdNormalizer()
 
-        # Cache paths for processed data
-        self.cache_dir = os.path.join(data_dir, self.dataset_name)
-        os.makedirs(self.cache_dir, exist_ok=True)
+        self.name = osp.join(f"{self.dataset_name}", f"adj_thresh_{self.adjacency_threshold}", f"{self.method}", f"p_{self.node_sample_ratio}")
 
-        self.selected_data_path: str = os.path.join(
-            self.cache_dir,
-            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_selected_data.parquet",
+        # self.selected_data_path: str = os.path.join(
+        #     self.cache_dir,
+        #     f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_selected_data.parquet",
+        # )
+        # self.targets_path: str = os.path.join(
+        #     self.cache_dir,
+        #     f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_targets.npy",
+        # )
+        # self.adj_matrix_path: str = os.path.join(
+        #     self.cache_dir,
+        #     f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_adj_matrix.npy",
+        # )
+        super().__init__(root)
+        data, self.slices, self.sizes, data_cls = fs.torch_load(self.processed_paths[0])
+        self.data = data_cls.from_dict(data)
+        assert isinstance(self._data, Data)
+
+    @property
+    def raw_dir(self) -> str:
+        """Return the path to the raw directory of the dataset.
+
+        Returns
+        -------
+        str
+            Path to the raw directory.
+        """
+        return osp.join(
+            self.root,
+            self.name,
+            "raw",
         )
-        self.targets_path: str = os.path.join(
-            self.cache_dir,
-            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_targets.npy",
+
+    @property
+    def processed_dir(self) -> str:
+        """Return the path to the processed directory of the dataset.
+
+        Returns
+        -------
+        str
+            Path to the processed directory.
+        """
+        self.processed_root = osp.join(
+            self.root,
+            self.name,
+            "processed",
         )
-        self.adj_matrix_path: str = os.path.join(
-            self.cache_dir,
-            f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_adj_matrix.npy",
-        )
+        return self.processed_root
 
-        self.data_train: Dataset | None = None
-        self.data_val: Dataset | None = None
-        self.data_test: Dataset | None = None
+    @property
+    def raw_file_names(self) -> list[str]:
+        """Return the raw file names for the dataset.
 
-        self.batch_size_per_device: int = batch_size
-        self.train_val_test_split: Tuple[float, float, float] = train_val_test_split
+        Returns
+        -------
+        list[str]
+            List of raw file names.
+        """
+        return ["selected_data.parquet", "targets.npy", "adj_matrix.npy"]
 
-    def prepare_data(self) -> None:
-        """Download raw data from HuggingFace and prepare processed data."""
-        if not os.path.exists(self.hparams.data_dir):
-            os.makedirs(self.hparams.data_dir)
+    @property
+    def processed_file_names(self) -> str:
+        """Return the processed file name for the dataset.
 
-        # Check if processed data already exists
-        if (
-            os.path.exists(self.selected_data_path)
-            and os.path.exists(self.targets_path)
-            and os.path.exists(self.adj_matrix_path)
-        ):
-            logger.info(f"Processed data found in cache for {self.dataset_name}")
-            return
+        Returns
+        -------
+        str
+            Processed file name.
+        """
+        return "data.pt"
 
-        logger.info(f"Processing dataset {self.dataset_name}...")
-
-        # Download raw data from HuggingFace
-        raw_data, targets = self._download_raw_data()
-
-        # Process data (node selection, adjacency matrix calculation)
-        self._process_data(raw_data, targets)
-
-    def _download_raw_data(self) -> Tuple[pd.DataFrame, np.ndarray]:
-        """Download raw data from HuggingFace."""
+    def download(self) -> None:
+        r"""Download the dataset from HuggingFace and saves it to the raw directory."""
         logger.info(f"Downloading raw data for {self.dataset_name} from HuggingFace...")
 
         # Download parquet files directly from HuggingFace
@@ -141,12 +166,8 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         targets = targets_df["target"].values
 
         logger.info(f"Downloaded {len(targets)} samples with {raw_data.shape[1]} features")
-        return raw_data, targets
 
-    def _process_data(self, raw_data: pd.DataFrame, targets: np.ndarray) -> None:
-        """Process raw data (node selection, adjacency matrix calculation)."""
-        # Save raw targets
-        np.save(self.targets_path, targets)
+        np.save(os.path.join(self.raw_dir, "targets.npy"), targets)
 
         # Calculate number of nodes to select
         n_training_samples = int(raw_data.shape[0] * self.train_val_test_split[0])
@@ -161,12 +182,12 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
             raw_data.values, targets, n_selected=n_nodes, method=self.method
         )
         selected_data = raw_data.iloc[:, selected_nodes]
-        selected_data.to_parquet(self.selected_data_path)
+        selected_data.to_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
 
         # Calculate adjacency matrix
         logger.info("Calculating adjacency matrix...")
         adj_matrix = self.calculate_adjacency_matrix(selected_data)
-        np.save(self.adj_matrix_path, adj_matrix)
+        np.save(osp.join(self.raw_dir, "adj_matrix.npy"), adj_matrix)
 
         # Log statistics
         node_degrees = np.sum(adj_matrix, axis=1)
@@ -238,26 +259,20 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         graph = torch_geometric.data.Data(
             x=node_features_normalized.unsqueeze(1), edge_index=edge_index, y=y_normalized
         )
-        transform = T.ToSparseTensor()
-        return transform(graph)
+        return graph
+        # transform = T.ToSparseTensor()
+        # return transform(graph)
 
-    def log_stats(self, log_callback) -> None:
-        """Log dataset statistics."""
-        adj_matrix = np.load(self.adj_matrix_path)
-        node_degrees = np.sum(adj_matrix, axis=1)
-        log_callback("mean_degree", np.mean(node_degrees))
-        log_callback("median_degree", np.median(node_degrees))
-        log_callback("min_degree", np.min(node_degrees))
-        log_callback("max_degree", np.max(node_degrees))
-        log_callback("total_edges", np.sum(node_degrees) / 2)
-        log_callback("num_nodes", adj_matrix.shape[0])
-
-    def setup(self, stage: Optional[str] = None) -> None:
-        """Load data and create train/val/test splits."""
+    def process(self) -> None:
+        r"""Handle the data for the dataset."""
         logger.info("Loading data...")
-        selected_data = pd.read_parquet(self.selected_data_path)
-        targets = np.load(self.targets_path)
-        adj_matrix = np.load(self.adj_matrix_path)
+        selected_data = pd.read_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
+        targets = np.load(osp.join(self.raw_dir, "targets.npy"))
+        adj_matrix = np.load(osp.join(self.raw_dir, "adj_matrix.npy"))
+
+        # Shuffle selected_data and targets in unison
+        from sklearn.utils import shuffle
+        selected_data, targets = shuffle(selected_data, targets, random_state=42)
 
         # Fit normalizers on training data
         train_idx = int(len(selected_data) * self.train_val_test_split[0])
@@ -266,112 +281,92 @@ class HFOmicsDataModule(LightningDataModule, abc.ABC):
         logger.info("Fitting normalizers")
         self.feature_normalizer.fit(train_data.values)
         self.target_normalizer.fit(train_targets)
-
-        logger.info("Normalizers fitted")
+        # Save normalizer statistics to JSON
+        import json
+        # Convert train_val_test_split to list if it's a ListConfig
+        train_val_test_split = OmegaConf.to_object(self.train_val_test_split)
+        normalizer_stats = {
+            "train_val_test_split": train_val_test_split,
+            "train_idx": train_idx,
+            "feature_normalizer": {
+                "mean": list(self.feature_normalizer.mean),
+                "std": list(self.feature_normalizer.std),
+            },
+            "target_normalizer": {
+                "mean": self.target_normalizer.mean,
+                "std": self.target_normalizer.std,
+            }
+        }
+        normalizers_stats_path = os.path.join(self.processed_dir, "processing_stats.json")
+        with open(normalizers_stats_path, "w") as f:
+            json.dump(normalizer_stats, f, indent=4)
+        logger.info(f"Saved processing and normalizer stats to {normalizers_stats_path}")
+        logger.info(f"Creating graph data...")
+        from tqdm import tqdm
         graph_data_list = []
-        for (_, subject_data), subject_target in zip(selected_data.iterrows(), targets):
+        for (_, subject_data), subject_target in tqdm(zip(selected_data.iterrows(), targets), total=len(selected_data), desc="Creating graphs"):
             graph_data_list.append(
                 self.create_graph_data(subject_data.values, subject_target, adj_matrix)
             )
         logger.info(f"Graph data list length: {len(graph_data_list)}")
-        logger.info(f"Graph data list created, shape: {graph_data_list[0].x.shape}")
         self.n_graphs = len(graph_data_list)
-        i_train = int(self.n_graphs * self.train_val_test_split[0])
-        i_val = int(self.n_graphs * (self.train_val_test_split[0] + self.train_val_test_split[1]))
 
-        self.train_graph_data_list = graph_data_list[:i_train]
-        self.val_graph_data_list = graph_data_list[i_train:i_val]
-        self.test_graph_data_list = graph_data_list[i_val:]
-
-    def train_dataloader(self) -> DataLoader[Any]:
-        """Create and return the train dataloader."""
-        return torch_geometric.loader.DataLoader(
-            dataset=self.train_graph_data_list,
-            batch_size=self.batch_size_per_device,
-            num_workers=self.hparams.num_workers,
-            pin_memory=self.hparams.pin_memory,
-            shuffle=True,
+        self.data, self.slices = self.collate(graph_data_list)
+        self.graph_list = []    # Reset cache.
+        self._data_list = None  # Reset cache.
+        fs.torch_save(
+            (self._data.to_dict(), self.slices, {}, self._data.__class__),
+            self.processed_paths[0],
         )
 
-    def val_dataloader(self) -> DataLoader[Any]:
-        """Create and return the validation dataloader."""
-        return torch_geometric.loader.DataLoader(
-            dataset=self.val_graph_data_list,
-            batch_size=self.batch_size_per_device,
-            num_workers=self.hparams.num_workers,
-            pin_memory=self.hparams.pin_memory,
-            shuffle=False,
-        )
-
-    def test_dataloader(self) -> DataLoader[Any]:
-        """Create and return the test dataloader."""
-        return torch_geometric.loader.DataLoader(
-            dataset=self.test_graph_data_list,
-            batch_size=self.batch_size_per_device,
-            num_workers=self.hparams.num_workers,
-            pin_memory=self.hparams.pin_memory,
-            shuffle=False,
-        )
-
-    def teardown(self, stage: Optional[str] = None) -> None:
-        """Clean up after training."""
-        pass
-
-    def state_dict(self) -> Dict[Any, Any]:
-        """Return datamodule state."""
-        return {}
-
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Load datamodule state."""
-        pass
 
 
-class HFMotrPacDataModule(HFOmicsDataModule):
-    """`LightningDataModule` for MotrPac proteomics datasets from HuggingFace."""
+# class HFMotrPacDataModule(HFOmicsDataModule):
+#     """`LightningDataModule` for MotrPac proteomics datasets from HuggingFace."""
 
-    dataset_name: Final[str] = "motrpac"
-    revision: Final[str] = "bf5ef3f"
+#     dataset_name: Final[str] = "motrpac"
+#     revision: Final[str] = "bf5ef3f"
 
-    def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-        super().__init__(data_dir=data_dir, *args, **kwargs)
-
-
-class HFPanCancerDataModule(HFOmicsDataModule):
-    """`LightningDataModule` for PanCancer proteomics datasets from HuggingFace."""
-
-    dataset_name: Final[str] = "pancancer"
-    revision: Final[str] = "bf5ef3f"
-
-    def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-        super().__init__(data_dir=data_dir, *args, **kwargs)
+#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
+#         super().__init__(data_dir=data_dir, *args, **kwargs)
 
 
-class HFAddNeuroMedOmicsDataModule(HFOmicsDataModule):
-    """`LightningDataModule` for AddNeuroMed-style omics datasets from HuggingFace."""
+# class HFPanCancerDataModule(HFOmicsDataModule):
+#     """`LightningDataModule` for PanCancer proteomics datasets from HuggingFace."""
 
-    dataset_name: Final[str] = "addneuromed"
-    revision: Final[str] = "bf5ef3f"
+#     dataset_name: Final[str] = "pancancer"
+#     revision: Final[str] = "bf5ef3f"
 
-    def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-        super().__init__(data_dir=data_dir, *args, **kwargs)
-
-
-class HFCovidAKIOmicsDataModule(HFOmicsDataModule):
-    """`LightningDataModule` for COVID AKI omics datasets from HuggingFace."""
-
-    dataset_name: Final[str] = "covidaki"
-    revision: Final[str] = "bf5ef3f"
-
-    def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-        super().__init__(data_dir=data_dir, *args, **kwargs)
+#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
+#         super().__init__(data_dir=data_dir, *args, **kwargs)
 
 
-class HFParkinsonsOmicsDataModule(HFOmicsDataModule):
-    """LightningDataModule for GSE99039 (Parkinson's Disease) gene expression data from
-    HuggingFace."""
+# class HFAddNeuroMedOmicsDataModule(HFOmicsDataModule):
+#     """`LightningDataModule` for AddNeuroMed-style omics datasets from HuggingFace."""
 
-    dataset_name: Final[str] = "parkinsons"
-    revision: Final[str] = "bf5ef3f"
+#     dataset_name: Final[str] = "addneuromed"
+#     revision: Final[str] = "bf5ef3f"
 
-    def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-        super().__init__(data_dir=data_dir, *args, **kwargs)
+#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
+#         super().__init__(data_dir=data_dir, *args, **kwargs)
+
+
+# class HFCovidAKIOmicsDataModule(HFOmicsDataModule):
+#     """`LightningDataModule` for COVID AKI omics datasets from HuggingFace."""
+
+#     dataset_name: Final[str] = "covidaki"
+#     revision: Final[str] = "bf5ef3f"
+
+#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
+#         super().__init__(data_dir=data_dir, *args, **kwargs)
+
+
+# class HFParkinsonsOmicsDataModule(HFOmicsDataModule):
+#     """LightningDataModule for GSE99039 (Parkinson's Disease) gene expression data from
+#     HuggingFace."""
+
+#     dataset_name: Final[str] = "parkinsons"
+#     revision: Final[str] = "bf5ef3f"
+
+#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
+#         super().__init__(data_dir=data_dir, *args, **kwargs)

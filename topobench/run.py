@@ -8,7 +8,7 @@ import lightning as L
 import numpy as np
 import rootutils
 import torch
-from lightning import Callback, LightningModule, Trainer
+from lightning import Callback, LightningModule, Trainer, LightningDataModule
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -136,6 +136,9 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     np.random.seed(cfg.seed)
     # Seed for python random
     random.seed(cfg.seed)
+
+    log.info(f"Instantiating datamodule <{cfg.dataset._target_}>")
+    dataset = hydra.utils.instantiate(cfg.dataset)
 
     # Instantiate and load dataset
     log.info(f"Instantiating loader <{cfg.dataset.loader._target_}>")

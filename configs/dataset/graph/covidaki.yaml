@@ -1,0 +1,13 @@
+_target_: topobench.data.datasets.hf_omics.HFOmicsDataset
+root: ${paths.data_dir}
+dataset_name: covidaki
+adjacency_threshold: 0.6
+node_sample_ratio: 0.169
+method: variance
+imputation_method: mean
+train_val_test_split: [0.7, 0.15, 0.15]
+
+# batch_size: 32
+# train_val_test_split: [0.7, 0.15, 0.15]
+# num_workers: 2
+# pin_memory: False

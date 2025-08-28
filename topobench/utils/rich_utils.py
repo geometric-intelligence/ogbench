@@ -20,8 +20,8 @@ log = pylogger.RankedLogger(__name__, rank_zero_only=True)
 def print_config_tree(
     cfg: DictConfig,
     print_order: Sequence[str] = (
-        "data",
-        "model",
+        "dataset",
+        # "model",
         "callbacks",
         "logger",
         "trainer",
@@ -39,7 +39,7 @@ def print_config_tree(
         A DictConfig object containing the config tree.
     print_order : Sequence[str], optional
         Determines in what order config components are printed, by default
-        `("data", "model", "callbacks", "logger", "trainer", "paths", "extras")`.
+        `("dataset", "model", "callbacks", "logger", "trainer", "paths", "extras")`.
     resolve : bool, optional
         Whether to resolve reference fields of DictConfig, by default False.
     save_to_file : bool, optional
