@@ -32,30 +32,36 @@ class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
     revision: Final[str] = "bf5ef3f"
+    classification_datasets: Final[list[str]] = [
+        "covidaki",
+        "addneuromed",
+    ]
 
     def __init__(
         self,
         root: str,
-        dataset_name: str,
+        data_name: str,
         method: str = "variance",
         imputation_method: str = "mean",
         adjacency_threshold: float = 0.3,
         node_sample_ratio: float = 1.0,
         train_val_test_split: list[float] = [0.7, 0.15, 0.15],
         hf_repo_id: str = "geometric-intelligence/bgbench",
+        **kwargs: Any
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
 
         Args:
             root: The local data directory for caching
-            dataset_name: The name of the dataset
+            data_name: The name of the dataset
             method: Method for node selection ("variance", "correlation", "random")
             imputation_method: Method for handling missing values
             adjacency_threshold: Threshold for adjacency matrix binarization
             node_sample_ratio: Ratio of nodes to sample
             hf_repo_id: HuggingFace repository ID
+            **kwargs: Additional keyword arguments
         """
-        self.dataset_name = dataset_name
+        self.data_name = data_name
         self.adjacency_threshold = adjacency_threshold
         self.node_sample_ratio = node_sample_ratio
         self.method = method
@@ -65,20 +71,9 @@ class HFOmicsDataset(InMemoryDataset):
         self.feature_normalizer = transforms.MeanStdNormalizer()
         self.target_normalizer = transforms.MeanStdNormalizer()
 
-        self.name = osp.join(f"{self.dataset_name}", f"adj_thresh_{self.adjacency_threshold}", f"{self.method}", f"p_{self.node_sample_ratio}")
+        self.name = osp.join(f"{self.data_name}", f"adj_thresh_{self.adjacency_threshold}", f"{self.method}", f"p_{self.node_sample_ratio}", f"train_split_{self.train_val_test_split[0]}")
+        self.normalize_targets = False if data_name in self.classification_datasets else True
 
-        # self.selected_data_path: str = os.path.join(
-        #     self.cache_dir,
-        #     f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_selected_data.parquet",
-        # )
-        # self.targets_path: str = os.path.join(
-        #     self.cache_dir,
-        #     f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_targets.npy",
-        # )
-        # self.adj_matrix_path: str = os.path.join(
-        #     self.cache_dir,
-        #     f"{self.dataset_name}_{method}_{adjacency_threshold}_{node_sample_ratio}_adj_matrix.npy",
-        # )
         super().__init__(root)
         data, self.slices, self.sizes, data_cls = fs.torch_load(self.processed_paths[0])
         self.data = data_cls.from_dict(data)
@@ -137,22 +132,32 @@ class HFOmicsDataset(InMemoryDataset):
         """
         return "data.pt"
 
+    def get_data_dir(self) -> str:
+        """Return the path to the data directory.
+
+        Returns
+        -------
+        str
+            Path to the data directory.
+        """
+        return osp.join(self.root, self.name)
+
     def download(self) -> None:
         r"""Download the dataset from HuggingFace and saves it to the raw directory."""
-        logger.info(f"Downloading raw data for {self.dataset_name} from HuggingFace...")
+        logger.info(f"Downloading raw data for {self.data_name} from HuggingFace...")
 
         # Download parquet files directly from HuggingFace
         data_file = hf_hub_download(  # nosec
             repo_id=self.hf_repo_id,
             repo_type="dataset",
             revision=self.revision,
-            filename=f"{self.dataset_name}_data.parquet",
+            filename=f"{self.data_name}_data.parquet",
         )
         targets_file = hf_hub_download(  # nosec
             repo_id=self.hf_repo_id,
             repo_type="dataset",
             revision=self.revision,
-            filename=f"{self.dataset_name}_targets.parquet",
+            filename=f"{self.data_name}_targets.parquet",
         )
 
         # Load data and targets using pandas
@@ -252,9 +257,12 @@ class HFOmicsDataset(InMemoryDataset):
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
         y_tensor = np.array([subject_target])
-        y_normalized = torch.from_numpy(self.target_normalizer.transform(y_tensor)).to(
-            torch.float32
-        )
+        if self.normalize_targets:
+            y_normalized = torch.from_numpy(self.target_normalizer.transform(y_tensor)).to(
+                torch.float32
+            )
+        else:
+            y_normalized = torch.from_numpy(y_tensor)
 
         graph = torch_geometric.data.Data(
             x=node_features_normalized.unsqueeze(1), edge_index=edge_index, y=y_normalized
@@ -280,7 +288,8 @@ class HFOmicsDataset(InMemoryDataset):
         train_targets = targets[:train_idx]
         logger.info("Fitting normalizers")
         self.feature_normalizer.fit(train_data.values)
-        self.target_normalizer.fit(train_targets)
+        if self.normalize_targets:
+            self.target_normalizer.fit(train_targets)
         # Save normalizer statistics to JSON
         import json
         # Convert train_val_test_split to list if it's a ListConfig
@@ -324,7 +333,7 @@ class HFOmicsDataset(InMemoryDataset):
 # class HFMotrPacDataModule(HFOmicsDataModule):
 #     """`LightningDataModule` for MotrPac proteomics datasets from HuggingFace."""
 
-#     dataset_name: Final[str] = "motrpac"
+#     data_name: Final[str] = "motrpac"
 #     revision: Final[str] = "bf5ef3f"
 
 #     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
@@ -334,7 +343,7 @@ class HFOmicsDataset(InMemoryDataset):
 # class HFPanCancerDataModule(HFOmicsDataModule):
 #     """`LightningDataModule` for PanCancer proteomics datasets from HuggingFace."""
 
-#     dataset_name: Final[str] = "pancancer"
+#     data_name: Final[str] = "pancancer"
 #     revision: Final[str] = "bf5ef3f"
 
 #     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
@@ -344,7 +353,7 @@ class HFOmicsDataset(InMemoryDataset):
 # class HFAddNeuroMedOmicsDataModule(HFOmicsDataModule):
 #     """`LightningDataModule` for AddNeuroMed-style omics datasets from HuggingFace."""
 
-#     dataset_name: Final[str] = "addneuromed"
+#     data_name: Final[str] = "addneuromed"
 #     revision: Final[str] = "bf5ef3f"
 
 #     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
@@ -354,7 +363,7 @@ class HFOmicsDataset(InMemoryDataset):
 # class HFCovidAKIOmicsDataModule(HFOmicsDataModule):
 #     """`LightningDataModule` for COVID AKI omics datasets from HuggingFace."""
 
-#     dataset_name: Final[str] = "covidaki"
+#     data_name: Final[str] = "covidaki"
 #     revision: Final[str] = "bf5ef3f"
 
 #     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
@@ -365,7 +374,7 @@ class HFOmicsDataset(InMemoryDataset):
 #     """LightningDataModule for GSE99039 (Parkinson's Disease) gene expression data from
 #     HuggingFace."""
 
-#     dataset_name: Final[str] = "parkinsons"
+#     data_name: Final[str] = "parkinsons"
 #     revision: Final[str] = "bf5ef3f"
 
 #     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
