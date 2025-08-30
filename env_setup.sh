@@ -12,4 +12,5 @@ pip install torch-scatter torch-sparse torch-cluster -f https://data.pyg.org/whl
 
 #pytest
 
+conda install conda-forge::huggingface_hub
 pre-commit install

@@ -13,7 +13,7 @@ fastparquet
 
 # --------- huggingface --------- #
 datasets>=2.14.0
-huggingface-hub>=0.16.0
+huggingface-hub
 fsspec
 
 # --------- cli --------- #
