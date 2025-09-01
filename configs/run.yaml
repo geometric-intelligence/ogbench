@@ -5,7 +5,7 @@
 defaults:
   - _self_
   - dataset: graph/covidaki.yaml
-  - model: non_relational/mlp #graph/gcn #non_relational/mlp # TODO: Make it compatible with mlp
+  - model: graph/chebnet #non_relational/mlp # TODO: Make it compatible with mlp
   - transforms: ${get_default_transform:${dataset},${model}} #no_transform
   - optimizer: default
   - loss: default
