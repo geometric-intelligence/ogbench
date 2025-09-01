@@ -1,4 +1,4 @@
-"""Class for automated testing of neural network topobench."""
+"""Class for automated testing of neural network ogbench."""
 
 import torch
 import copy

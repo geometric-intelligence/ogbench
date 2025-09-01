@@ -4,7 +4,7 @@ import pytest
 import torch
 import torch_geometric
 from unittest.mock import MagicMock
-from topobench.loss.model.DGMLoss import DGMLoss
+from ogbench.loss.model.DGMLoss import DGMLoss
 
 @pytest.fixture
 def mock_batch():

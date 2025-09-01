@@ -2,7 +2,7 @@
 
 import torch
 
-from topobench.transforms.liftings.graph2simplicial import (
+from ogbench.transforms.liftings.graph2simplicial import (
     SimplicialCliqueLifting,
 )
 

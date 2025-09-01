@@ -3,8 +3,8 @@
 import pytest
 import torch
 import torch_geometric.data as tg_data
-from topobench.nn.readouts.base import AbstractZeroCellReadOut
-from topobench.nn.readouts.identical import NoReadOut
+from ogbench.nn.readouts.base import AbstractZeroCellReadOut
+from ogbench.nn.readouts.identical import NoReadOut
 
 
 class TestNoReadOut:

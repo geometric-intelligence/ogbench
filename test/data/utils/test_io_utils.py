@@ -2,7 +2,7 @@
 
 import pytest
 
-from topobench.data.utils.io_utils import *
+from ogbench.data.utils.io_utils import *
 
 
 def test_get_file_id_from_url():

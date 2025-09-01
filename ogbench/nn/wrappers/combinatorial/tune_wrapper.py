@@ -1,6 +1,6 @@
 """Wrapper for the TopoTune model."""
 
-from topobench.nn.wrappers.base import AbstractWrapper
+from ogbench.nn.wrappers.base import AbstractWrapper
 
 
 class TuneWrapper(AbstractWrapper):

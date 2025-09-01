@@ -2,7 +2,7 @@
 import pytest
 import torch
 from torch_geometric.data import Data
-from topobench.transforms.liftings import GraphLifting
+from ogbench.transforms.liftings import GraphLifting
 
 
 class ConcreteGraphLifting(GraphLifting):

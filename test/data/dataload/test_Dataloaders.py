@@ -4,13 +4,13 @@ import hydra
 import rootutils
 import torch
 
-from topobench.data.preprocessor import PreProcessor
-from topobench.dataloader import TBDataloader
-from topobench.dataloader.utils import to_data_list
+from ogbench.data.preprocessor import PreProcessor
+from ogbench.dataloader import TBDataloader
+from ogbench.dataloader.utils import to_data_list
 
 from omegaconf import OmegaConf
 import os
-from topobench.run import initialize_hydra
+from ogbench.run import initialize_hydra
 
 # rootutils.setup_root("./", indicator=".project-root", pythonpath=True)
 

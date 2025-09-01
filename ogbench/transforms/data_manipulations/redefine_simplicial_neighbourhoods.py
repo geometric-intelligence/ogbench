@@ -2,8 +2,8 @@
 
 import torch_geometric
 
-from topobench.data.utils import data2simplicial
-from topobench.data.utils.utils import get_complex_connectivity
+from ogbench.data.utils import data2simplicial
+from ogbench.data.utils.utils import get_complex_connectivity
 
 
 class RedefineSimplicialNeighbourhoods(

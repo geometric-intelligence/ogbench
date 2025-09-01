@@ -17,7 +17,7 @@ from lightning import LightningDataModule
 from sklearn.impute import SimpleImputer
 from torch.utils.data import DataLoader, Dataset
 
-from src.data import transforms
+from ogbench.data.utils import MinMaxNormalizer, MeanStdNormalizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -68,8 +68,8 @@ class HFOmicsDataset(InMemoryDataset):
         self.train_val_test_split = train_val_test_split
         self.hf_repo_id = hf_repo_id
         self.imputer = SimpleImputer(strategy=imputation_method)
-        self.feature_normalizer = transforms.MeanStdNormalizer()
-        self.target_normalizer = transforms.MeanStdNormalizer()
+        self.feature_normalizer = MeanStdNormalizer()
+        self.target_normalizer = MeanStdNormalizer()
 
         self.name = osp.join(f"{self.data_name}", f"adj_thresh_{self.adjacency_threshold}", f"{self.method}", f"p_{self.node_sample_ratio}", f"train_split_{self.train_val_test_split[0]}")
         self.normalize_targets = False if data_name in self.classification_datasets else True

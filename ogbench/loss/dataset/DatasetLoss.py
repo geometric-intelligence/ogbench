@@ -1,9 +1,9 @@
-"""Loss module for the topobench package."""
+"""Loss module for the ogbench package."""
 
 import torch
 import torch_geometric
 
-from topobench.loss.base import AbstractLoss
+from ogbench.loss.base import AbstractLoss
 
 
 class DatasetLoss(AbstractLoss):

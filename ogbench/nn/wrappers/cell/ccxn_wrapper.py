@@ -1,6 +1,6 @@
 """Wrapper for the CCXN model."""
 
-from topobench.nn.wrappers.base import AbstractWrapper
+from ogbench.nn.wrappers.base import AbstractWrapper
 
 
 class CCXNWrapper(AbstractWrapper):

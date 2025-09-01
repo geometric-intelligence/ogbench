@@ -4,8 +4,8 @@ import pytest
 import torch
 from torch_geometric.utils import get_laplacian
 from ...._utils.nn_module_auto_test import NNModuleAutoTest
-from topobench.nn.backbones.simplicial import SCCNNCustom
-from topobench.transforms.liftings.graph2simplicial import (
+from ogbench.nn.backbones.simplicial import SCCNNCustom
+from ogbench.transforms.liftings.graph2simplicial import (
     SimplicialCliqueLifting,
 )
 

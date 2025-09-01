@@ -1,6 +1,6 @@
 """Wrapper for the SCCN model."""
 
-from topobench.nn.wrappers.base import AbstractWrapper
+from ogbench.nn.wrappers.base import AbstractWrapper
 
 
 class SCCNWrapper(AbstractWrapper):

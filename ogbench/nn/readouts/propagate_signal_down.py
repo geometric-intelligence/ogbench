@@ -4,7 +4,7 @@ import topomodelx
 import torch
 import torch_geometric
 
-from topobench.nn.readouts.base import AbstractZeroCellReadOut
+from ogbench.nn.readouts.base import AbstractZeroCellReadOut
 
 
 class PropagateSignalDown(AbstractZeroCellReadOut):

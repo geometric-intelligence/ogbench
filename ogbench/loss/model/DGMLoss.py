@@ -3,7 +3,7 @@
 import torch
 import torch_geometric
 
-from topobench.loss.base import AbstractLoss
+from ogbench.loss.base import AbstractLoss
 
 
 class DGMLoss(AbstractLoss):

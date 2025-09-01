@@ -2,7 +2,7 @@
 
 import torch
 
-from topobench.nn.wrappers.base import AbstractWrapper
+from ogbench.nn.wrappers.base import AbstractWrapper
 
 
 class CANWrapper(AbstractWrapper):

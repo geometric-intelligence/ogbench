@@ -1,15 +1,15 @@
 """Unit tests for rich_utils."""
 import pytest
 from unittest.mock import MagicMock, patch
-from topobench.utils.rich_utils import enforce_tags, print_config_tree
+from ogbench.utils.rich_utils import enforce_tags, print_config_tree
 from omegaconf import DictConfig
 
-@patch("topobench.utils.rich_utils.pylogger.RankedLogger.info")
-@patch("topobench.utils.rich_utils.rich.tree.Tree")
-@patch("topobench.utils.rich_utils.rich.syntax.Syntax")
-@patch("topobench.utils.rich_utils.rich.print")
-@patch("topobench.utils.rich_utils.Path.write_text")
-@patch("topobench.utils.rich_utils.HydraConfig.get")
+@patch("ogbench.utils.rich_utils.pylogger.RankedLogger.info")
+@patch("ogbench.utils.rich_utils.rich.tree.Tree")
+@patch("ogbench.utils.rich_utils.rich.syntax.Syntax")
+@patch("ogbench.utils.rich_utils.rich.print")
+@patch("ogbench.utils.rich_utils.Path.write_text")
+@patch("ogbench.utils.rich_utils.HydraConfig.get")
 def test_print_config_tree(mock_hydra_config_get, mock_write_text, mock_rich_print, mock_syntax, mock_tree, mock_info):
     '''Test the print_config_tree function.
     
@@ -56,11 +56,11 @@ def test_print_config_tree(mock_hydra_config_get, mock_write_text, mock_rich_pri
         print_config_tree(mock_cfg, save_to_file=True)
         
 
-@patch("topobench.utils.rich_utils.HydraConfig")
-@patch("topobench.utils.rich_utils.Prompt.ask")
-@patch("topobench.utils.rich_utils.pylogger.RankedLogger.warning")
-@patch("topobench.utils.rich_utils.pylogger.RankedLogger.info")
-@patch("topobench.utils.rich_utils.rich.print")
+@patch("ogbench.utils.rich_utils.HydraConfig")
+@patch("ogbench.utils.rich_utils.Prompt.ask")
+@patch("ogbench.utils.rich_utils.pylogger.RankedLogger.warning")
+@patch("ogbench.utils.rich_utils.pylogger.RankedLogger.info")
+@patch("ogbench.utils.rich_utils.rich.print")
 def test_enforce_tags_no_tags(mock_rich_print, mock_info, mock_warning, mock_prompt_ask, mock_hydra_config):
     """Test the enforce_tags function when no tags are provided in the config.
     

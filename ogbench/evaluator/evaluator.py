@@ -2,7 +2,7 @@
 
 from torchmetrics import MetricCollection
 
-from topobench.evaluator import METRICS, AbstractEvaluator
+from ogbench.evaluator import METRICS, AbstractEvaluator
 
 
 class TBEvaluator(AbstractEvaluator):

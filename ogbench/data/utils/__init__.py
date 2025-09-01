@@ -1,6 +1,8 @@
 """Init file for data/utils module."""
 
 from .utils import (
+    MeanStdNormalizer,
+    MinMaxNormalizer,
     data2simplicial,  # noqa: F401
     # import function here, add noqa: F401 for PR
     ensure_serializable,  # noqa: F401
@@ -14,6 +16,8 @@ from .utils import (
 )
 
 utils_functions = [
+    "MeanStdNormalizer",
+    "MinMaxNormalizer",
     "get_combinatorial_complex_connectivity",
     "get_complex_connectivity",
     "get_routes_from_neighborhoods",

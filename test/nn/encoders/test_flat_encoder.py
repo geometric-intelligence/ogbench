@@ -2,7 +2,7 @@
 import torch
 import torch_geometric
 from torch_geometric.data import Data
-from topobench.nn.encoders.flat_encoder import FlatEncoder
+from ogbench.nn.encoders.flat_encoder import FlatEncoder
 
 def test_flat_encoder_forward():
     """Test the forward pass of the FlatEncoder."""

@@ -97,12 +97,12 @@ wrap-summaries = 79
 wrap-descriptions = 79
 
 [tool.setuptools.dynamic]
-version = {attr = "topobench.__version__"}
+version = {attr = "ogbench.__version__"}
 
 [tool.setuptools.packages.find]
 include = [
-    "topobench",
-    "topobench.*"
+    "ogbench",
+    "ogbench.*"
 ]
 
 [tool.mypy]

@@ -4,8 +4,8 @@ import pytest
 import hydra
 import torch
 from torch_geometric.data import Data
-from topobench.transforms.data_manipulations import RedefineSimplicialNeighbourhoods
-from topobench.data.preprocessor.preprocessor import PreProcessor
+from ogbench.transforms.data_manipulations import RedefineSimplicialNeighbourhoods
+from ogbench.data.preprocessor.preprocessor import PreProcessor
 
 
 class TestRedefineSimplicialNeighbourhoods:
@@ -42,7 +42,7 @@ class TestRedefineSimplicialNeighbourhoods:
         # Define transformation configuration
         transforms_config = {
             "RedefineSimplicialNeighbourhoods": {
-                "_target_": "topobench.transforms.data_transform.DataTransform",
+                "_target_": "ogbench.transforms.data_transform.DataTransform",
                 "transform_name": "RedefineSimplicialNeighbourhoods",
                 "transform_type": None,
                 "complex_dim": 3,
@@ -76,7 +76,7 @@ class TestRedefineSimplicialNeighbourhoods:
         # Define transformation configuration
         transforms_config = {
             "RedefineSimplicialNeighbourhoods": {
-                "_target_": "topobench.transforms.data_transform.DataTransform",
+                "_target_": "ogbench.transforms.data_transform.DataTransform",
                 "transform_name": "RedefineSimplicialNeighbourhoods",
                 "transform_type": None,
                 "complex_dim": 3,

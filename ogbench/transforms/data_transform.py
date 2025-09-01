@@ -2,7 +2,7 @@
 
 import torch_geometric
 
-from topobench.transforms import TRANSFORMS
+from ogbench.transforms import TRANSFORMS
 
 
 class DataTransform(torch_geometric.transforms.BaseTransform):

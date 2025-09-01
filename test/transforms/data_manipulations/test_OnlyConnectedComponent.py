@@ -3,7 +3,7 @@
 import pytest
 import torch
 from torch_geometric.data import Data
-from topobench.transforms.data_manipulations import KeepOnlyConnectedComponent
+from ogbench.transforms.data_manipulations import KeepOnlyConnectedComponent
 
 
 class TestKeepOnlyConnectedComponent:

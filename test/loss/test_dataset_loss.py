@@ -3,7 +3,7 @@ import pytest
 import torch
 import torch_geometric
 
-from topobench.loss.dataset import DatasetLoss
+from ogbench.loss.dataset import DatasetLoss
 
 class TestDatasetLoss:
     """ Test the TBEvaluator class."""

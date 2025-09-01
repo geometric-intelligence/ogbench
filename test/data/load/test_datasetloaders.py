@@ -6,7 +6,7 @@ import hydra
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 from omegaconf import DictConfig
-from topobench.data.preprocessor.preprocessor import PreProcessor
+from ogbench.data.preprocessor.preprocessor import PreProcessor
 class TestLoaders:
     """Comprehensive test suite for all dataset loaders."""
     

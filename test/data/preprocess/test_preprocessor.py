@@ -6,7 +6,7 @@ import torch
 import torch_geometric.data
 from omegaconf import DictConfig
 
-from topobench.data.preprocessor.preprocessor import PreProcessor
+from ogbench.data.preprocessor.preprocessor import PreProcessor
 from ..._utils.flow_mocker import FlowMocker
 
 class MockTorchDataset(torch.utils.data.Dataset):
@@ -154,7 +154,7 @@ class TestPreProcessor:
         )
         _ = self.preprocessor.instantiate_pre_transform(self.data_dir, transforms_config_liftings)
 
-    @patch("topobench.data.preprocessor.preprocessor.load_inductive_splits")
+    @patch("ogbench.data.preprocessor.preprocessor.load_inductive_splits")
     def test_load_dataset_splits_inductive(self, mock_load_inductive_splits):
         """Test loading dataset splits for inductive learning.
         
@@ -170,7 +170,7 @@ class TestPreProcessor:
         )
 
     @patch(
-        "topobench.data.preprocessor.preprocessor.load_transductive_splits"
+        "ogbench.data.preprocessor.preprocessor.load_transductive_splits"
     )
     def test_load_dataset_splits_transductive(
         self, mock_load_transductive_splits

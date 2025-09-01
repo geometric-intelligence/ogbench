@@ -4,7 +4,7 @@ import networkx as nx
 import torch_geometric
 from toponetx.classes import CellComplex
 
-from topobench.transforms.liftings.graph2cell.base import (
+from ogbench.transforms.liftings.graph2cell.base import (
     Graph2CellLifting,
 )
 

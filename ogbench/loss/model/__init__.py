@@ -1,4 +1,4 @@
-"""This module implements the loss functions for the topobench package."""
+"""This module implements the loss functions for the ogbench package."""
 
 import importlib
 import inspect

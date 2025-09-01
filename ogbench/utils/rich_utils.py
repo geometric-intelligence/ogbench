@@ -11,7 +11,7 @@ from lightning_utilities.core.rank_zero import rank_zero_only
 from omegaconf import DictConfig, OmegaConf, open_dict
 from rich.prompt import Prompt
 
-from topobench.utils import pylogger
+from ogbench.utils import pylogger
 
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
 

@@ -4,8 +4,8 @@ import networkx as nx
 import torch
 from toponetx.classes import SimplicialComplex
 
-from topobench.data.utils.utils import get_complex_connectivity
-from topobench.transforms.liftings import GraphLifting
+from ogbench.data.utils.utils import get_complex_connectivity
+from ogbench.transforms.liftings import GraphLifting
 
 
 class Graph2SimplicialLifting(GraphLifting):

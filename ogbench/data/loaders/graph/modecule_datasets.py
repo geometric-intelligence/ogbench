@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from torch_geometric.data import Dataset
 from torch_geometric.datasets import AQSOL, ZINC
 
-from topobench.data.loaders.base import AbstractLoader
+from ogbench.data.loaders.base import AbstractLoader
 
 
 class MoleculeDatasetLoader(AbstractLoader):

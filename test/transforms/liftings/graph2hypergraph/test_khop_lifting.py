@@ -2,7 +2,7 @@
 
 import torch
 
-from topobench.transforms.liftings.graph2hypergraph import (
+from ogbench.transforms.liftings.graph2hypergraph import (
     HypergraphKHopLifting,
 )
 

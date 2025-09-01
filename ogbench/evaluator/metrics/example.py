@@ -1,4 +1,4 @@
-"""Loss module for the topobench package."""
+"""Loss module for the ogbench package."""
 
 from typing import Any
 

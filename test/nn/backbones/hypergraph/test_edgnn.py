@@ -4,7 +4,7 @@ import pytest
 
 import torch
 from ...._utils.nn_module_auto_test import NNModuleAutoTest
-from topobench.nn.backbones.hypergraph.edgnn import (
+from ogbench.nn.backbones.hypergraph.edgnn import (
     EDGNN,
     customMLP as edgnn_MLP,
     PlainMLP,

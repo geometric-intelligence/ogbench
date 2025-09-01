@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import pytest
-from topobench.nn.backbones.non_relational.mlp import MLP
+from ogbench.nn.backbones.non_relational.mlp import MLP
 from omegaconf import DictConfig
 
 @pytest.mark.parametrize("batch_size,num_nodes,in_channels,hidden_channels,out_channels,final_act", [
