@@ -8,6 +8,12 @@
             "name": "Python Debugger: Module",
             "type": "debugpy",
             "request": "launch",
+            "module": "ogbench"
+        },
+        {
+            "name": "Python Debugger: Module",
+            "type": "debugpy",
+            "request": "launch",
             "module": "topobench"
         },
         {
