@@ -5,6 +5,27 @@ import os
 import omegaconf
 import torch
 
+def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
+    r"""Calculate the number of nodes for a given dataset.
+
+    Parameters
+    ----------
+    num_samples : int
+        Total number of samples in the dataset.
+    train_val_test_split : list[float]
+        Train/validation/test split ratios.
+    node_sample_ratio : float
+        Ratio of nodes to sample.
+
+    Returns
+    -------
+    int
+        Number of nodes.
+    """
+    n_training_samples = int(num_samples * train_val_test_split[0])
+    n_nodes = int(n_training_samples / node_sample_ratio)
+    return n_nodes
+
 
 def get_flattened_channels(num_nodes, channels):
     r"""Get the output dimension of flattening a feature matrix.
@@ -22,6 +43,30 @@ def get_flattened_channels(num_nodes, channels):
         Flatenned cchannels dimension.
     """
     return num_nodes * channels
+
+def get_non_relational_out_channels(num_nodes, channels, task_level):
+    r"""Get the output dimension for a non-relational model.
+
+    Parameters
+    ----------
+    num_nodes : int
+        Number of nodes in the input graph.
+    channels : int
+        Channel dimension.
+    task_level : int
+        Task level for the model.
+
+    Returns
+    -------
+    int
+        Output dimension.
+    """
+    if task_level == "node":  # node-level task
+        return num_nodes * channels
+    elif task_level == "graph":  # graph-level task
+        return channels
+    else:
+        raise ValueError(f"Invalid task level {task_level}")
 
 
 def get_default_trainer():

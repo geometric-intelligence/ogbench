@@ -24,12 +24,14 @@ from topobench.utils import (
     task_wrapper,
 )
 from topobench.utils.config_resolvers import (
+    calculate_num_nodes,
     get_default_metrics,
     get_default_trainer,
     get_default_transform,
     get_flattened_channels,
     get_monitor_metric,
     get_monitor_mode,
+    get_non_relational_out_channels,
     get_required_lifting,
     infer_in_channels,
     infer_num_cell_dimensions,
@@ -55,6 +57,9 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 
 OmegaConf.register_new_resolver(
+    "calculate_num_nodes", calculate_num_nodes, replace=True
+)
+OmegaConf.register_new_resolver(
     "get_default_metrics", get_default_metrics, replace=True
 )
 OmegaConf.register_new_resolver(
@@ -76,6 +81,9 @@ OmegaConf.register_new_resolver(
 )
 OmegaConf.register_new_resolver(
     "get_monitor_mode", get_monitor_mode, replace=True
+)
+OmegaConf.register_new_resolver(
+    "get_non_relational_out_channels", get_non_relational_out_channels, replace=True
 )
 OmegaConf.register_new_resolver(
     "infer_in_channels", infer_in_channels, replace=True
@@ -136,7 +144,7 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     np.random.seed(cfg.seed)
     # Seed for python random
     random.seed(cfg.seed)
-    
+
     # Instantiate and load dataset
     log.info(f"Instantiating loader <{cfg.dataset.loader._target_}>")
     dataset_loader = hydra.utils.instantiate(cfg.dataset.loader)

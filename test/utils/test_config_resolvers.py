@@ -13,6 +13,7 @@ from topobench.utils.config_resolvers import (
     get_monitor_metric,
     get_monitor_mode,
     get_required_lifting,
+    get_non_relational_out_channels,
 )
 
 class TestConfigResolvers:
@@ -58,6 +59,17 @@ class TestConfigResolvers:
         """Test get_flattened_channels."""
         out = get_flattened_channels(10, 5)
         assert out == 50
+
+    def test_non_relational_out_channels(self):
+        """Test get_non_relational_out_channels."""
+        out = get_non_relational_out_channels(10, 5, "node")
+        assert out == 50
+
+        out = get_non_relational_out_channels(10, 5, "graph")
+        assert out == 5
+
+        with pytest.raises(ValueError, match="Invalid task level") as e:
+            get_non_relational_out_channels(10, 5, "some_task")
 
     def test_get_required_lifting(self):
         """Test get_required_lifting."""

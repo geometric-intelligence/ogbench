@@ -38,6 +38,8 @@ class MLP(nn.Module):
         Additional keyword arguments for the final activation function (default None).
     num_nodes : int, optional
         The number of nodes in the input graph (default None).
+    task_level : int, optional
+        The task level for the model (default None).
     **kwargs
         Additional keyword arguments.
     """
@@ -55,6 +57,7 @@ class MLP(nn.Module):
         final_act=None,
         final_act_kwargs=None,
         num_nodes=None,
+        task_level=None,
         **kwargs,
     ):
         super().__init__()
@@ -75,6 +78,7 @@ class MLP(nn.Module):
         self.out_channels = out_channels
         self.mlp_layers = self.build_mlp_layers()
         self.num_nodes = num_nodes
+        self.task_level = task_level
 
     def build_norm_layers(self, norm, norm_kwargs):
         """Build the normalization layers.
@@ -148,7 +152,7 @@ class MLP(nn.Module):
         """
         flattened_x = x.view(batch_size, -1)
         x = self.mlp_layers(flattened_x)
-        if self.num_nodes is not None:
+        if self.num_nodes is not None and self.task_level == "node":
             return (
                 x.view(batch_size, self.num_nodes, -1)
                 if batch_size > 1

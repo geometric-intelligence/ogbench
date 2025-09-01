@@ -17,7 +17,7 @@ parameters:
   num_features: 1
   num_classes: 2
   num_samples: 1135
-  num_nodes: 4698
+  num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio}} # 4698 # TODO: it depends on the node sample ratio!
   task: classification
   loss_type: cross_entropy
   monitor_metric: accuracy
