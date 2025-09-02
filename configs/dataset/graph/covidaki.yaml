@@ -6,7 +6,7 @@ loader:
     data_domain: graph
     data_name: covidaki
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.75
+    adjacency_threshold: 0.85
     node_sample_ratio: 0.169
     method: variance
     imputation_method: mean
@@ -22,7 +22,6 @@ parameters:
   loss_type: cross_entropy
   monitor_metric: accuracy
   task_level: graph
-  cached: True
 
 #splits
 split_params:

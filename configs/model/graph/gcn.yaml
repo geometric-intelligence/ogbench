@@ -17,8 +17,7 @@ backbone:
   num_layers: 2
   dropout: 0.0
   act: relu
-  cached: ${oc.select:dataset.parameters.cached,false} # If True, the layer will cache the normalized adjacency matrix on first execution, and will use the cached version for further executions. This only has effect when the graph is not changing between epochs.
-
+  
 backbone_wrapper:
   _target_: ogbench.nn.wrappers.GNNWrapper 
   _partial_: true
