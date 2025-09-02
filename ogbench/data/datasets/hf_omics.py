@@ -26,7 +26,37 @@ logger = logging.getLogger(__name__)
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.io import fs
+import torch_geometric.transforms as T
 import os.path as osp
+
+class AddEdgeIndex(T.BaseTransform):
+    """Transform that adds a fixed edge_index to each graph.
+    
+    Parameters
+    ----------
+    edge_index : torch.Tensor
+        The edge index to add to each graph.
+    """
+
+    def __init__(self, edge_index: torch.Tensor) -> None:
+        self.edge_index = edge_index
+
+    def forward(self, data: Data) -> Data:
+        """Add the fixed edge_index to the data object.
+        
+        Parameters
+        ----------
+        data : Data
+            The input graph data object.
+        
+        Returns
+        -------
+        Data
+            The graph data object with the added edge_index.
+        """
+        data.edge_index = self.edge_index
+        return data
+    
 
 class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
@@ -75,9 +105,10 @@ class HFOmicsDataset(InMemoryDataset):
         self.normalize_targets = False if data_name in self.classification_datasets else True
 
         super().__init__(root)
-        data, self.slices, self.sizes, data_cls = fs.torch_load(self.processed_paths[0])
+        data, self.slices, self.sizes, data_cls, self.edge_index = fs.torch_load(self.processed_paths[0])
         self.data = data_cls.from_dict(data)
         assert isinstance(self._data, Data)
+        self.transform = T.Compose([AddEdgeIndex(self.edge_index)])
 
     @property
     def raw_dir(self) -> str:
@@ -254,7 +285,6 @@ class HFOmicsDataset(InMemoryDataset):
         node_features_normalized = torch.from_numpy(
             self.feature_normalizer.transform(node_features_raw)
         ).to(torch.float32)
-        edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
         y_tensor = np.array([subject_target])
         if self.normalize_targets:
@@ -265,7 +295,7 @@ class HFOmicsDataset(InMemoryDataset):
             y_normalized = torch.from_numpy(y_tensor)
 
         graph = torch_geometric.data.Data(
-            x=node_features_normalized.unsqueeze(1), edge_index=edge_index, y=y_normalized
+            x=node_features_normalized.unsqueeze(1), y=y_normalized
         )
         return graph
         # transform = T.ToSparseTensor()
@@ -277,6 +307,7 @@ class HFOmicsDataset(InMemoryDataset):
         selected_data = pd.read_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
         targets = np.load(osp.join(self.raw_dir, "targets.npy"))
         adj_matrix = np.load(osp.join(self.raw_dir, "adj_matrix.npy"))
+        edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
         # Shuffle selected_data and targets in unison
         from sklearn.utils import shuffle
@@ -323,8 +354,9 @@ class HFOmicsDataset(InMemoryDataset):
         self.data, self.slices = self.collate(graph_data_list)
         self.graph_list = []    # Reset cache.
         self._data_list = None  # Reset cache.
+        self.edge_index = edge_index
         fs.torch_save(
-            (self._data.to_dict(), self.slices, {}, self._data.__class__),
+            (self._data.to_dict(), self.slices, {}, self._data.__class__, self.edge_index),
             self.processed_paths[0],
         )
 

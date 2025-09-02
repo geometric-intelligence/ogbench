@@ -6,7 +6,7 @@ loader:
     data_domain: graph
     data_name: addneuromed
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.9
+    adjacency_threshold: 0.85
     node_sample_ratio: 1.0
     method: variance
     imputation_method: mean
@@ -17,7 +17,7 @@ parameters:
   num_features: 1
   # BUG TO FIX: according to overleaf, there should be 3 classes, but we get 41 different labels (from 50 to 100)
   num_classes: 3
-  num_samples: 744
+  num_samples: 717
   num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio}} # 4698 # TODO: it depends on the node sample ratio!
   task: classification
   loss_type: cross_entropy
