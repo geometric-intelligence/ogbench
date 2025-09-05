@@ -29,7 +29,6 @@ class CustomGATConv(GATv2Conv):
         share_weights: bool = False,
         residual: bool = False,
         weight_initializer=None,  # The custom weight initializer
-        **kwargs,
     ):
         # Save custom weight initializer
         self.weight_init = weight_initializer
@@ -48,7 +47,6 @@ class CustomGATConv(GATv2Conv):
             bias=bias,
             share_weights=share_weights,
             residual=residual,
-            **kwargs,
         )
 
         # Apply custom weight initialization if provided
@@ -149,7 +147,6 @@ class GATv4(nn.Module):
                     heads=num_heads,
                     dropout=self.dropout,
                     concat=True,
-                    # weight_initializer=self.weight_initializer,
                 )
             )
             input_dim = hidden_dim * num_heads
@@ -186,8 +183,6 @@ class GATv4(nn.Module):
             x, att1 = self.convs[0](x, edge_index, return_attention_weights=True)
         else:
             x = self.convs[0](x, edge_index)
-        gc.collect()  # Clear memory from previous operations
-        torch.cuda.empty_cache()
         
         # [bs*nodes, hidden_channels[0]*heads[0]], Apply the gatconv layer
         x = self.ACT_MAP[self.act](
@@ -197,8 +192,6 @@ class GATv4(nn.Module):
         x1 = x1.squeeze(-1)  # [bs*nodes]
         x1, _ = to_dense_batch(x1, batch=batch)  # [bs, nodes]
 
-        gc.collect()  # Clear memory from previous operations
-        torch.cuda.empty_cache()
         
         # Apply second GAT layer and pooling
         x = F.dropout(x, p=self.dropout, training=self.training)  # apply dropout if we are training
@@ -207,16 +200,12 @@ class GATv4(nn.Module):
         else:
             x = self.convs[1](x, edge_index)
         
-        gc.collect()  # Clear memory from previous operations
-        torch.cuda.empty_cache()
         
         x = self.ACT_MAP[self.act](x)  # [bs*nodes, hidden_channels[1]*heads[1]]
         x2 = self.pools[1](x)  # [bs*nodes, 1]
         x2 = x2.squeeze(-1)  # [bs*nodes]
         x2, _ = to_dense_batch(x2, batch=batch)  # [bs, nodes]
         
-        gc.collect()  # Clear memory from previous operations
-        torch.cuda.empty_cache()
 
         # Apply layer normalization to each individual graph to have mean 0, std 1
         if self.use_layer_norm:
@@ -228,12 +217,11 @@ class GATv4(nn.Module):
         multiscale_features = {'layer1': x0, 'layer2': x1, 'layer3': x2}
         multiscale_features = torch.cat(
             [multiscale_features[layer] for layer in self.which_layer],
-            dim=1,  # just take first 3 gat layers
+            dim=1,
         )
 
         aux = [x0, x1, x2, multiscale_features]
         
         if return_attention_weights:
             return multiscale_features, aux, att1, att2
-        else:
-            return multiscale_features, aux
+        return multiscale_features, aux

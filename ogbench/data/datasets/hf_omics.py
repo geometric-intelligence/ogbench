@@ -43,12 +43,7 @@ class AddEdgeIndex(T.BaseTransform):
 
     def forward(self, data: Data) -> Data:
         """Add the fixed edge_index to the data object.
-        
-        Parameters
-        ----------
-        data : Data
-            The input graph data object.
-        
+
         Returns
         -------
         Data
