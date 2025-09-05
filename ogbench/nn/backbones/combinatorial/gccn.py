@@ -1,4 +1,5 @@
-"""Define the TopoTune class, which, given a choice of hyperparameters, instantiates a GCCN expecting a collection of strictly augmented Hasse graphs as input."""
+"""Define the TopoTune class, which, given a choice of hyperparameters, instantiates a GCCN
+expecting a collection of strictly augmented Hasse graphs as input."""
 
 import copy
 
@@ -71,29 +72,23 @@ class TopoTune(torch.nn.Module):
             The neighborhood cache.
         """
         nbhd_cache = {}
-        for neighborhood, route in zip(
-            self.neighborhoods, self.routes, strict=False
-        ):
+        for neighborhood, route in zip(self.neighborhoods, self.routes, strict=False):
             src_rank, dst_rank = route
             if src_rank != dst_rank and (src_rank, dst_rank) not in nbhd_cache:
                 n_dst_nodes = getattr(params, f"x_{dst_rank}").shape[0]
                 if src_rank > dst_rank:
                     boundary = getattr(params, neighborhood).coalesce()
-                    nbhd_cache[(src_rank, dst_rank)] = (
-                        interrank_boundary_index(
-                            getattr(params, f"x_{src_rank}"),
-                            boundary.indices(),
-                            n_dst_nodes,
-                        )
+                    nbhd_cache[(src_rank, dst_rank)] = interrank_boundary_index(
+                        getattr(params, f"x_{src_rank}"),
+                        boundary.indices(),
+                        n_dst_nodes,
                     )
                 elif src_rank < dst_rank:
                     coboundary = getattr(params, neighborhood).coalesce()
-                    nbhd_cache[(src_rank, dst_rank)] = (
-                        interrank_boundary_index(
-                            getattr(params, f"x_{src_rank}"),
-                            coboundary.indices(),
-                            n_dst_nodes,
-                        )
+                    nbhd_cache[(src_rank, dst_rank)] = interrank_boundary_index(
+                        getattr(params, f"x_{src_rank}"),
+                        coboundary.indices(),
+                        n_dst_nodes,
                     )
         return nbhd_cache
 
@@ -103,7 +98,7 @@ class TopoTune(torch.nn.Module):
         Parameters
         ----------
         params : dict
-            The parameters of the batch, containting the complex.
+            The parameters of the batch, containing the complex.
         src_rank : int
             The source rank.
         nbhd : str
@@ -151,15 +146,13 @@ class TopoTune(torch.nn.Module):
         )
         return out
 
-    def interrank_expand(
-        self, params, src_rank, dst_rank, nbhd_cache, membership
-    ):
+    def interrank_expand(self, params, src_rank, dst_rank, nbhd_cache, membership):
         """Expand the complex into an interrank Hasse graph.
 
         Parameters
         ----------
         params : dict
-            The parameters of the batch, containting the complex.
+            The parameters of the batch, containing the complex.
         src_rank : int
             The source rank.
         dst_rank : int
@@ -192,9 +185,7 @@ class TopoTune(torch.nn.Module):
 
         return batch_route
 
-    def interrank_gnn_forward(
-        self, batch_route, layer_idx, route_index, n_dst_cells
-    ):
+    def interrank_gnn_forward(self, batch_route, layer_idx, route_index, n_dst_cells):
         """Forward pass of the GNN (one layer) for an interrank Hasse graph.
 
         Parameters
@@ -266,9 +257,7 @@ class TopoTune(torch.nn.Module):
             j: torch.tensor(
                 [
                     elem
-                    for list in [
-                        [i] * x for i, x in enumerate(cell_statistics[:, j])
-                    ]
+                    for list in [[i] * x for i, x in enumerate(cell_statistics[:, j])]
                     for elem in list
                 ]
             )
@@ -302,9 +291,7 @@ class TopoTune(torch.nn.Module):
                 if src_rank == dst_rank:
                     nbhd = self.neighborhoods[route_index]
                     batch_route = self.intrarank_expand(batch, src_rank, nbhd)
-                    x_out = self.intrarank_gnn_forward(
-                        batch_route, layer_idx, route_index
-                    )
+                    x_out = self.intrarank_gnn_forward(batch_route, layer_idx, route_index)
 
                     x_out_per_route[route_index] = x_out
 
@@ -339,8 +326,7 @@ class TopoTune(torch.nn.Module):
 
 
 def interrank_boundary_index(x_src, boundary_index, n_dst_nodes):
-    """
-    Recover lifted graph.
+    """Recover lifted graph.
 
     Edge-to-node boundary relationships of a graph with n_nodes and n_edges
     can be represented as up-adjacency node relations. There are n_nodes+n_edges nodes in this lifted graph.
@@ -412,6 +398,7 @@ def get_activation(nonlinearity, return_module=False):
 
         def function(x):
             return x
+
     elif nonlinearity == "sigmoid":
         module = torch.nn.Sigmoid
         function = F.sigmoid
@@ -419,9 +406,7 @@ def get_activation(nonlinearity, return_module=False):
         module = torch.nn.Tanh
         function = torch.tanh
     else:
-        raise NotImplementedError(
-            f"Nonlinearity {nonlinearity} is not currently supported."
-        )
+        raise NotImplementedError(f"Nonlinearity {nonlinearity} is not currently supported.")
     if return_module:
         return module
     return function

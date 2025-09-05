@@ -6,9 +6,7 @@ from ogbench.data.utils import data2simplicial
 from ogbench.data.utils.utils import get_complex_connectivity
 
 
-class RedefineSimplicialNeighbourhoods(
-    torch_geometric.transforms.BaseTransform
-):
+class RedefineSimplicialNeighbourhoods(torch_geometric.transforms.BaseTransform):
     r"""An transform that redifines simplicial complex neighbourhood.
 
     Parameters

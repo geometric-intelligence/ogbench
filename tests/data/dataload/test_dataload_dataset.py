@@ -8,6 +8,7 @@ from ogbench.dataloader import DataloadDataset
 
 class TestDataloadDataset:
     """Test DataloadDataset class."""
+
     def setup_method(self):
         """Set up."""
         self.data_list = [

@@ -8,8 +8,8 @@ from ogbench.nn.wrappers.base import AbstractWrapper
 class SCNWrapper(AbstractWrapper):
     r"""Wrapper for the SCNW model.
 
-    This wrapper defines the forward pass of the model. The SCNW model returns
-    the embeddings of the cells of rank 0, 1, and 2.
+    This wrapper defines the forward pass of the model. The SCNW model returns the embeddings of
+    the cells of rank 0, 1, and 2.
     """
 
     def forward(self, batch):

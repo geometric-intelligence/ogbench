@@ -22,9 +22,7 @@ class GraphMLP(nn.Module):
         Additional arguments.
     """
 
-    def __init__(
-        self, in_channels, hidden_channels, order=1, dropout=0.0, **kwargs
-    ):
+    def __init__(self, in_channels, hidden_channels, order=1, dropout=0.0, **kwargs):
         super().__init__()
         self.out_channels = hidden_channels
         self.order = order

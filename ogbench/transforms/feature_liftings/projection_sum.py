@@ -35,11 +35,7 @@ class ProjectionSum(torch_geometric.transforms.BaseTransform):
             The data with the lifted features.
         """
         keys = sorted(
-            [
-                key.split("_")[1]
-                for key in data
-                if ("incidence" in key and "-" not in key)
-            ]
+            [key.split("_")[1] for key in data if ("incidence" in key and "-" not in key)]
         )
         for elem in keys:
             if f"x_{elem}" not in data:
@@ -50,9 +46,7 @@ class ProjectionSum(torch_geometric.transforms.BaseTransform):
                 )
         return data
 
-    def forward(
-        self, data: torch_geometric.data.Data | dict
-    ) -> torch_geometric.data.Data | dict:
+    def forward(self, data: torch_geometric.data.Data | dict) -> torch_geometric.data.Data | dict:
         r"""Apply the lifting to the input data.
 
         Parameters

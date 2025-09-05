@@ -1,4 +1,5 @@
-"""Define the TopoTune class, which, given a choice of hyperparameters, instantiates a GCCN expecting a single Hasse graph as input."""
+"""Define the TopoTune class, which, given a choice of hyperparameters, instantiates a GCCN
+expecting a single Hasse graph as input."""
 
 import copy
 
@@ -85,42 +86,25 @@ class TopoTune_OneHasse(torch.nn.Module):
         edge_indices = []
         edge_attrs = []
 
-        for route, neighborhood in zip(
-            self.routes, self.neighborhoods, strict=False
-        ):
+        for route, neighborhood in zip(self.routes, self.neighborhoods, strict=False):
             src_rank, dst_rank = route
 
-            if (
-                "up_laplacian" in neighborhood
-                or "up_adjacency" in neighborhood
-            ):
+            if "up_laplacian" in neighborhood or "up_adjacency" in neighborhood:
                 if src_rank == 0:  # node-to-edge
                     adjustment = torch.tensor([[0], [0]]).to(device)
                 elif src_rank == 1:  # edge-to-face
-                    adjustment = torch.tensor(
-                        [[max_node_id], [max_node_id]]
-                    ).to(device)
+                    adjustment = torch.tensor([[max_node_id], [max_node_id]]).to(device)
                 else:
-                    raise ValueError(
-                        f"Unsupported src_rank for 'up' neighborhood: {src_rank}"
-                    )
+                    raise ValueError(f"Unsupported src_rank for 'up' neighborhood: {src_rank}")
 
                 edge_indices.append(
-                    getattr(params, neighborhood).indices().to(device)
-                    + adjustment
+                    getattr(params, neighborhood).indices().to(device) + adjustment
                 )
-                edge_attrs.append(
-                    getattr(params, neighborhood).values().squeeze()
-                )
+                edge_attrs.append(getattr(params, neighborhood).values().squeeze())
 
-            elif (
-                "down_laplacian" in neighborhood
-                or "down_adjacency" in neighborhood
-            ):
+            elif "down_laplacian" in neighborhood or "down_adjacency" in neighborhood:
                 if src_rank == 1:  # edge-to-node
-                    adjustment = torch.tensor(
-                        [[max_node_id], [max_node_id]]
-                    ).to(device)
+                    adjustment = torch.tensor([[max_node_id], [max_node_id]]).to(device)
                 elif src_rank == 2:  # face-to-edge
                     adjustment = torch.tensor(
                         [
@@ -129,58 +113,43 @@ class TopoTune_OneHasse(torch.nn.Module):
                         ]
                     ).to(device)
                 else:
-                    raise ValueError(
-                        f"Unsupported src_rank for 'down' neighborhood: {src_rank}"
-                    )
+                    raise ValueError(f"Unsupported src_rank for 'down' neighborhood: {src_rank}")
 
                 edge_indices.append(
-                    getattr(params, neighborhood).indices().to(device)
-                    + adjustment
+                    getattr(params, neighborhood).indices().to(device) + adjustment
                 )
-                edge_attrs.append(
-                    getattr(params, neighborhood).values().squeeze()
-                )
+                edge_attrs.append(getattr(params, neighborhood).values().squeeze())
 
             elif "down_incidence" in neighborhood:
                 if src_rank == 1:  # edge-to-face
                     adjustment = torch.tensor([[0], [max_node_id]]).to(device)
                 elif src_rank == 2:  # face-to-edge
-                    adjustment = torch.tensor(
-                        [[max_node_id], [max_node_id + max_edge_id]]
-                    ).to(device)
+                    adjustment = torch.tensor([[max_node_id], [max_node_id + max_edge_id]]).to(
+                        device
+                    )
                 else:
                     raise ValueError(
                         f"Unsupported src_rank for 'down_incidence' neighborhood: {src_rank}"
                     )
 
                 edge_indices.append(
-                    getattr(params, neighborhood)
-                    .coalesce()
-                    .indices()
-                    .to(device)
-                    + adjustment
+                    getattr(params, neighborhood).coalesce().indices().to(device) + adjustment
                 )
-                edge_attrs.append(
-                    getattr(params, neighborhood).values().squeeze()
-                )
+                edge_attrs.append(getattr(params, neighborhood).values().squeeze())
 
             elif "up_incidence" in neighborhood:
                 if src_rank == 0:  # node-to-edge
                     adjustment = torch.tensor([[max_node_id], [0]]).to(device)
                 elif src_rank == 1:  # edge-to-face
-                    adjustment = torch.tensor(
-                        [[max_node_id + max_edge_id], [max_node_id]]
-                    ).to(device)
+                    adjustment = torch.tensor([[max_node_id + max_edge_id], [max_node_id]]).to(
+                        device
+                    )
                 else:
                     raise ValueError(
                         f"Unsupported src_rank for 'up_incidence' neighborhood: {src_rank}"
                     )
                 coincidence_indices = (
-                    getattr(params, neighborhood)
-                    .T.coalesce()
-                    .indices()
-                    .to(device)
-                    + adjustment
+                    getattr(params, neighborhood).T.coalesce().indices().to(device) + adjustment
                 )
 
                 edge_indices.append(coincidence_indices)
@@ -194,9 +163,7 @@ class TopoTune_OneHasse(torch.nn.Module):
         edge_index = torch.cat(edge_indices, dim=1)
         # edge_attr = torch.cat(edge_attrs, dim=0)
 
-        batch_expanded = torch.cat(
-            [membership[0], membership[1], membership[2]], dim=0
-        ).to(device)
+        batch_expanded = torch.cat([membership[0], membership[1], membership[2]], dim=0).to(device)
 
         return Data(
             x=x,
@@ -281,9 +248,7 @@ class TopoTune_OneHasse(torch.nn.Module):
             j: torch.tensor(
                 [
                     elem
-                    for list in [
-                        [i] * x for i, x in enumerate(cell_statistics[:, j])
-                    ]
+                    for list in [[i] * x for i, x in enumerate(cell_statistics[:, j])]
                     for elem in list
                 ]
             )
@@ -362,6 +327,7 @@ def get_activation(nonlinearity, return_module=False):
 
         def function(x):
             return x
+
     elif nonlinearity == "sigmoid":
         module = torch.nn.Sigmoid
         function = F.sigmoid
@@ -369,9 +335,7 @@ def get_activation(nonlinearity, return_module=False):
         module = torch.nn.Tanh
         function = torch.tanh
     else:
-        raise NotImplementedError(
-            f"Nonlinearity {nonlinearity} is not currently supported."
-        )
+        raise NotImplementedError(f"Nonlinearity {nonlinearity} is not currently supported.")
     if return_module:
         return module
     return function

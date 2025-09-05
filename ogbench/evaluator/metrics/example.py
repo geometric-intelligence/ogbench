@@ -39,9 +39,7 @@ class ExampleRegressionMetric(Metric):
         super().__init__(**kwargs)
 
         if not isinstance(squared, bool):
-            raise ValueError(
-                f"Expected argument `squared` to be a boolean but got {squared}"
-            )
+            raise ValueError(f"Expected argument `squared` to be a boolean but got {squared}")
         self.squared = squared
 
         if not (isinstance(num_outputs, int) and num_outputs > 0):

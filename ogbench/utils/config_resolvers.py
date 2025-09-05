@@ -5,6 +5,7 @@ import os
 import omegaconf
 import torch
 
+
 def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
     r"""Calculate the number of nodes for a given dataset.
 
@@ -43,6 +44,7 @@ def get_flattened_channels(num_nodes, channels):
         Flatenned cchannels dimension.
     """
     return num_nodes * channels
+
 
 def get_non_relational_out_channels(num_nodes, channels, task_level):
     r"""Get the output dimension for a non-relational model.
@@ -101,12 +103,8 @@ def get_default_transform(dataset, model):
         model_domain = "graph"
     # Check if there is a default transform for the dataset at ./configs/transforms/dataset_defaults/
     # If not, use the default lifting transform for the dataset to be compatible with the model
-    base_dir = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    )
-    configs_dir = os.path.join(
-        base_dir, "configs", "transforms", "dataset_defaults"
-    )
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    configs_dir = os.path.join(base_dir, "configs", "transforms", "dataset_defaults")
     datasets_with_defaults = [f.split(".")[0] for f in os.listdir(configs_dir)]
     if dataset in datasets_with_defaults:
         return f"dataset_defaults/{dataset}"
@@ -160,11 +158,7 @@ def get_monitor_metric(task, metric):
     ValueError
         If the task is invalid.
     """
-    if (
-        task == "classification"
-        or task == "regression"
-        or task == "multilabel classification"
-    ):
+    if task == "classification" or task == "regression" or task == "multilabel classification":
         return f"val/{metric}"
     else:
         raise ValueError(f"Invalid task {task}")
@@ -305,17 +299,12 @@ def infer_in_channels(dataset, transforms):
 
             else:
                 # ProjectionSum feature lifting by default
-                return [dataset.parameters.num_features] * transforms[
-                    lifting
-                ].complex_dim
+                return [dataset.parameters.num_features] * transforms[lifting].complex_dim
         # Case when the dataset has edge attributes (cells attributes)
         else:
             assert (
-                type(dataset.parameters.num_features)
-                is omegaconf.listconfig.ListConfig
-            ), (
-                f"num_features should be a list of integers, not {type(dataset.parameters.num_features)}"
-            )
+                type(dataset.parameters.num_features) is omegaconf.listconfig.ListConfig
+            ), f"num_features should be a list of integers, not {type(dataset.parameters.num_features)}"
             # If preserve_edge_attr == False
             if not transforms[lifting].preserve_edge_attr:
                 if feature_lifting == "Concatenation":
@@ -327,17 +316,12 @@ def infer_in_channels(dataset, transforms):
 
                 else:
                     # ProjectionSum feature lifting by default
-                    return [dataset.parameters.num_features[0]] * transforms[
-                        lifting
-                    ].complex_dim
+                    return [dataset.parameters.num_features[0]] * transforms[lifting].complex_dim
             # If preserve_edge_attr == True
             else:
                 return list(dataset.parameters.num_features) + [
                     dataset.parameters.num_features[1]
-                ] * (
-                    transforms[lifting].complex_dim
-                    - len(dataset.parameters.num_features)
-                )
+                ] * (transforms[lifting].complex_dim - len(dataset.parameters.num_features))
 
     # Case when there is no lifting
     elif not there_is_complex_lifting:
@@ -345,12 +329,14 @@ def infer_in_channels(dataset, transforms):
 
         # TODO: Does this if statement ever execute? model_domain == data_domain and data_domain in ["simplicial", "cell", "combinatorial", "hypergraph"]
         # BUT get_default_transform() returns "no_transform" when model_domain == data_domain
-        if (
-            dataset.loader.parameters.get("model_domain", "graph")
-            == dataset.loader.parameters.data_domain
-            and dataset.loader.parameters.data_domain
-            in ["simplicial", "cell", "combinatorial", "hypergraph"]
-        ):
+        if dataset.loader.parameters.get(
+            "model_domain", "graph"
+        ) == dataset.loader.parameters.data_domain and dataset.loader.parameters.data_domain in [
+            "simplicial",
+            "cell",
+            "combinatorial",
+            "hypergraph",
+        ]:
             if isinstance(
                 dataset.parameters.num_features,
                 omegaconf.listconfig.ListConfig,

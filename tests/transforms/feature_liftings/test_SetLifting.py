@@ -2,9 +2,7 @@
 
 import torch
 
-from ogbench.transforms.liftings.graph2simplicial import (
-    SimplicialCliqueLifting,
-)
+from ogbench.transforms.liftings.graph2simplicial import SimplicialCliqueLifting
 
 
 class TestSetLifting:
@@ -13,13 +11,11 @@ class TestSetLifting:
     def setup_method(self):
         """Set up the test."""
         # Initialize a lifting class
-        self.lifting = SimplicialCliqueLifting(
-            feature_lifting="Set", complex_dim=3
-        )
+        self.lifting = SimplicialCliqueLifting(feature_lifting="Set", complex_dim=3)
 
     def test_lift_features(self, simple_graph_1):
         """Test the lift_features method.
-        
+
         Parameters
         ----------
         simple_graph_1 : torch_geometric.data.Data

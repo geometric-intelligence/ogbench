@@ -81,9 +81,7 @@ class MoleculeDatasetLoader(AbstractLoader):
         )
         split_idx["test"] = np.arange(
             len(self.datasets[0]) + len(self.datasets[1]),
-            len(self.datasets[0])
-            + len(self.datasets[1])
-            + len(self.datasets[2]),
+            len(self.datasets[0]) + len(self.datasets[1]) + len(self.datasets[2]),
         )
         return split_idx
 

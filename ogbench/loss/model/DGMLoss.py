@@ -25,9 +25,7 @@ class DGMLoss(AbstractLoss):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
 
-    def forward(
-        self, model_out: dict, batch: torch_geometric.data.Data
-    ) -> torch.Tensor:
+    def forward(self, model_out: dict, batch: torch_geometric.data.Data) -> torch.Tensor:
         r"""Forward pass of the loss function.
 
         Parameters
@@ -43,9 +41,7 @@ class DGMLoss(AbstractLoss):
             Dictionary containing the model output with the loss.
         """
         batch_keys = batch.keys()
-        logprobs_keys = sorted(
-            [key for key in batch_keys if "logprobs_" in key]
-        )
+        logprobs_keys = sorted([key for key in batch_keys if "logprobs_" in key])
 
         # Filter out the logprobs based on the model phase (Training, test)
         logprobs = []
@@ -60,15 +56,8 @@ class DGMLoss(AbstractLoss):
             logprobs.append(batch[key][mask])
         logprobs = torch.stack(logprobs)
 
-        corr_pred = (
-            (model_out["logits"].argmax(-1) == model_out["labels"])
-            .float()
-            .detach()
-        )
-        if (
-            self.avg_accuracy is None
-            or self.avg_accuracy.shape[-1] != corr_pred.shape[-1]
-        ):
+        corr_pred = (model_out["logits"].argmax(-1) == model_out["labels"]).float().detach()
+        if self.avg_accuracy is None or self.avg_accuracy.shape[-1] != corr_pred.shape[-1]:
             self.avg_accuracy = torch.ones_like(corr_pred) * 0.5
 
         point_w = self.avg_accuracy - corr_pred

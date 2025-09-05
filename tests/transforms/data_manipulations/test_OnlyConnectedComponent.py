@@ -3,6 +3,7 @@
 import pytest
 import torch
 from torch_geometric.data import Data
+
 from ogbench.transforms.data_manipulations import KeepOnlyConnectedComponent
 
 
@@ -12,15 +13,13 @@ class TestKeepOnlyConnectedComponent:
     def setup_method(self):
         """Set up test fixtures before each test method."""
         self.num_components = 1
-        self.transform = KeepOnlyConnectedComponent(
-            num_components=self.num_components
-        )
+        self.transform = KeepOnlyConnectedComponent(num_components=self.num_components)
 
     def test_initialization(self):
         """Test initialization of the transform."""
         assert self.transform.type == "keep_connected_component"
         assert self.transform.parameters["num_components"] == self.num_components
-        
+
         # Test default initialization
         transform = KeepOnlyConnectedComponent()
         assert transform.type == "keep_connected_component"
@@ -29,10 +28,7 @@ class TestKeepOnlyConnectedComponent:
     def test_single_component(self):
         """Test transform on a graph with single connected component."""
         # Create a simple connected graph
-        edge_index = torch.tensor([
-            [0, 1, 1, 2],
-            [1, 0, 2, 1]
-        ])
+        edge_index = torch.tensor([[0, 1, 1, 2], [1, 0, 2, 1]])
         x = torch.tensor([[1.0], [2.0], [3.0]])
         data = Data(x=x, edge_index=edge_index, num_nodes=3)
 
@@ -44,10 +40,7 @@ class TestKeepOnlyConnectedComponent:
     def test_multiple_components(self):
         """Test transform on a graph with multiple connected components."""
         # Create a graph with two components: (0,1,2) and (3,4)
-        edge_index = torch.tensor([
-            [0, 1, 1, 2, 3, 4],
-            [1, 0, 2, 1, 4, 3]
-        ])
+        edge_index = torch.tensor([[0, 1, 1, 2, 3, 4], [1, 0, 2, 1, 4, 3]])
         x = torch.tensor([[1.0], [2.0], [3.0], [4.0], [5.0]])
         data = Data(x=x, edge_index=edge_index, num_nodes=5)
 
@@ -59,10 +52,7 @@ class TestKeepOnlyConnectedComponent:
     def test_equal_size_components(self):
         """Test transform on a graph with components of equal size."""
         # Create a graph with two equal-sized components
-        edge_index = torch.tensor([
-            [0, 1, 2, 3],
-            [1, 0, 3, 2]
-        ])
+        edge_index = torch.tensor([[0, 1, 2, 3], [1, 0, 3, 2]])
         x = torch.tensor([[1.0], [2.0], [3.0], [4.0]])
         data = Data(x=x, edge_index=edge_index, num_nodes=4)
 
@@ -73,12 +63,11 @@ class TestKeepOnlyConnectedComponent:
     def test_multiple_num_components(self):
         """Test transform with num_components > 1."""
         transform = KeepOnlyConnectedComponent(num_components=2)
-        
+
         # Create a graph with three components
-        edge_index = torch.tensor([
-            [0, 1, 2, 3, 4, 5],  # Three components: (0,1), (2,3), (4,5)
-            [1, 0, 3, 2, 5, 4]
-        ])
+        edge_index = torch.tensor(
+            [[0, 1, 2, 3, 4, 5], [1, 0, 3, 2, 5, 4]]  # Three components: (0,1), (2,3), (4,5)
+        )
         x = torch.tensor([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]])
         data = Data(x=x, edge_index=edge_index, num_nodes=6)
 
@@ -97,10 +86,7 @@ class TestKeepOnlyConnectedComponent:
     def test_disconnected_nodes(self):
         """Test transform on a graph with disconnected nodes."""
         # Create a graph with connected component and isolated nodes
-        edge_index = torch.tensor([
-            [0, 1],
-            [1, 0]
-        ])
+        edge_index = torch.tensor([[0, 1], [1, 0]])
         x = torch.tensor([[1.0], [2.0], [3.0], [4.0]])  # 2 isolated nodes
         data = Data(x=x, edge_index=edge_index, num_nodes=4)
 
@@ -118,7 +104,7 @@ class TestKeepOnlyConnectedComponent:
             edge_index=edge_index,
             num_nodes=2,
             edge_attr=torch.tensor([[1.0], [1.0]]),
-            test_attr="test"
+            test_attr="test",
         )
 
         transformed = self.transform(data.clone())

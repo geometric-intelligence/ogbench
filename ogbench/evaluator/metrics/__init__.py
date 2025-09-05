@@ -73,10 +73,7 @@ class LoadManager:
                 new_metrics = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
-                    if (
-                        cls.is_metric_class(obj)
-                        and obj.__module__ == module.__name__
-                    )
+                    if (cls.is_metric_class(obj) and obj.__module__ == module.__name__)
                 }
                 metrics.update(new_metrics)
             except ImportError as e:

@@ -24,9 +24,7 @@ class TBLoss(AbstractLoss):
         # Dataset loss
         self.losses.append(DatasetLoss(dataset_loss))
         # Model losses
-        self.losses.extend(
-            [loss for loss in modules_losses.values() if loss is not None]
-        )
+        self.losses.extend([loss for loss in modules_losses.values() if loss is not None])
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(losses={self.losses})"

@@ -71,9 +71,7 @@ class DGMStructureFeatureEncoder(AbstractFeatureEncoder):
     def __repr__(self):
         return f"{self.__class__.__name__}(in_channels={self.in_channels}, out_channels={self.out_channels}, dimensions={self.dimensions})"
 
-    def forward(
-        self, data: torch_geometric.data.Data
-    ) -> torch_geometric.data.Data:
+    def forward(self, data: torch_geometric.data.Data) -> torch_geometric.data.Data:
         r"""Forward pass.
 
         The method applies the BaseEncoders to the features of the selected_dimensions.

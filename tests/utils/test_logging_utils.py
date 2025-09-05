@@ -1,13 +1,16 @@
 """Unit tests for logging utils."""
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from ogbench.utils import log_hyperparameters
+
 
 @patch("ogbench.utils.logging_utils.pylogger.RankedLogger.warning")
 @patch("ogbench.utils.logging_utils.OmegaConf.to_container")
 def test_log_hyperparameters(mock_to_container, mock_warning):
     """Test the log_hyperparameters function.
-    
+
     Parameters
     ----------
     mock_to_container : MagicMock
@@ -35,7 +38,7 @@ def test_log_hyperparameters(mock_to_container, mock_warning):
         "callbacks": "mock_callbacks",
         "extras": "mock_extras",
         "task_name": "mock_task_name",
-        "tags": "mock_tags"
+        "tags": "mock_tags",
     }
 
     # Call the function
@@ -55,6 +58,7 @@ def test_log_hyperparameters(mock_to_container, mock_warning):
 
     # Check if the warning was called
     mock_warning.assert_called_once_with("Logger not found! Skipping hyperparameter logging...")
+
 
 if __name__ == "__main__":
     pytest.main()

@@ -36,8 +36,6 @@ class KeepOnlyConnectedComponent(torch_geometric.transforms.BaseTransform):
         """
         # torch_geometric.transforms.largest_connected_components()
         num_components = self.parameters["num_components"]
-        lcc = LargestConnectedComponents(
-            num_components=num_components, connection="strong"
-        )
+        lcc = LargestConnectedComponents(num_components=num_components, connection="strong")
         data = lcc(data)
         return data

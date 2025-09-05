@@ -3,6 +3,7 @@
 import pytest
 import torch
 from torch_geometric.data import Data
+
 from ogbench.transforms.data_manipulations import GroupCombinatorialHomophily
 
 
@@ -38,17 +39,16 @@ class TestGroupCombinatorialHomophily:
         incidence[0:2, 0] = 1
         # Second hyperedge contains nodes 2,3
         incidence[2:4, 1] = 1
-        
+
         data = Data(
-            incidence_hyperedges=incidence.to_sparse(),
-            y=torch.tensor([0, 0, 1, 1])  # Two classes
+            incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 1, 1])  # Two classes
         )
 
         transformed = self.transform(data)
-        
+
         assert "group_combinatorial_homophily" in transformed
         result = transformed["group_combinatorial_homophily"]
-        
+
         # Should have entry for hyperedges of size 2
         assert "he_card=2" in result
         # Check matrices exist
@@ -67,15 +67,12 @@ class TestGroupCombinatorialHomophily:
         incidence[2:5, 1] = 1
         # Size 2 hyperedge
         incidence[1:3, 2] = 1
-        
-        data = Data(
-            incidence_hyperedges=incidence.to_sparse(),
-            y=torch.tensor([0, 0, 1, 1, 1])
-        )
+
+        data = Data(incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 1, 1, 1]))
 
         transformed = self.transform(data)
         result = transformed["group_combinatorial_homophily"]
-        
+
         # Should capture the two most frequent sizes
         assert len(result) <= self.transform.top_k
         assert any("he_card=2" in key for key in result.keys())
@@ -85,15 +82,14 @@ class TestGroupCombinatorialHomophily:
         incidence = torch.zeros((3, 2))
         incidence[0:2, 0] = 1
         incidence[1:3, 1] = 1
-        
+
         data = Data(
-            incidence_hyperedges=incidence.to_sparse(),
-            y=torch.tensor([0, 0, 0])  # All same class
+            incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 0])  # All same class
         )
 
         transformed = self.transform(data)
         result = transformed["group_combinatorial_homophily"]
-        
+
         for size_data in result.values():
             assert size_data["Dt"].shape[0] == 1  # Only one class
             assert not torch.isnan(size_data["Dt"]).any()
@@ -101,10 +97,7 @@ class TestGroupCombinatorialHomophily:
 
     def test_empty_hypergraph(self):
         """Test transform on empty hypergraph."""
-        data = Data(
-            incidence_hyperedges=torch.zeros((0, 0)).to_sparse(),
-            y=torch.tensor([])
-        )
+        data = Data(incidence_hyperedges=torch.zeros((0, 0)).to_sparse(), y=torch.tensor([]))
 
         transformed = self.transform(data)
         assert "group_combinatorial_homophily" in transformed
@@ -116,7 +109,7 @@ class TestGroupCombinatorialHomophily:
         x_mod = 5  # nodes in class
         t = 2  # type-t degree
         k = 3  # hyperedge size
-        
+
         score = self.transform.calculate_affinity_score(n_nodes, x_mod, t, k)
         assert isinstance(score, float)
         assert 0 <= score <= 1  # Should be a probability
@@ -128,22 +121,15 @@ class TestGroupCombinatorialHomophily:
         incidence[0:2, 0] = 1
         incidence[2:4, 1] = 1
         labels = torch.tensor([0, 0, 1, 1])
-        
+
         unique_labels = {0: 2, 1: 2}  # Two nodes of each class
-        class_node_idxs = {
-            0: torch.tensor([0, 1]),
-            1: torch.tensor([2, 3])
-        }
+        class_node_idxs = {0: torch.tensor([0, 1]), 1: torch.tensor([2, 3])}
         he_cardinalities = torch.tensor([2, 2])
-        
+
         Dt, D = self.transform.calculate_D_matrix(
-            incidence, 
-            labels,
-            he_cardinalities,
-            unique_labels,
-            class_node_idxs
+            incidence, labels, he_cardinalities, unique_labels, class_node_idxs
         )
-        
+
         assert not torch.isnan(Dt).any()
         assert not torch.isnan(D).any()
         assert Dt.shape[1] == max(he_cardinalities)
@@ -154,11 +140,11 @@ class TestGroupCombinatorialHomophily:
         incidence = torch.zeros((3, 2))
         incidence[0:2, 0] = 1
         incidence[1:3, 1] = 1
-        
+
         data = Data(
             incidence_hyperedges=incidence.to_sparse(),
             y=torch.tensor([0, 1, 0]),
-            custom_attr="test"
+            custom_attr="test",
         )
 
         transformed = self.transform(data)

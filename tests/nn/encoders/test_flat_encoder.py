@@ -2,7 +2,9 @@
 import torch
 import torch_geometric
 from torch_geometric.data import Data
+
 from ogbench.nn.encoders.flat_encoder import FlatEncoder
+
 
 def test_flat_encoder_forward():
     """Test the forward pass of the FlatEncoder."""
@@ -21,6 +23,7 @@ def test_flat_encoder_forward():
     assert out_data.x_0.shape[0] == batch_size
     assert out_data.x_0.ndim == 2
     assert torch.equal(out_data.labels, y)
+
 
 if __name__ == "__main__":
     test_flat_encoder_forward()

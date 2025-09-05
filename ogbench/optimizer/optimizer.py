@@ -12,7 +12,8 @@ TORCH_SCHEDULERS = torch.optim.lr_scheduler.__dict__
 
 
 class TBOptimizer(AbstractOptimizer):
-    """Optimizer class that manage both optimizer and scheduler, fully compatible with `torch.optim` classes.
+    """Optimizer class that manage both optimizer and scheduler, fully compatible with
+    `torch.optim` classes.
 
     Parameters
     ----------
@@ -26,15 +27,11 @@ class TBOptimizer(AbstractOptimizer):
 
     def __init__(self, optimizer_id, parameters, scheduler=None) -> None:
         optimizer_id = optimizer_id
-        self.optimizer = functools.partial(
-            TORCH_OPTIMIZERS[optimizer_id], **parameters
-        )
+        self.optimizer = functools.partial(TORCH_OPTIMIZERS[optimizer_id], **parameters)
         if scheduler is not None:
             scheduler_id = scheduler.get("scheduler_id")
             scheduler_params = scheduler.get("scheduler_params")
-            self.scheduler = functools.partial(
-                TORCH_SCHEDULERS[scheduler_id], **scheduler_params
-            )
+            self.scheduler = functools.partial(TORCH_SCHEDULERS[scheduler_id], **scheduler_params)
         else:
             self.scheduler = None
 

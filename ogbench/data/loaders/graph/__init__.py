@@ -69,10 +69,7 @@ class GraphLoaderManager:
                 new_loaders = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
-                    if (
-                        cls.is_loader_class(obj)
-                        and obj.__module__ == module.__name__
-                    )
+                    if (cls.is_loader_class(obj) and obj.__module__ == module.__name__)
                 }
                 loaders.update(new_loaders)
         return loaders

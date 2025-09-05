@@ -23,9 +23,7 @@ class FlatEncoder(AbstractFeatureEncoder):
         self.in_channels = in_channels
         self.out_channels = out_channels
 
-    def forward(
-        self, data: torch_geometric.data.Data
-    ) -> torch_geometric.data.Data:
+    def forward(self, data: torch_geometric.data.Data) -> torch_geometric.data.Data:
         r"""Forward pass of the flat encoder.
 
         Parameters

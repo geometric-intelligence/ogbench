@@ -15,23 +15,24 @@ import torch_geometric.transforms as T
 from huggingface_hub import hf_hub_download
 from lightning import LightningDataModule
 from sklearn.impute import SimpleImputer
-from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
-from ogbench.data.utils import MinMaxNormalizer, MeanStdNormalizer
+from ogbench.data.utils import MeanStdNormalizer, MinMaxNormalizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+import os.path as osp
+
 from omegaconf import DictConfig, OmegaConf
 from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.io import fs
-import torch_geometric.transforms as T
-import os.path as osp
+
 
 class AddEdgeIndex(T.BaseTransform):
     """Transform that adds a fixed edge_index to each graph.
-    
+
     Parameters
     ----------
     edge_index : torch.Tensor
@@ -43,12 +44,12 @@ class AddEdgeIndex(T.BaseTransform):
 
     def forward(self, data: Data) -> Data:
         """Add the fixed edge_index to the data object.
-        
+
         Parameters
         ----------
         data : Data
             The input graph data object.
-        
+
         Returns
         -------
         Data
@@ -56,7 +57,7 @@ class AddEdgeIndex(T.BaseTransform):
         """
         data.edge_index = self.edge_index
         return data
-    
+
 
 class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
@@ -77,7 +78,7 @@ class HFOmicsDataset(InMemoryDataset):
         node_sample_ratio: float = 1.0,
         train_val_test_split: list[float] = [0.7, 0.15, 0.15],
         hf_repo_id: str = "geometric-intelligence/bgbench",
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
 
@@ -101,11 +102,19 @@ class HFOmicsDataset(InMemoryDataset):
         self.feature_normalizer = MeanStdNormalizer()
         self.target_normalizer = MeanStdNormalizer()
 
-        self.name = osp.join(f"{self.data_name}", f"adj_thresh_{self.adjacency_threshold}", f"{self.method}", f"p_{self.node_sample_ratio}", f"train_split_{self.train_val_test_split[0]}")
+        self.name = osp.join(
+            f"{self.data_name}",
+            f"adj_thresh_{self.adjacency_threshold}",
+            f"{self.method}",
+            f"p_{self.node_sample_ratio}",
+            f"train_split_{self.train_val_test_split[0]}",
+        )
         self.normalize_targets = False if data_name in self.classification_datasets else True
 
         super().__init__(root)
-        data, self.slices, self.sizes, data_cls, self.edge_index = fs.torch_load(self.processed_paths[0])
+        data, self.slices, self.sizes, data_cls, self.edge_index = fs.torch_load(
+            self.processed_paths[0]
+        )
         self.data = data_cls.from_dict(data)
         assert isinstance(self._data, Data)
         self.transform = T.Compose([AddEdgeIndex(self.edge_index)])
@@ -294,9 +303,7 @@ class HFOmicsDataset(InMemoryDataset):
         else:
             y_normalized = torch.from_numpy(y_tensor)
 
-        graph = torch_geometric.data.Data(
-            x=node_features_normalized.unsqueeze(1), y=y_normalized
-        )
+        graph = torch_geometric.data.Data(x=node_features_normalized.unsqueeze(1), y=y_normalized)
         return graph
         # transform = T.ToSparseTensor()
         # return transform(graph)
@@ -311,6 +318,7 @@ class HFOmicsDataset(InMemoryDataset):
 
         # Shuffle selected_data and targets in unison
         from sklearn.utils import shuffle
+
         selected_data, targets = shuffle(selected_data, targets, random_state=42)
 
         # Fit normalizers on training data
@@ -323,6 +331,7 @@ class HFOmicsDataset(InMemoryDataset):
             self.target_normalizer.fit(train_targets)
         # Save normalizer statistics to JSON
         import json
+
         # Convert train_val_test_split to list if it's a ListConfig
         train_val_test_split = OmegaConf.to_object(self.train_val_test_split)
         normalizer_stats = {
@@ -335,16 +344,20 @@ class HFOmicsDataset(InMemoryDataset):
             "target_normalizer": {
                 "mean": self.target_normalizer.mean,
                 "std": self.target_normalizer.std,
-            }
+            },
         }
         normalizers_stats_path = os.path.join(self.processed_dir, "processing_stats.json")
         with open(normalizers_stats_path, "w") as f:
             json.dump(normalizer_stats, f, indent=4)
         logger.info(f"Saved processing and normalizer stats to {normalizers_stats_path}")
-        logger.info(f"Creating graph data...")
-        from tqdm import tqdm
+        logger.info("Creating graph data...")
+
         graph_data_list = []
-        for (_, subject_data), subject_target in tqdm(zip(selected_data.iterrows(), targets), total=len(selected_data), desc="Creating graphs"):
+        for (_, subject_data), subject_target in tqdm(
+            zip(selected_data.iterrows(), targets),
+            total=len(selected_data),
+            desc="Creating graphs",
+        ):
             graph_data_list.append(
                 self.create_graph_data(subject_data.values, subject_target, adj_matrix)
             )
@@ -352,14 +365,13 @@ class HFOmicsDataset(InMemoryDataset):
         self.n_graphs = len(graph_data_list)
 
         self.data, self.slices = self.collate(graph_data_list)
-        self.graph_list = []    # Reset cache.
+        self.graph_list = []  # Reset cache.
         self._data_list = None  # Reset cache.
         self.edge_index = edge_index
         fs.torch_save(
             (self._data.to_dict(), self.slices, {}, self._data.__class__, self.edge_index),
             self.processed_paths[0],
         )
-
 
 
 # class HFMotrPacDataModule(HFOmicsDataModule):

@@ -33,6 +33,5 @@ readout:
   pooling_type: sum
   logits_linear_layer: false
 
-
 # compile model for faster training with pytorch 2.0
 compile: false

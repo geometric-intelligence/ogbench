@@ -24,9 +24,7 @@ class Graph2CellLifting(GraphLifting):
         self.complex_dim = complex_dim
         self.type = "graph2cell"
 
-    def _get_lifted_topology(
-        self, cell_complex: CellComplex, graph: nx.Graph
-    ) -> dict:
+    def _get_lifted_topology(self, cell_complex: CellComplex, graph: nx.Graph) -> dict:
         r"""Return the lifted topology.
 
         Parameters
@@ -48,9 +46,7 @@ class Graph2CellLifting(GraphLifting):
             list(cell_complex.get_cell_attributes("features", 0).values())
         )
         # If new edges have been added during the lifting process, we discard the edge attributes
-        if self.contains_edge_attr and cell_complex.shape[1] == (
-            graph.number_of_edges()
-        ):
+        if self.contains_edge_attr and cell_complex.shape[1] == (graph.number_of_edges()):
             lifted_topology["x_1"] = torch.stack(
                 list(cell_complex.get_cell_attributes("features", 1).values())
             )
