@@ -40,6 +40,7 @@ readout:
   out_channels: ${dataset.parameters.num_classes}
   task_level: ${dataset.parameters.task_level}
   pooling_type: sum
+  which_layer: ['layer1', 'layer2', 'layer3']
 
   in_channels: ${model.backbone_wrapper.out_channels}
   num_nodes: ${dataset.parameters.num_nodes}

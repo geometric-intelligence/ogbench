@@ -6,7 +6,7 @@ loader:
     data_domain: graph
     data_name: covidaki
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.85
+    adjacency_threshold: 0.95
     node_sample_ratio: 0.169
     method: variance
     imputation_method: mean
@@ -32,7 +32,7 @@ split_params:
 
 # Dataloader parameters
 dataloader_params:
-  batch_size: 16
+  batch_size: 1
   num_workers: 0
   pin_memory: False
   persistent_workers: False

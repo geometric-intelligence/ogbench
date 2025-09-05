@@ -112,7 +112,7 @@ class GATv4(nn.Module):
         num_nodes,
         weight_initializer,
     ):
-        super().__init__()
+        super(GATv4, self).__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
         self.out_channels = out_channels
@@ -143,13 +143,13 @@ class GATv4(nn.Module):
         input_dim = self.in_channels
         for hidden_dim, num_heads in zip(self.hidden_channels, self.heads):
             self.convs.append(
-                CustomGATConv(
+                GATv2Conv(
                     in_channels=input_dim,
                     out_channels=hidden_dim,  # dim of each node at the end
                     heads=num_heads,
                     dropout=self.dropout,
                     concat=True,
-                    weight_initializer=self.weight_initializer,
+                    # weight_initializer=self.weight_initializer,
                 )
             )
             input_dim = hidden_dim * num_heads
