@@ -18,7 +18,7 @@ backbone:
   K: 2
 
 backbone_wrapper:
-  _target_: ogbench.nn.wrappers.GNNWrapper 
+  _target_: ogbench.nn.wrappers.GNNWrapper
   _partial_: true
   wrapper_name: GNNWrapper
   out_channels: ${model.feature_encoder.out_channels}

@@ -1,16 +1,7 @@
 """TopoBench: A library for benchmarking of topological models."""
 
 # Import submodules
-from . import (
-    data,
-    dataloader,
-    evaluator,
-    loss,
-    model,
-    nn,
-    transforms,
-    utils,
-)
+from . import data, dataloader, evaluator, loss, model, nn, transforms, utils
 from .run import initialize_hydra
 
 __all__ = [

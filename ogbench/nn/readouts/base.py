@@ -52,9 +52,7 @@ class AbstractZeroCellReadOut(torch.nn.Module):
     def __repr__(self):
         return f"{self.__class__.__name__}(task_level={self.task_level}, pooling_type={self.pooling_type})"
 
-    def __call__(
-        self, model_out: dict, batch: torch_geometric.data.Data
-    ) -> dict:
+    def __call__(self, model_out: dict, batch: torch_geometric.data.Data) -> dict:
         """Readout logic based on model_output.
 
         Parameters
@@ -72,9 +70,7 @@ class AbstractZeroCellReadOut(torch.nn.Module):
         model_out = self.forward(model_out, batch)
 
         if model_out.get("logits", None) is None:
-            model_out["logits"] = self.compute_logits(
-                model_out["x_0"], batch["batch_0"]
-            )
+            model_out["logits"] = self.compute_logits(model_out["x_0"], batch["batch_0"])
 
         return model_out
 

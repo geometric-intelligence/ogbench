@@ -5,14 +5,14 @@
 defaults:
   - _self_
   - dataset: graph/covidaki.yaml
-  - model: graph/gcn #non_relational/mlp # TODO: Make it compatible with mlp
+  - model: graph/gcn
   - transforms: ${get_default_transform:${dataset},${model}} #no_transform
   - optimizer: default
   - loss: default
   - evaluator: default
   - callbacks: default
-  - logger: wandb # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
-  - trainer: ${get_default_trainer:} #default
+  - logger: wandb
+  - trainer: gpu
   - paths: default
   - extras: default
   - hydra: default
@@ -30,9 +30,6 @@ defaults:
 
   # debugging config (enable through command line, e.g. `python train.py debug=default)
   - debug: null
-
-# evaluator: ${dataset.parameters.task}
-# callbacks: ${dataset.parameters.task}
 
 # task name, determines output directory path
 task_name: "train"

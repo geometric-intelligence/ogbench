@@ -10,7 +10,8 @@ from ogbench.dataloader.utils import collate_fn
 
 
 class TBDataloader(LightningDataModule):
-    r"""This class takes care of returning the dataloaders for the training, validation, and test datasets.
+    r"""This class takes care of returning the dataloaders for the training, validation, and test
+    datasets.
 
     It also handles the collate function. The class is designed to work with the `torch` dataloaders.
 
@@ -62,9 +63,7 @@ class TBDataloader(LightningDataModule):
             # Transductive setting
             self.dataset_val = dataset_train
             self.dataset_test = dataset_train
-            assert self.batch_size == 1, (
-                "Batch size must be 1 for transductive setting."
-            )
+            assert self.batch_size == 1, "Batch size must be 1 for transductive setting."
         else:
             self.dataset_val = dataset_val
             self.dataset_test = dataset_test
@@ -132,7 +131,8 @@ class TBDataloader(LightningDataModule):
         )
 
     def teardown(self, stage: str | None = None) -> None:
-        r"""Lightning hook for cleaning up after `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and `trainer.predict()`.
+        r"""Lightning hook for cleaning up after `trainer.fit()`, `trainer.validate()`,
+        `trainer.test()`, and `trainer.predict()`.
 
         Parameters
         ----------

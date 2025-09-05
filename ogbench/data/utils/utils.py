@@ -1,6 +1,7 @@
 """Data utilities."""
 
 import hashlib
+from typing import Optional
 
 import networkx as nx
 import numpy as np
@@ -10,7 +11,7 @@ import torch_geometric
 import torch_geometric.utils
 from topomodelx.utils.sparse import from_sparse
 from toponetx.classes import SimplicialComplex
-from typing import Optional
+
 
 class MeanStdNormalizer:
     """Normalize features using mean and standard deviation."""
@@ -64,7 +65,6 @@ class MinMaxNormalizer:
         return x * (self.max_val - self.min_val) + self.min_val
 
 
-
 def get_routes_from_neighborhoods(neighborhoods):
     """Get the routes from the neighborhoods.
 
@@ -85,18 +85,12 @@ def get_routes_from_neighborhoods(neighborhoods):
         split = neighborhood.split("-")
         src_rank = int(split[-1])
         r = int(split[0]) if len(split) == 3 else 1
-        route = (
-            [src_rank, src_rank - r]
-            if "down" in neighborhood
-            else [src_rank, src_rank + r]
-        )
+        route = [src_rank, src_rank - r] if "down" in neighborhood else [src_rank, src_rank + r]
         routes.append(route)
     return routes
 
 
-def get_complex_connectivity(
-    complex, max_rank, neighborhoods=None, signed=False
-):
+def get_complex_connectivity(complex, max_rank, neighborhoods=None, signed=False):
     """Get the connectivity matrices for the complex.
 
     Parameters
@@ -115,9 +109,7 @@ def get_complex_connectivity(
     dict
         Dictionary containing the connectivity matrices.
     """
-    practical_shape = list(
-        np.pad(list(complex.shape), (0, max_rank + 1 - len(complex.shape)))
-    )
+    practical_shape = list(np.pad(list(complex.shape), (0, max_rank + 1 - len(complex.shape))))
     connectivity = {}
     for rank_idx in range(max_rank + 1):
         for connectivity_info in [
@@ -128,38 +120,33 @@ def get_complex_connectivity(
             "coadjacency",
             "hodge_laplacian",
         ]:
-            try:  #### from_sparse doesn't have rank and signed
+            # from_sparse doesn't have rank and signed
+            try:
                 connectivity[f"{connectivity_info}_{rank_idx}"] = from_sparse(
-                    getattr(complex, f"{connectivity_info}_matrix")(
-                        rank=rank_idx, signed=signed
-                    )
+                    getattr(complex, f"{connectivity_info}_matrix")(rank=rank_idx, signed=signed)
                 )
             except:  # noqa: E722
                 if connectivity_info == "incidence":
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        generate_zero_sparse_connectivity(
-                            m=practical_shape[rank_idx - 1],
-                            n=practical_shape[rank_idx],
-                        )
+                    connectivity[
+                        f"{connectivity_info}_{rank_idx}"
+                    ] = generate_zero_sparse_connectivity(
+                        m=practical_shape[rank_idx - 1],
+                        n=practical_shape[rank_idx],
                     )
                 else:
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        generate_zero_sparse_connectivity(
-                            m=practical_shape[rank_idx],
-                            n=practical_shape[rank_idx],
-                        )
+                    connectivity[
+                        f"{connectivity_info}_{rank_idx}"
+                    ] = generate_zero_sparse_connectivity(
+                        m=practical_shape[rank_idx],
+                        n=practical_shape[rank_idx],
                     )
     if neighborhoods is not None:
-        connectivity = select_neighborhoods_of_interest(
-            connectivity, neighborhoods
-        )
+        connectivity = select_neighborhoods_of_interest(connectivity, neighborhoods)
     connectivity["shape"] = practical_shape
     return connectivity
 
 
-def get_combinatorial_complex_connectivity(
-    complex, max_rank, neighborhoods=None
-):
+def get_combinatorial_complex_connectivity(complex, max_rank, neighborhoods=None):
     r"""Get the connectivity matrices for the Combinatorial Complex.
 
     Parameters
@@ -176,9 +163,7 @@ def get_combinatorial_complex_connectivity(
     dict
         Dictionary containing the connectivity matrices.
     """
-    practical_shape = list(
-        np.pad(list(complex.shape), (0, max_rank + 1 - len(complex.shape)))
-    )
+    practical_shape = list(np.pad(list(complex.shape), (0, max_rank + 1 - len(complex.shape))))
     connectivity = {}
     for rank_idx in range(max_rank + 1):
         for connectivity_info in [
@@ -191,55 +176,45 @@ def get_combinatorial_complex_connectivity(
         ]:
             try:
                 if connectivity_info == "adjacency":
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        from_sparse(
-                            getattr(complex, f"{connectivity_info}_matrix")(
-                                rank_idx, rank_idx + 1
-                            )
-                        )
+                    connectivity[f"{connectivity_info}_{rank_idx}"] = from_sparse(
+                        getattr(complex, f"{connectivity_info}_matrix")(rank_idx, rank_idx + 1)
                     )
                 else:  # incidence
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        from_sparse(
-                            getattr(complex, f"{connectivity_info}_matrix")(
-                                rank_idx - 1, rank_idx
-                            )
-                        )
+                    connectivity[f"{connectivity_info}_{rank_idx}"] = from_sparse(
+                        getattr(complex, f"{connectivity_info}_matrix")(rank_idx - 1, rank_idx)
                     )
             except ValueError:
                 if connectivity_info == "incidence":
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        generate_zero_sparse_connectivity(
-                            m=practical_shape[rank_idx - 1],
-                            n=practical_shape[rank_idx],
-                        )
+                    connectivity[
+                        f"{connectivity_info}_{rank_idx}"
+                    ] = generate_zero_sparse_connectivity(
+                        m=practical_shape[rank_idx - 1],
+                        n=practical_shape[rank_idx],
                     )
                 else:
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        generate_zero_sparse_connectivity(
-                            m=practical_shape[rank_idx],
-                            n=practical_shape[rank_idx],
-                        )
+                    connectivity[
+                        f"{connectivity_info}_{rank_idx}"
+                    ] = generate_zero_sparse_connectivity(
+                        m=practical_shape[rank_idx],
+                        n=practical_shape[rank_idx],
                     )
             except AttributeError:
                 if connectivity_info == "incidence":
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        generate_zero_sparse_connectivity(
-                            m=practical_shape[rank_idx - 1],
-                            n=practical_shape[rank_idx],
-                        )
+                    connectivity[
+                        f"{connectivity_info}_{rank_idx}"
+                    ] = generate_zero_sparse_connectivity(
+                        m=practical_shape[rank_idx - 1],
+                        n=practical_shape[rank_idx],
                     )
                 else:
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = (
-                        generate_zero_sparse_connectivity(
-                            m=practical_shape[rank_idx],
-                            n=practical_shape[rank_idx],
-                        )
+                    connectivity[
+                        f"{connectivity_info}_{rank_idx}"
+                    ] = generate_zero_sparse_connectivity(
+                        m=practical_shape[rank_idx],
+                        n=practical_shape[rank_idx],
                     )
     if neighborhoods is not None:
-        connectivity = select_neighborhoods_of_interest(
-            connectivity, neighborhoods
-        )
+        connectivity = select_neighborhoods_of_interest(connectivity, neighborhoods)
     connectivity["shape"] = practical_shape
     return connectivity
 
@@ -287,18 +262,13 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
         new_values = new_values / new_values
 
         # Construct a new sparse tensor
-        return torch.sparse_coo_tensor(
-            new_indices, new_values, sparse_tensor.size()
-        )
+        return torch.sparse_coo_tensor(new_indices, new_values, sparse_tensor.size())
 
     useful_connectivity = {}
     for neighborhood in neighborhoods:
         src_rank = int(neighborhood.split("-")[-1])
         try:
-            if (
-                len(neighborhood.split("-")) == 2
-                or neighborhood.split("-")[0] == "1"
-            ):
+            if len(neighborhood.split("-")) == 2 or neighborhood.split("-")[0] == "1":
                 r = 1
                 neighborhood_type = (
                     neighborhood.split("-")[0]
@@ -324,10 +294,7 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
             elif len(neighborhood.split("-")) == 3:
                 r = int(neighborhood.split("-")[0])
                 neighborhood_type = neighborhood.split("-")[1]
-                if (
-                    "adjacency" in neighborhood_type
-                    or "laplacian" in neighborhood_type
-                ):
+                if "adjacency" in neighborhood_type or "laplacian" in neighborhood_type:
                     direction, connectivity_type = neighborhood_type.split("_")
                     if direction == "up":
                         # Multiply consecutive incidence matrices up to getting the desired rank
@@ -336,9 +303,7 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                             connectivity[f"incidence_{src_rank + 2}"],
                         )
                         for idx in range(src_rank + 3, src_rank + r + 1):
-                            matrix = torch.sparse.mm(
-                                matrix, connectivity[f"incidence_{idx}"]
-                            )
+                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
                         # Multiply the resulting matrix by its transpose to get the laplacian matrix
                         matrix = torch.sparse.mm(matrix, matrix.T)
                         # Turn all values to 1s
@@ -360,9 +325,7 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                             connectivity[f"incidence_{src_rank - r + 2}"],
                         )
                         for idx in range(src_rank - r + 3, src_rank + 1):
-                            matrix = torch.sparse.mm(
-                                matrix, connectivity[f"incidence_{idx}"]
-                            )
+                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
                         # Multiply the resulting matrix by its transpose to get the laplacian matrix
                         matrix = torch.sparse.mm(matrix.T, matrix)
                         # Turn all values to 1s
@@ -386,17 +349,13 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                             connectivity[f"incidence_{src_rank + 2}"],
                         )
                         for idx in range(src_rank + 3, src_rank + r + 1):
-                            matrix = torch.sparse.mm(
-                                matrix, connectivity[f"incidence_{idx}"]
-                            )
+                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
                         # Turn all values to 1s and transpose the matrix
-                        useful_connectivity[neighborhood] = (
-                            torch.sparse_coo_tensor(
-                                matrix.indices(),
-                                matrix.values() / matrix.values(),
-                                matrix.size(),
-                            ).T
-                        )
+                        useful_connectivity[neighborhood] = torch.sparse_coo_tensor(
+                            matrix.indices(),
+                            matrix.values() / matrix.values(),
+                            matrix.size(),
+                        ).T
                     elif direction == "down":
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
@@ -404,16 +363,12 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                             connectivity[f"incidence_{src_rank - r + 2}"],
                         )
                         for idx in range(src_rank - r + 3, src_rank + 1):
-                            matrix = torch.sparse.mm(
-                                matrix, connectivity[f"incidence_{idx}"]
-                            )
+                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
                         # Turn all values to 1s
-                        useful_connectivity[neighborhood] = (
-                            torch.sparse_coo_tensor(
-                                matrix.indices(),
-                                matrix.values() / matrix.values(),
-                                matrix.size(),
-                            )
+                        useful_connectivity[neighborhood] = torch.sparse_coo_tensor(
+                            matrix.indices(),
+                            matrix.values() / matrix.values(),
+                            matrix.size(),
                         )
             else:
                 useful_connectivity[neighborhood] = connectivity[neighborhood]
@@ -544,11 +499,7 @@ def load_manual_graph_second_structure():
     edge_list = torch.Tensor(list(G.edges())).T.long()
 
     # Generate updated features (example features for 12 nodes)
-    x = (
-        torch.tensor([1, 5, 10, 50, 100, 500, 1000, 5000, 200, 300, 400, 600])
-        .unsqueeze(1)
-        .float()
-    )
+    x = torch.tensor([1, 5, 10, 50, 100, 500, 1000, 5000, 200, 300, 400, 600]).unsqueeze(1).float()
 
     data = torch_geometric.data.Data(
         x=x,
@@ -588,29 +539,28 @@ def ensure_serializable(obj):
         return None
 
 
-def make_hash(o):
-    """Make a hash from a dictionary, list, tuple or set to any level, that contains only other hashable types.
+def make_hash(o: object) -> int:
+    """Make a deterministic hash from any object that can be converted to string.
+
+    Uses SHA1 for hashing and maps to a 32-bit integer range.
 
     Parameters
     ----------
-    o : dict, list, tuple, set
-        Object to hash.
+    o : object
+        Object to hash. Must be convertible to string.
 
     Returns
     -------
     int
-        Hash of the object.
+        32-bit integer hash of the object.
     """
-    sha1 = hashlib.sha1()
-    sha1.update(str.encode(str(o)))
-    hash_as_hex = sha1.hexdigest()
-    # Convert the hex back to int and restrict it to the relevant int range
-    return int(hash_as_hex, 16) % 4294967295
+    sha1 = hashlib.sha1(str(o).encode(), usedforsecurity=False)  # nosec B324
+    # Map to 32-bit integer range (0 to 2^32 - 1)
+    return int(sha1.hexdigest(), 16) % (2**32)
 
 
 def data2simplicial(data):
-    """
-    Convert a data dictionary into a SimplicialComplex object.
+    """Convert a data dictionary into a SimplicialComplex object.
 
     Parameters
     ----------
@@ -629,9 +579,7 @@ def data2simplicial(data):
     nodes = [[i] for i in range(data["incidence_0"].shape[1])]
 
     # Convert edges to a list of pairs
-    edges = torch_geometric.utils.remove_self_loops(
-        data["adjacency_0"].indices()
-    )[0].T.tolist()
+    edges = torch_geometric.utils.remove_self_loops(data["adjacency_0"].indices())[0].T.tolist()
 
     # Detect triangles if incidence_1 and incidence_2 exist
     triangles = (
@@ -642,9 +590,7 @@ def data2simplicial(data):
 
     # Detect tetrahedrons if incidence_3 exists
     tetrahedrons = (
-        find_tetrahedrons(
-            data["incidence_1"], data["incidence_2"], data["incidence_3"]
-        )
+        find_tetrahedrons(data["incidence_1"], data["incidence_2"], data["incidence_3"])
         if "incidence_3" in data
         else []
     )
@@ -659,8 +605,7 @@ def data2simplicial(data):
 
 
 def find_triangles(incidence_1, incidence_2):
-    """
-    Identify triangles in the simplicial complex based on incidence matrices.
+    """Identify triangles in the simplicial complex based on incidence matrices.
 
     Parameters
     ----------
@@ -684,8 +629,7 @@ def find_triangles(incidence_1, incidence_2):
 
 
 def find_tetrahedrons(incidence_1, incidence_2, incidence_3):
-    """
-    Identify tetrahedrons in the simplicial complex.
+    """Identify tetrahedrons in the simplicial complex.
 
     Parameters
     ----------
@@ -704,10 +648,7 @@ def find_tetrahedrons(incidence_1, incidence_2, incidence_3):
     tetrahedrons = (incidence_1 @ incidence_2 @ incidence_3).indices()
     unique_tetrahedrons = torch.unique(tetrahedrons[1])
     tetrahedron_list = [
-        [
-            j.item()
-            for j in tetrahedrons[0][torch.where(tetrahedrons[1] == i)[0]]
-        ]
+        [j.item() for j in tetrahedrons[0][torch.where(tetrahedrons[1] == i)[0]]]
         for i in unique_tetrahedrons
     ]
     return tetrahedron_list

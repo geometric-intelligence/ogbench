@@ -8,7 +8,7 @@ import lightning as L
 import numpy as np
 import rootutils
 import torch
-from lightning import Callback, LightningModule, Trainer, LightningDataModule
+from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -56,38 +56,22 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 
 
-OmegaConf.register_new_resolver(
-    "calculate_num_nodes", calculate_num_nodes, replace=True
-)
-OmegaConf.register_new_resolver(
-    "get_default_metrics", get_default_metrics, replace=True
-)
-OmegaConf.register_new_resolver(
-    "get_default_trainer", get_default_trainer, replace=True
-)
-OmegaConf.register_new_resolver(
-    "get_default_transform", get_default_transform, replace=True
-)
+OmegaConf.register_new_resolver("calculate_num_nodes", calculate_num_nodes, replace=True)
+OmegaConf.register_new_resolver("get_default_metrics", get_default_metrics, replace=True)
+OmegaConf.register_new_resolver("get_default_trainer", get_default_trainer, replace=True)
+OmegaConf.register_new_resolver("get_default_transform", get_default_transform, replace=True)
 OmegaConf.register_new_resolver(
     "get_flattened_channels",
     get_flattened_channels,
     replace=True,
 )
-OmegaConf.register_new_resolver(
-    "get_required_lifting", get_required_lifting, replace=True
-)
-OmegaConf.register_new_resolver(
-    "get_monitor_metric", get_monitor_metric, replace=True
-)
-OmegaConf.register_new_resolver(
-    "get_monitor_mode", get_monitor_mode, replace=True
-)
+OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, replace=True)
+OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
+OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
 OmegaConf.register_new_resolver(
     "get_non_relational_out_channels", get_non_relational_out_channels, replace=True
 )
-OmegaConf.register_new_resolver(
-    "infer_in_channels", infer_in_channels, replace=True
-)
+OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
 OmegaConf.register_new_resolver(
     "infer_num_cell_dimensions", infer_num_cell_dimensions, replace=True
 )
@@ -104,9 +88,7 @@ def initialize_hydra() -> DictConfig:
     DictConfig
         A DictConfig object containing the config tree.
     """
-    hydra.initialize(
-        version_base="1.3", config_path="../configs", job_name="run"
-    )
+    hydra.initialize(version_base="1.3", config_path="../configs", job_name="run")
     cfg = hydra.compose(config_name="run.yaml")
     return cfg
 
@@ -153,8 +135,8 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     log.info("Instantiating preprocessor...")
     transform_config = cfg.get("transforms", None)
     preprocessor = PreProcessor(dataset, dataset_dir, transform_config)
-    dataset_train, dataset_val, dataset_test = (
-        preprocessor.load_dataset_splits(cfg.dataset.split_params)
+    dataset_train, dataset_val, dataset_test = preprocessor.load_dataset_splits(
+        cfg.dataset.split_params
     )
     # Prepare datamodule
     log.info("Instantiating datamodule...")
@@ -206,14 +188,12 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
 
     if cfg.get("train"):
         log.info("Starting training!")
-        trainer.fit(
-            model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path")
-        )
+        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
         # Log the best model checkpoint path into wandb
         for logger_elem in logger:
-            if isinstance(
-                logger_elem, L.pytorch.loggers.wandb.WandbLogger
-            ) and hasattr(logger_elem, "experiment"):
+            if isinstance(logger_elem, L.pytorch.loggers.wandb.WandbLogger) and hasattr(
+                logger_elem, "experiment"
+            ):
                 logger_elem.experiment.log(
                     {"checkpoint": trainer.checkpoint_callback.best_model_path}
                 )
@@ -225,29 +205,21 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         test_best_model_path = True
         if cfg.get("ckpt_path"):
             ckpt_path = cfg.ckpt_path
-            log.info(
-                f"Attempting to load weights from the provided ckpt_path: {ckpt_path}"
-            )
+            log.info(f"Attempting to load weights from the provided ckpt_path: {ckpt_path}")
             try:
-                trainer.test(
-                    model=model, datamodule=datamodule, ckpt_path=ckpt_path
+                trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+                test_best_model_path = (
+                    False  # do not test "best model" if a valid ckpt_path is provided
                 )
-                test_best_model_path = False  # do not test "best model" if a valid ckpt_path is provided
             except FileNotFoundError:
-                log.warning(
-                    f"No checkpoint file found at the provided ckpt_path: {ckpt_path}."
-                )
+                log.warning(f"No checkpoint file found at the provided ckpt_path: {ckpt_path}.")
                 log.info("Trying with best model instead...")
         if test_best_model_path:
             ckpt_path = trainer.checkpoint_callback.best_model_path
             if ckpt_path == "":
-                log.warning(
-                    "Best ckpt not found! Using current weights for testing..."
-                )
+                log.warning("Best ckpt not found! Using current weights for testing...")
                 ckpt_path = None
-            trainer.test(
-                model=model, datamodule=datamodule, ckpt_path=ckpt_path
-            )
+            trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
 
     test_metrics = trainer.callback_metrics
 
@@ -257,9 +229,7 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     return metric_dict, object_dict
 
 
-def count_number_of_parameters(
-    model: torch.nn.Module, only_trainable: bool = True
-) -> int:
+def count_number_of_parameters(model: torch.nn.Module, only_trainable: bool = True) -> int:
     """Count the number of trainable params.
 
     If all params, specify only_trainable = False.
@@ -281,18 +251,14 @@ def count_number_of_parameters(
         The number of parameters.
     """
     if only_trainable:
-        num_params: int = sum(
-            p.numel() for p in model.parameters() if p.requires_grad
-        )
+        num_params: int = sum(p.numel() for p in model.parameters() if p.requires_grad)
     else:  # counts trainable and none-traibale
         num_params: int = sum(p.numel() for p in model.parameters() if p)
     assert num_params > 0, f"Err: {num_params=}"
     return int(num_params)
 
 
-@hydra.main(
-    version_base="1.3", config_path="../configs", config_name="run.yaml"
-)
+@hydra.main(version_base="1.3", config_path="../configs", config_name="run.yaml")
 def main(cfg: DictConfig) -> float | None:
     """Main entry point for training.
 
