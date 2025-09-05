@@ -1,4 +1,5 @@
 """Configuration file for pytest."""
+
 import networkx as nx
 import pytest
 import torch

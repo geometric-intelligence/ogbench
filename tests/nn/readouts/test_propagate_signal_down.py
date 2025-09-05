@@ -230,7 +230,11 @@ class TestPropagateSignalDown:
         logits = sample_model_output["logits"].clone().detach().requires_grad_(True)
         x_1 = sample_model_output["x_1"].clone().detach().requires_grad_(True)
 
-        model_output = {"logits": logits, "x_0": logits, "x_1": x_1}  # Share the same tensor
+        model_output = {
+            "logits": logits,
+            "x_0": logits,
+            "x_1": x_1,
+        }  # Share the same tensor
 
         output = readout_layer(model_output, sample_batch)
         loss = output["x_0"].sum()

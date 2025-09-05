@@ -57,7 +57,8 @@ class TestHypergraphKNNLifting:
         )
 
         assert torch.equal(
-            lifted_data_k2["incidence_hyperedges"].to_dense(), expected_incidence_1
+            lifted_data_k2["incidence_hyperedges"].to_dense(),
+            expected_incidence_1,
         ), "Incorrect incidence_hyperedges for k=2"
 
         assert lifted_data_k2["num_hyperedges"] == expected_n_hyperedges
@@ -89,7 +90,8 @@ class TestHypergraphKNNLifting:
         )
 
         assert torch.equal(
-            lifted_data_k3["incidence_hyperedges"].to_dense(), expected_incidence_1
+            lifted_data_k3["incidence_hyperedges"].to_dense(),
+            expected_incidence_1,
         ), "Incorrect incidence_hyperedges for k=3"
 
         assert lifted_data_k3["num_hyperedges"] == expected_n_hyperedges
@@ -157,7 +159,8 @@ class TestHypergraphKNNLifting:
 
         # Test single node case (edge case that should work)
         single_node_data = Data(
-            x=torch.tensor([[1.0]], dtype=torch.float), edge_index=torch.tensor([[0], [0]])
+            x=torch.tensor([[1.0]], dtype=torch.float),
+            edge_index=torch.tensor([[0], [0]]),
         )
         lifted_single = self.lifting_k2.lift_topology(single_node_data)
         assert lifted_single["num_hyperedges"] == 1

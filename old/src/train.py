@@ -26,10 +26,10 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)  # no
 # more info: https://github.com/ashleve/rootutils
 # ------------------------------------------------------------------------------------ #
 
-from src.utils import (  # noqa
+from src.utils import get_metric_value  # noqa
+from src.utils import (
     RankedLogger,
     extras,
-    get_metric_value,
     instantiate_callbacks,
     instantiate_loggers,
     log_hyperparameters,

@@ -160,7 +160,12 @@ def test_topotune():
     batch = create_mock_complex_batch()
     gnn = MockGNN(16, 32, 16)
     neighborhoods = OmegaConf.create(
-        ["up_adjacency-0", "up_adjacency-1", "down_incidence-1", "down_incidence-2"]
+        [
+            "up_adjacency-0",
+            "up_adjacency-1",
+            "down_incidence-1",
+            "down_incidence-2",
+        ]
     )  # [[[0, 0], "adjacency"], [[1, 1], "adjacency"], [[1, 0], "boundary"], [[2, 1], "boundary"]])
 
     auto_test = ModifiedNNModuleAutoTest(
@@ -189,7 +194,11 @@ def test_topotune_methods():
         ["up_adjacency-0", "down_incidence-1"]
     )  # [[[0, 0], "adjacency"], [[1, 0], "boundary"]])
     topotune = TopoTune(
-        GNN=gnn, neighborhoods=neighborhoods, layers=2, use_edge_attr=False, activation="relu"
+        GNN=gnn,
+        neighborhoods=neighborhoods,
+        layers=2,
+        use_edge_attr=False,
+        activation="relu",
     )
 
     # Test generate_membership_vectors

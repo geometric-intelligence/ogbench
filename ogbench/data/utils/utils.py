@@ -17,7 +17,9 @@ class MeanStdNormalizer:
     """Normalize features using mean and standard deviation."""
 
     def __init__(
-        self, mean: Optional[np.ndarray] = None, std: Optional[np.ndarray] = None
+        self,
+        mean: Optional[np.ndarray] = None,
+        std: Optional[np.ndarray] = None,
     ) -> None:
         self.mean = mean
         self.std = std

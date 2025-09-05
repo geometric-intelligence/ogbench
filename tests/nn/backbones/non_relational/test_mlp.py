@@ -1,4 +1,5 @@
 """Test MLP."""
+
 import pytest
 import torch
 import torch.nn as nn
@@ -14,7 +15,14 @@ from ogbench.nn.backbones.non_relational.mlp import MLP
         (2, None, 4, [8], 1, None),
     ],
 )
-def test_mlp_forward(batch_size, num_nodes, in_channels, hidden_channels, out_channels, final_act):
+def test_mlp_forward(
+    batch_size,
+    num_nodes,
+    in_channels,
+    hidden_channels,
+    out_channels,
+    final_act,
+):
     """Test MLP.
 
     Parameters

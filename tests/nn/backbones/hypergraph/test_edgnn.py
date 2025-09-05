@@ -44,7 +44,10 @@ def test_EDGNN(random_graph_input):
         [
             {
                 "module": EDGNN,
-                "init": {"num_features": x.shape[1], "edconv_type": "JumpLink"},
+                "init": {
+                    "num_features": x.shape[1],
+                    "edconv_type": "JumpLink",
+                },
                 "forward": (x, sparse_edges_1),
                 "assert_shape": x.shape,
             },

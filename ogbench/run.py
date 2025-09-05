@@ -69,7 +69,9 @@ OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, re
 OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
 OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
 OmegaConf.register_new_resolver(
-    "get_non_relational_out_channels", get_non_relational_out_channels, replace=True
+    "get_non_relational_out_channels",
+    get_non_relational_out_channels,
+    replace=True,
 )
 OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
 OmegaConf.register_new_resolver(

@@ -141,7 +141,10 @@ class TestNoReadOut:
             edge_index=torch.randint(0, 5, (2, 8)),
             batch_0=torch.zeros(5, dtype=torch.long),
         )
-        single_output = {"x_0": torch.randn(5, 64), "embeddings": torch.randn(5, 64)}
+        single_output = {
+            "x_0": torch.randn(5, 64),
+            "embeddings": torch.randn(5, 64),
+        }
         result = readout_layer(single_output, single_batch)
         assert "logits" in result
 
@@ -151,7 +154,10 @@ class TestNoReadOut:
             edge_index=torch.randint(0, 15, (2, 25)),
             batch_0=torch.cat([torch.zeros(5), torch.ones(5), torch.ones(5) * 2]).long(),
         )
-        multi_output = {"x_0": torch.randn(15, 64), "embeddings": torch.randn(15, 64)}
+        multi_output = {
+            "x_0": torch.randn(15, 64),
+            "embeddings": torch.randn(15, 64),
+        }
         result = readout_layer(multi_output, multi_batch)
         assert "logits" in result
 

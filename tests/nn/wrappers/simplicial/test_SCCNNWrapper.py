@@ -36,7 +36,9 @@ class TestSimplicialWrappers:
         )
 
         wrapper = SCCNNWrapper(
-            SCCNNCustom(*init_args), out_channels=out_dim, num_cell_dimensions=3
+            SCCNNCustom(*init_args),
+            out_channels=out_dim,
+            num_cell_dimensions=3,
         )
         out = wrapper(data)
         # Assert keys in output
@@ -56,7 +58,9 @@ class TestSimplicialWrappers:
         hidden_channels = data.x_0.shape[1]
 
         wrapper = SANWrapper(
-            SAN(data.x_0.shape[1], hidden_channels), out_channels=out_dim, num_cell_dimensions=3
+            SAN(data.x_0.shape[1], hidden_channels),
+            out_channels=out_dim,
+            num_cell_dimensions=3,
         )
         out = wrapper(data)
         # Assert keys in output
@@ -97,7 +101,9 @@ class TestSimplicialWrappers:
         max_rank = 2
 
         wrapper = SCCNWrapper(
-            SCCN(data.x_0.shape[1], max_rank), out_channels=out_dim, num_cell_dimensions=3
+            SCCN(data.x_0.shape[1], max_rank),
+            out_channels=out_dim,
+            num_cell_dimensions=3,
         )
         out = wrapper(data)
         # Assert keys in output

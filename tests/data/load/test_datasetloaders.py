@@ -1,4 +1,5 @@
 """Comprehensive test suite for all dataset loaders."""
+
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -88,12 +89,17 @@ class TestLoaders:
           Tuple containing the dataset and dataset directory.
         """
         with hydra.initialize(
-            version_base="1.3", config_path=self.relative_config_dir, job_name="run"
+            version_base="1.3",
+            config_path=self.relative_config_dir,
+            job_name="run",
         ):
             print("Current config file: ", config_file)
             parameters = hydra.compose(
                 config_name="run.yaml",
-                overrides=[f"dataset={data_domain}/{config_file}", "model=graph/gat"],
+                overrides=[
+                    f"dataset={data_domain}/{config_file}",
+                    "model=graph/gat",
+                ],
                 return_hydra_config=True,
             )
             dataset_loader = hydra.utils.instantiate(parameters.dataset.loader)

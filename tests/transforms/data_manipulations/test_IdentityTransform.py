@@ -106,7 +106,12 @@ class TestIdentityTransform:
         edge_index = torch.randint(0, num_nodes, (2, num_edges))
         edge_attr = torch.randn(num_edges, 5)  # 5 features per edge
 
-        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, num_nodes=num_nodes)
+        data = Data(
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            num_nodes=num_nodes,
+        )
 
         transformed = self.transform(data)
 
@@ -118,7 +123,9 @@ class TestIdentityTransform:
     def test_data_consistency(self):
         """Test that transform preserves data consistency."""
         data = Data(
-            x=torch.tensor([[1.0], [2.0]]), edge_index=torch.tensor([[0, 1], [1, 0]]), num_nodes=2
+            x=torch.tensor([[1.0], [2.0]]),
+            edge_index=torch.tensor([[0, 1], [1, 0]]),
+            num_nodes=2,
         )
 
         transformed = self.transform(data)

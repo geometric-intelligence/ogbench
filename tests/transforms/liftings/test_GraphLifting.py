@@ -1,4 +1,5 @@
 """Test the GraphLifting class."""
+
 import pytest
 import torch
 from torch_geometric.data import Data
@@ -50,7 +51,8 @@ class TestGraphLifting:
 
         # Test case 2: Data without edge attributes
         data_without_edge_attr = Data(
-            x=torch.tensor([[1.0], [2.0]]), edge_index=torch.tensor([[0, 1], [1, 0]])
+            x=torch.tensor([[1.0], [2.0]]),
+            edge_index=torch.tensor([[0, 1], [1, 0]]),
         )
         assert self.lifting._data_has_edge_attr(data_without_edge_attr) is False
 
@@ -104,6 +106,7 @@ class TestGraphLifting:
             Boolean value to test initialization with True and False values.
         """
         lifting = ConcreteGraphLifting(
-            feature_lifting="ProjectionSum", preserve_edge_attr=preserve_edge_attr
+            feature_lifting="ProjectionSum",
+            preserve_edge_attr=preserve_edge_attr,
         )
         assert lifting.preserve_edge_attr == preserve_edge_attr

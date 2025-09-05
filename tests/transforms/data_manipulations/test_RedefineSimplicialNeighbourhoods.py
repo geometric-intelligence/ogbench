@@ -27,11 +27,16 @@ class TestRedefineSimplicialNeighbourhoods:
         """
 
         with hydra.initialize(
-            version_base="1.3", config_path=self.relative_config_dir, job_name="run"
+            version_base="1.3",
+            config_path=self.relative_config_dir,
+            job_name="run",
         ):
             parameters = hydra.compose(
                 config_name="run.yaml",
-                overrides=["dataset=simplicial/mantra_orientation", "model=graph/gat"],
+                overrides=[
+                    "dataset=simplicial/mantra_orientation",
+                    "model=graph/gat",
+                ],
                 return_hydra_config=True,
             )
             dataset_loader = hydra.utils.instantiate(parameters.dataset.loader)
@@ -63,7 +68,8 @@ class TestRedefineSimplicialNeighbourhoods:
                 if key not in {"x", "x_0", "x_1", "x_2", "y", "shape"}:
                     try:
                         assert torch.equal(
-                            initial[key].to_dense(), transformed[key].to_dense()
+                            initial[key].to_dense(),
+                            transformed[key].to_dense(),
                         ), f"Mismatch in tensor values for key: {key}"
                     except AttributeError as e:
                         pytest.fail(

@@ -305,7 +305,10 @@ def test_hf_datamodule_log_stats() -> None:
     # Check that log_callback was called with expected keys
     expected_calls = [
         ("mean_degree", pytest.approx(np.mean(np.sum(adj_matrix, axis=1)))),
-        ("median_degree", pytest.approx(np.median(np.sum(adj_matrix, axis=1)))),
+        (
+            "median_degree",
+            pytest.approx(np.median(np.sum(adj_matrix, axis=1))),
+        ),
         ("min_degree", pytest.approx(np.min(np.sum(adj_matrix, axis=1)))),
         ("max_degree", pytest.approx(np.max(np.sum(adj_matrix, axis=1)))),
         ("total_edges", pytest.approx(np.sum(np.sum(adj_matrix, axis=1)) / 2)),

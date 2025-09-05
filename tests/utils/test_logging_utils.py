@@ -1,4 +1,5 @@
 """Unit tests for logging utils."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest

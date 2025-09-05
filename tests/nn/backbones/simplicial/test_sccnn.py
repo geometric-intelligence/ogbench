@@ -47,7 +47,11 @@ def test_SCCNNCustom(simple_graph_1):
                     conv_order,
                     sc_order,
                 ),
-                "forward": ((data.x, data.x_1, data.x_2), laplacian_all, incidence_all),
+                "forward": (
+                    (data.x, data.x_1, data.x_2),
+                    laplacian_all,
+                    incidence_all,
+                ),
                 "assert_shape": expected_shapes,
             },
         ]
@@ -101,7 +105,10 @@ def test_sccnn_basic_initialization():
 
     # Test basic initialization
     model = SCCNNCustom(
-        in_channels_all=in_channels, hidden_channels_all=hidden_channels, conv_order=2, sc_order=3
+        in_channels_all=in_channels,
+        hidden_channels_all=hidden_channels,
+        conv_order=2,
+        sc_order=3,
     )
     assert model is not None
 
@@ -158,7 +165,9 @@ def test_aggr_norm(create_sample_data):
 
     # Forward pass with aggregation normalization
     output = model(
-        (data["x"], data["x_1"], data["x_2"]), data["laplacian_all"], data["incidence_all"]
+        (data["x"], data["x_1"], data["x_2"]),
+        data["laplacian_all"],
+        data["incidence_all"],
     )
 
     assert len(output) == 3
@@ -172,13 +181,19 @@ def test_different_conv_orders():
 
     # Test with conv_order = 1
     model1 = SCCNNCustom(
-        in_channels_all=in_channels, hidden_channels_all=hidden_channels, conv_order=1, sc_order=3
+        in_channels_all=in_channels,
+        hidden_channels_all=hidden_channels,
+        conv_order=1,
+        sc_order=3,
     )
     assert model1 is not None
 
     # Test with conv_order = 3
     model2 = SCCNNCustom(
-        in_channels_all=in_channels, hidden_channels_all=hidden_channels, conv_order=3, sc_order=3
+        in_channels_all=in_channels,
+        hidden_channels_all=hidden_channels,
+        conv_order=3,
+        sc_order=3,
     )
     assert model2 is not None
 
@@ -199,13 +214,19 @@ def test_different_sc_orders():
 
     # Test with sc_order = 2
     model1 = SCCNNCustom(
-        in_channels_all=in_channels, hidden_channels_all=hidden_channels, conv_order=2, sc_order=2
+        in_channels_all=in_channels,
+        hidden_channels_all=hidden_channels,
+        conv_order=2,
+        sc_order=2,
     )
     assert model1 is not None
 
     # Test with sc_order > 2
     model2 = SCCNNCustom(
-        in_channels_all=in_channels, hidden_channels_all=hidden_channels, conv_order=2, sc_order=3
+        in_channels_all=in_channels,
+        hidden_channels_all=hidden_channels,
+        conv_order=2,
+        sc_order=3,
     )
     assert model2 is not None
 
@@ -221,11 +242,16 @@ def test_forward_shapes(create_sample_data):
     data = create_sample_data
 
     model = SCCNNCustom(
-        in_channels_all=(3, 4, 5), hidden_channels_all=(6, 6, 6), conv_order=2, sc_order=3
+        in_channels_all=(3, 4, 5),
+        hidden_channels_all=(6, 6, 6),
+        conv_order=2,
+        sc_order=3,
     )
 
     output = model(
-        (data["x"], data["x_1"], data["x_2"]), data["laplacian_all"], data["incidence_all"]
+        (data["x"], data["x_1"], data["x_2"]),
+        data["laplacian_all"],
+        data["incidence_all"],
     )
 
     assert output[0].shape == (data["x"].shape[0], 6)

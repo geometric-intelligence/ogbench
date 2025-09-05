@@ -1,6 +1,5 @@
 """MotrPac dataset processor."""
 
-
 import os
 
 import numpy as np
@@ -43,7 +42,9 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     # Impute missing values in features
     imputer = SimpleImputer(strategy="mean")
     raw_data = pd.DataFrame(
-        imputer.fit_transform(raw_data), columns=raw_data.columns, index=raw_data.index
+        imputer.fit_transform(raw_data),
+        columns=raw_data.columns,
+        index=raw_data.index,
     )
 
     assert not raw_data.isna().any().any(), "Raw data has nan values"

@@ -48,7 +48,8 @@ class TestAbstractLifting:
         NotImplementedError as expected.
         """
         dummy_data = Data(
-            x=torch.tensor([[1.0], [2.0]]), edge_index=torch.tensor([[0, 1], [1, 0]])
+            x=torch.tensor([[1.0], [2.0]]),
+            edge_index=torch.tensor([[0, 1], [1, 0]]),
         )
 
         with pytest.raises(NotImplementedError):

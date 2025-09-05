@@ -46,13 +46,18 @@ class TestEqualGausFeatures:
     def test_forward_basic(self):
         """Test basic forward pass."""
         data = Data(
-            x=torch.tensor([[1.0], [2.0]]), edge_index=torch.tensor([[0, 1], [1, 0]]), num_nodes=2
+            x=torch.tensor([[1.0], [2.0]]),
+            edge_index=torch.tensor([[0, 1], [1, 0]]),
+            num_nodes=2,
         )
 
         transformed = self.transform(data)
 
         # Check output dimensions
-        assert transformed.x.size() == (2, self.num_features)  # num_nodes x num_features
+        assert transformed.x.size() == (
+            2,
+            self.num_features,
+        )  # num_nodes x num_features
         assert transformed.num_nodes == 2
 
         # Check other attributes are preserved
@@ -74,7 +79,11 @@ class TestEqualGausFeatures:
         node_counts = [1, 10, 100]
 
         for n in node_counts:
-            data = Data(x=torch.randn(n, 2), edge_index=torch.zeros((2, 0)), num_nodes=n)
+            data = Data(
+                x=torch.randn(n, 2),
+                edge_index=torch.zeros((2, 0)),
+                num_nodes=n,
+            )
 
             transformed = self.transform(data)
             assert transformed.x.size() == (n, self.num_features)

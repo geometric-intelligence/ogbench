@@ -48,7 +48,8 @@ class TestMessagePassingHomophily:
         incidence[2:4, 1] = 1
 
         data = Data(
-            incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 1, 1])  # Two classes
+            incidence_hyperedges=incidence.to_sparse(),
+            y=torch.tensor([0, 0, 1, 1]),  # Two classes
         )
 
         transformed = self.transform(data)
@@ -62,8 +63,16 @@ class TestMessagePassingHomophily:
         assert "Np" in result
 
         # Check dimensions
-        assert result["Ep"].shape == (2, 2, 2)  # num_steps x num_edges x num_classes
-        assert result["Np"].shape == (2, 4, 2)  # num_steps x num_nodes x num_classes
+        assert result["Ep"].shape == (
+            2,
+            2,
+            2,
+        )  # num_steps x num_edges x num_classes
+        assert result["Np"].shape == (
+            2,
+            4,
+            2,
+        )  # num_steps x num_nodes x num_classes
 
         # Check probability distributions sum to 1
         assert torch.allclose(result["Ep"].sum(dim=2), torch.ones(2, 2))
@@ -98,7 +107,8 @@ class TestMessagePassingHomophily:
         incidence[1:3, 1] = 1
 
         data = Data(
-            incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 0])  # All same class
+            incidence_hyperedges=incidence.to_sparse(),
+            y=torch.tensor([0, 0, 0]),  # All same class
         )
 
         transformed = self.transform(data)
@@ -145,7 +155,10 @@ class TestMessagePassingHomophily:
 
     def test_empty_hypergraph(self):
         """Test transform on empty hypergraph."""
-        data = Data(incidence_hyperedges=torch.zeros((0, 0)).to_sparse(), y=torch.tensor([]))
+        data = Data(
+            incidence_hyperedges=torch.zeros((0, 0)).to_sparse(),
+            y=torch.tensor([]),
+        )
 
         transformed = self.transform(data)
         result = transformed["mp_homophily"]

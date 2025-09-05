@@ -41,7 +41,8 @@ class TestGroupCombinatorialHomophily:
         incidence[2:4, 1] = 1
 
         data = Data(
-            incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 1, 1])  # Two classes
+            incidence_hyperedges=incidence.to_sparse(),
+            y=torch.tensor([0, 0, 1, 1]),  # Two classes
         )
 
         transformed = self.transform(data)
@@ -68,7 +69,10 @@ class TestGroupCombinatorialHomophily:
         # Size 2 hyperedge
         incidence[1:3, 2] = 1
 
-        data = Data(incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 1, 1, 1]))
+        data = Data(
+            incidence_hyperedges=incidence.to_sparse(),
+            y=torch.tensor([0, 0, 1, 1, 1]),
+        )
 
         transformed = self.transform(data)
         result = transformed["group_combinatorial_homophily"]
@@ -84,7 +88,8 @@ class TestGroupCombinatorialHomophily:
         incidence[1:3, 1] = 1
 
         data = Data(
-            incidence_hyperedges=incidence.to_sparse(), y=torch.tensor([0, 0, 0])  # All same class
+            incidence_hyperedges=incidence.to_sparse(),
+            y=torch.tensor([0, 0, 0]),  # All same class
         )
 
         transformed = self.transform(data)
@@ -97,7 +102,10 @@ class TestGroupCombinatorialHomophily:
 
     def test_empty_hypergraph(self):
         """Test transform on empty hypergraph."""
-        data = Data(incidence_hyperedges=torch.zeros((0, 0)).to_sparse(), y=torch.tensor([]))
+        data = Data(
+            incidence_hyperedges=torch.zeros((0, 0)).to_sparse(),
+            y=torch.tensor([]),
+        )
 
         transformed = self.transform(data)
         assert "group_combinatorial_homophily" in transformed

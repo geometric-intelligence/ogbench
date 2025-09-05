@@ -66,7 +66,10 @@ class TestKeepOnlyConnectedComponent:
 
         # Create a graph with three components
         edge_index = torch.tensor(
-            [[0, 1, 2, 3, 4, 5], [1, 0, 3, 2, 5, 4]]  # Three components: (0,1), (2,3), (4,5)
+            [
+                [0, 1, 2, 3, 4, 5],
+                [1, 0, 3, 2, 5, 4],
+            ]  # Three components: (0,1), (2,3), (4,5)
         )
         x = torch.tensor([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]])
         data = Data(x=x, edge_index=edge_index, num_nodes=6)

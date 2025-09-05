@@ -1,4 +1,5 @@
 """Test the TBEvaluator class."""
+
 import pytest
 import torch
 import torch_geometric
@@ -17,7 +18,10 @@ class TestDatasetLoss:
         self.dataset2 = DatasetLoss(dataset_loss)
         dataset_loss = {"task": "regression", "loss_type": "mae"}
         self.dataset3 = DatasetLoss(dataset_loss)
-        dataset_loss = {"task": "multilabel classification", "loss_type": "BCE"}
+        dataset_loss = {
+            "task": "multilabel classification",
+            "loss_type": "BCE",
+        }
         self.dataset4 = DatasetLoss(dataset_loss)
 
         dataset_loss = {"task": "wrong", "loss_type": "wrong"}

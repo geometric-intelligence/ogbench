@@ -67,7 +67,9 @@ class TestDGMStructureFeatureEncoder:
             Fixture providing sample graph data for testing.
         """
         encoder = DGMStructureFeatureEncoder(
-            in_channels=[5, 7, 9], out_channels=64, selected_dimensions=[0, 1, 2]
+            in_channels=[5, 7, 9],
+            out_channels=64,
+            selected_dimensions=[0, 1, 2],
         )
 
         # Perform forward pass

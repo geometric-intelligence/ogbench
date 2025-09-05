@@ -82,7 +82,13 @@ class TestCellWrappers:
         num_cell_dimensions = 2
 
         wrapper = CWNWrapper(
-            CWN(data.x_0.shape[1], data.x_1.shape[1], data.x_2.shape[1], hid_channels, 2),
+            CWN(
+                data.x_0.shape[1],
+                data.x_1.shape[1],
+                data.x_2.shape[1],
+                hid_channels,
+                2,
+            ),
             out_channels=out_channels,
             num_cell_dimensions=num_cell_dimensions,
         )

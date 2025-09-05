@@ -19,7 +19,10 @@ app = typer.Typer(help="Download and upload omics datasets to HuggingFace")
 @app.command()
 def motrpac(
     output_dir: str = typer.Option(
-        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+        "temp_data",
+        "--output-dir",
+        "-o",
+        help="Output directory for temporary files",
     )
 ) -> None:
     """Download and upload MotrPac dataset to HuggingFace."""
@@ -31,7 +34,10 @@ def motrpac(
 @app.command()
 def pancancer(
     output_dir: str = typer.Option(
-        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+        "temp_data",
+        "--output-dir",
+        "-o",
+        help="Output directory for temporary files",
     )
 ) -> None:
     """Download and upload PanCancer dataset to HuggingFace."""
@@ -43,7 +49,10 @@ def pancancer(
 @app.command()
 def addneuromed(
     output_dir: str = typer.Option(
-        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+        "temp_data",
+        "--output-dir",
+        "-o",
+        help="Output directory for temporary files",
     )
 ) -> None:
     """Download and upload AddNeuroMed dataset to HuggingFace."""
@@ -55,7 +64,10 @@ def addneuromed(
 @app.command()
 def covidaki(
     output_dir: str = typer.Option(
-        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+        "temp_data",
+        "--output-dir",
+        "-o",
+        help="Output directory for temporary files",
     )
 ) -> None:
     """Download and upload CovidAKI dataset to HuggingFace."""
@@ -67,7 +79,10 @@ def covidaki(
 @app.command()
 def parkinsons(
     output_dir: str = typer.Option(
-        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+        "temp_data",
+        "--output-dir",
+        "-o",
+        help="Output directory for temporary files",
     )
 ) -> None:
     """Download and upload Parkinsons dataset to HuggingFace."""
@@ -79,10 +94,15 @@ def parkinsons(
 @app.command()
 def all(
     output_dir: str = typer.Option(
-        "temp_data", "--output-dir", "-o", help="Output directory for temporary files"
+        "temp_data",
+        "--output-dir",
+        "-o",
+        help="Output directory for temporary files",
     ),
     cleanup: bool = typer.Option(
-        True, "--cleanup/--no-cleanup", help="Clean up temporary files after upload"
+        True,
+        "--cleanup/--no-cleanup",
+        help="Clean up temporary files after upload",
     ),
 ) -> None:
     """Download and upload all datasets to HuggingFace."""

@@ -194,7 +194,12 @@ def test_topotune_onehasse():
     batch = create_mock_complex_batch()
     gnn = MockGNN(16, 32, 16)
     neighborhoods = OmegaConf.create(
-        ["up_adjacency-0", "up_adjacency-1", "down_incidence-1", "down_incidence-2"]
+        [
+            "up_adjacency-0",
+            "up_adjacency-1",
+            "down_incidence-1",
+            "down_incidence-2",
+        ]
     )  # [[[0, 0], "adjacency"], [[1, 1], "adjacency"], [[1, 0], "boundary"], [[2, 1], "boundary"]])
 
     auto_test = ModifiedNNModuleAutoTest(
@@ -223,7 +228,11 @@ def test_topotune_onehasse_methods():
         ["up_adjacency-0", "down_incidence-1"]
     )  # [[[0, 0], "adjacency"], [[1, 0], "boundary"]])
     topotune = TopoTune_OneHasse(
-        GNN=gnn, neighborhoods=neighborhoods, layers=2, use_edge_attr=False, activation="relu"
+        GNN=gnn,
+        neighborhoods=neighborhoods,
+        layers=2,
+        use_edge_attr=False,
+        activation="relu",
     )
 
     # Test generate_membership_vectors
@@ -239,7 +248,10 @@ def test_topotune_onehasse_methods():
     # Test all_nbhds_expand
     expanded = topotune.all_nbhds_expand(batch, membership)
     assert isinstance(expanded, Data)
-    assert expanded.x.shape == (7, 16)  # (3 nodes + 3 edges + 1 face) * 2 batches
+    assert expanded.x.shape == (
+        7,
+        16,
+    )  # (3 nodes + 3 edges + 1 face) * 2 batches
     assert expanded.edge_index.shape[0] == 2
     assert expanded.batch.shape == (7,)
 
@@ -332,9 +344,18 @@ def test_topotune_onehasse_fallback_rank_not_updated():
     "bad_neighborhood,expected_errmsg",
     [
         ("up_adjacency-2", "Unsupported src_rank for 'up' neighborhood: 2"),
-        ("down_adjacency-0", "Unsupported src_rank for 'down' neighborhood: 0"),
-        ("down_incidence-0", "Unsupported src_rank for 'down_incidence' neighborhood: 0"),
-        ("up_incidence-2", "Unsupported src_rank for 'up_incidence' neighborhood: 2"),
+        (
+            "down_adjacency-0",
+            "Unsupported src_rank for 'down' neighborhood: 0",
+        ),
+        (
+            "down_incidence-0",
+            "Unsupported src_rank for 'down_incidence' neighborhood: 0",
+        ),
+        (
+            "up_incidence-2",
+            "Unsupported src_rank for 'up_incidence' neighborhood: 2",
+        ),
     ],
 )
 def test_topotune_onehasse_unsupported_src_rank_raises(bad_neighborhood, expected_errmsg):
@@ -406,7 +427,9 @@ def test_topotune_onehasse_indexerror_in_aggregate_inter_nbhd(mocker):
         return membership
 
     mocker.patch.object(
-        model, "generate_membership_vectors", side_effect=fake_generate_membership_vectors
+        model,
+        "generate_membership_vectors",
+        side_effect=fake_generate_membership_vectors,
     )
 
     with pytest.raises(IndexError, match="out of bounds"):
@@ -441,7 +464,10 @@ def create_special_batch():
     batch["down_incidence-1"] = torch.sparse_coo_tensor(
         indices=torch.tensor([[0, 1], [0, 0]]),
         values=torch.ones(2),
-        size=(4, 2),  # node->edge shape or something that might not match typical
+        size=(
+            4,
+            2,
+        ),  # node->edge shape or something that might not match typical
     ).coalesce()
     # Possibly no adjacency for rank=2 or something partial
 
@@ -466,7 +492,8 @@ def test_valueerror_in_all_nbhds_expand_missing_neighborhood_key():
     )
 
     with pytest.raises(
-        AttributeError, match="GlobalStorage' object has no attribute 'down_laplacian-2"
+        AttributeError,
+        match="GlobalStorage' object has no attribute 'down_laplacian-2",
     ):
         model(batch)
 

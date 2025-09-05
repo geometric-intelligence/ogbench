@@ -56,7 +56,10 @@ class GNNLitModule(LightningModule):
         )
 
     def forward(
-        self, x: torch.Tensor, adj_t: torch.sparse.Tensor = None, batch_vector: torch.Tensor = None
+        self,
+        x: torch.Tensor,
+        adj_t: torch.sparse.Tensor = None,
+        batch_vector: torch.Tensor = None,
     ) -> torch.Tensor:
         """Perform a forward pass through the model `self.net`.
 
@@ -120,9 +123,27 @@ class GNNLitModule(LightningModule):
         self.train_loss(loss)
         self.train_mse(preds, targets.reshape(-1, 1))
         self.train_r2(preds, targets.reshape(-1, 1))
-        self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train/mse", self.train_mse, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train/r2", self.train_r2, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "train/loss",
+            self.train_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        self.log(
+            "train/mse",
+            self.train_mse,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        self.log(
+            "train/r2",
+            self.train_r2,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
 
         return loss
 
@@ -142,10 +163,28 @@ class GNNLitModule(LightningModule):
         self.val_loss_best(loss)
         self.val_mse(preds, targets.reshape(-1, 1))
         self.val_r2(preds, targets.reshape(-1, 1))
-        self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val/mse", self.val_mse, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "val/loss",
+            self.val_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        self.log(
+            "val/mse",
+            self.val_mse,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
         self.log("val/r2", self.val_r2, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val/loss_best", self.val_loss_best, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "val/loss_best",
+            self.val_loss_best,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
 
     def on_validation_epoch_end(self) -> None:
         "Lightning hook that is called when a validation epoch ends."
@@ -163,9 +202,27 @@ class GNNLitModule(LightningModule):
         self.test_loss(loss)
         self.test_mse(preds, targets.reshape(-1, 1))
         self.test_r2(preds, targets.reshape(-1, 1))
-        self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("test/mse", self.test_mse, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("test/r2", self.test_r2, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "test/loss",
+            self.test_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        self.log(
+            "test/mse",
+            self.test_mse,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        self.log(
+            "test/r2",
+            self.test_r2,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
 
     def on_test_epoch_end(self) -> None:
         """Lightning hook that is called when a test epoch ends."""
