@@ -6,7 +6,7 @@ loader:
     data_domain: graph
     data_name: parkinsons
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.9
+    adjacency_threshold: 0.85
     node_sample_ratio: 0.169
     method: variance
     imputation_method: mean

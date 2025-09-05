@@ -15,7 +15,6 @@ from ogbench.data.utils import (
     make_hash,
 )
 from ogbench.dataloader import DataloadDataset
-from ogbench.transforms.data_transform import DataTransform
 
 
 class PreProcessor(torch_geometric.data.InMemoryDataset):
@@ -45,10 +44,13 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
             )
             self.save_transform_parameters()
             self.load(self.processed_paths[0])
+            self.data_list = [self.get(idx) for idx in range(len(self))]
         else:
             self.transforms_applied = False
-            super().__init__(dataset.root, None, None, **kwargs)
-            self.data, self.slices = dataset.data, dataset.slices
+            super().__init__(dataset.get_data_dir(), None, None, **kwargs)
+            self.transform = dataset.transform
+            self.data, self.slices = dataset._data, dataset.slices
+            self.data_list = [data for data in dataset]
 
         self.data_list = [self.get(idx) for idx in range(len(self))]
         # Some datasets have fixed splits, and those are stored as split_idx during loading
