@@ -1,6 +1,6 @@
 # Dataset loader config
 loader:
-  _target_: ogbench.data.loaders.OmicsDatasetLoader
+  _target_: ogbench.data.loaders.graph.OmicsDatasetLoader
   parameters:
     data_type: omics
     data_domain: graph

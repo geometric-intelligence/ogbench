@@ -43,13 +43,4 @@ split_helper_functions = [
     # add function name here
 ]
 
-from .io_utils import (  # noqa: E402; import function here, add noqa: F401 for PR; noqa: F401
-    download_file_from_drive,
-)
-
-io_helper_functions = [
-    "download_file_from_drive",
-    # add function name here
-]
-
-__all__ = utils_functions + split_helper_functions + io_helper_functions
+__all__ = utils_functions + split_helper_functions

@@ -94,8 +94,8 @@ def initialize_hydra() -> DictConfig:
     DictConfig
         A DictConfig object containing the config tree.
     """
-    hydra.initialize(version_base="1.3", config_path="../configs", job_name="run")
-    cfg = hydra.compose(config_name="run.yaml")
+    hydra.initialize(version_base="1.3", config_path="../configs", job_name="train")
+    cfg = hydra.compose(config_name="train.yaml")
     return cfg
 
 
@@ -264,7 +264,7 @@ def count_number_of_parameters(model: torch.nn.Module, only_trainable: bool = Tr
     return int(num_params)
 
 
-@hydra.main(version_base="1.3", config_path="../configs", config_name="run.yaml")
+@hydra.main(version_base="1.3", config_path="../configs", config_name="train.yaml")
 def main(cfg: DictConfig) -> float | None:
     """Main entry point for training.
 
