@@ -21,7 +21,7 @@ class TestUtils:
         self.metric_dict = {"accuracy": torch.tensor([90])}
         hydra.initialize(version_base="1.3", config_path="../../configs", job_name="job")
         self.cfg = hydra.compose(
-            config_name="run.yaml",
+            config_name="train.yaml",
             overrides=["extras.ignore_warnings=True", "tags=False"],
             return_hydra_config=True,
         )

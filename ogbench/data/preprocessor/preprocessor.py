@@ -15,7 +15,7 @@ from ogbench.data.utils import (
     make_hash,
 )
 from ogbench.dataloader import DataloadDataset
-from ogbench.transforms import DataTransform
+from ogbench.transforms.data_transform import DataTransform
 
 
 class PreProcessor(torch_geometric.data.InMemoryDataset):

@@ -1,13 +1,13 @@
 # Dataset loader config
 loader:
-  _target_: ogbench.data.loaders.OmicsDatasetLoader
+  _target_: ogbench.data.loaders.graph.omics_datasets.OmicsDatasetLoader
   parameters:
     data_type: omics
     data_domain: graph
-    data_name: pancancer
+    data_name: addneuromed
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.9
-    node_sample_ratio: 0.169
+    adjacency_threshold: 0.85
+    node_sample_ratio: 1.0
     method: variance
     imputation_method: mean
     train_val_test_split: [0.7, 0.15, 0.15]
@@ -15,12 +15,13 @@ loader:
 # Dataset parameters
 parameters:
   num_features: 1
-  num_classes: 1
-  num_samples: 1135
+  # BUG TO FIX: according to overleaf, there should be 3 classes, but we get 41 different labels (from 50 to 100)
+  num_classes: 3
+  num_samples: 717
   num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio}} # 4698 # TODO: it depends on the node sample ratio!
-  task: regression
-  loss_type: mse
-  monitor_metric: mse
+  task: classification
+  loss_type: cross_entropy
+  monitor_metric: accuracy
   task_level: graph
 
 #splits
