@@ -1,15 +1,11 @@
 """MLP implementation."""
 
 import torch.nn as nn
-from torch_geometric.nn.resolver import (
-    activation_resolver,
-    normalization_resolver,
-)
+from torch_geometric.nn.resolver import activation_resolver, normalization_resolver
 
 
 class MLP(nn.Module):
-    """
-    Multi-Layer Perceptron (MLP).
+    """Multi-Layer Perceptron (MLP).
 
     This class implements a multi-layer perceptron architecture with customizable
     activation functions and normalization layers.
@@ -66,9 +62,7 @@ class MLP(nn.Module):
         self.dropout = dropout
         self.norm_layers = self.build_norm_layers(norm, norm_kwargs)
         self.act = (
-            activation_resolver(act, **(act_kwargs or {}))
-            if act is not None
-            else nn.Identity()
+            activation_resolver(act, **(act_kwargs or {})) if act is not None else nn.Identity()
         )
         self.final_act = (
             activation_resolver(final_act, **(final_act_kwargs or {}))
@@ -119,9 +113,7 @@ class MLP(nn.Module):
         """
         layers = []
         fc_layer_input_dim = self.in_channels
-        for fc_dim, norm_layer in zip(
-            self.hidden_channels, self.norm_layers, strict=False
-        ):
+        for fc_dim, norm_layer in zip(self.hidden_channels, self.norm_layers, strict=False):
             layers.append(
                 nn.Sequential(
                     nn.Linear(fc_layer_input_dim, fc_dim),
@@ -174,9 +166,7 @@ class MLP(nn.Module):
         dict
             Dictionary containing the updated model output.
         """
-        model_out["x_0"] = self.forward(
-            model_out["x_0"], model_out.batch_size
-        )
+        model_out["x_0"] = self.forward(model_out["x_0"], model_out.batch_size)
         model_out["logits"] = model_out["x_0"]
 
         return model_out

@@ -50,12 +50,7 @@ def pairwise_poincare_distances(x: torch.Tensor, dim: int = -1) -> tuple:
     x_norm = (x**2).sum(dim, keepdim=True)
 
     pq = torch.cdist(x, x) ** 2
-    dist = (
-        torch.arccosh(
-            1e-6 + 1 + 2 * pq / ((1 - x_norm) * (1 - x_norm.transpose(-1, -2)))
-        )
-        ** 2
-    )
+    dist = torch.arccosh(1e-6 + 1 + 2 * pq / ((1 - x_norm) * (1 - x_norm.transpose(-1, -2)))) ** 2
     return dist, x
 
 
@@ -82,9 +77,7 @@ class DGM_d(nn.Module):
         Defaults to True.
     """
 
-    def __init__(
-        self, base_enc, embed_f, k=5, distance="euclidean", sparse=True
-    ):
+    def __init__(self, base_enc, embed_f, k=5, distance="euclidean", sparse=True):
         super().__init__()
 
         self.sparse = sparse
@@ -103,9 +96,7 @@ class DGM_d(nn.Module):
         else:
             self.distance = pairwise_poincare_distances
 
-    def forward(
-        self, x: torch.Tensor, batch: torch.Tensor, fixedges=None
-    ) -> tuple:
+    def forward(self, x: torch.Tensor, batch: torch.Tensor, fixedges=None) -> tuple:
         r"""Forward pass of the Distance Graph Matching module.
 
         Parameters
@@ -200,12 +191,7 @@ class DGM_d(nn.Module):
         lq = logits - torch.log(-torch.log(q))
         logprobs, indices = torch.topk(-lq, self.k)
 
-        rows = (
-            torch.arange(n)
-            .view(1, n, 1)
-            .to(logits.device)
-            .repeat(b, 1, self.k)
-        )
+        rows = torch.arange(n).view(1, n, 1).to(logits.device).repeat(b, 1, self.k)
         edges = torch.stack((indices.view(b, -1), rows.view(b, -1)), -2)
 
         if b == 1:

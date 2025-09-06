@@ -1,15 +1,28 @@
 """Test MLP."""
+
+import pytest
 import torch
 import torch.nn as nn
-import pytest
-from ogbench.nn.backbones.non_relational.mlp import MLP
 from omegaconf import DictConfig
 
-@pytest.mark.parametrize("batch_size,num_nodes,in_channels,hidden_channels,out_channels,final_act", [
-    (1, 4, 10, [16, 8], 8, "sigmoid"),
-    (2, None, 4, [8], 1, None),
-])
-def test_mlp_forward(batch_size, num_nodes, in_channels, hidden_channels, out_channels, final_act):
+from ogbench.nn.backbones.non_relational.mlp import MLP
+
+
+@pytest.mark.parametrize(
+    "batch_size,num_nodes,in_channels,hidden_channels,out_channels,final_act",
+    [
+        (1, 4, 10, [16, 8], 8, "sigmoid"),
+        (2, None, 4, [8], 1, None),
+    ],
+)
+def test_mlp_forward(
+    batch_size,
+    num_nodes,
+    in_channels,
+    hidden_channels,
+    out_channels,
+    final_act,
+):
     """Test MLP.
 
     Parameters
@@ -37,7 +50,11 @@ def test_mlp_forward(batch_size, num_nodes, in_channels, hidden_channels, out_ch
     )
     output = model.forward(x, batch_size)
     if num_nodes is not None:
-        assert output.shape == (batch_size, num_nodes, out_channels//num_nodes) if batch_size > 1 else (num_nodes, out_channels)
+        assert (
+            output.shape == (batch_size, num_nodes, out_channels // num_nodes)
+            if batch_size > 1
+            else (num_nodes, out_channels)
+        )
     else:
         assert output.shape == (batch_size, out_channels) if batch_size > 1 else (out_channels)
     # Test __call__ method

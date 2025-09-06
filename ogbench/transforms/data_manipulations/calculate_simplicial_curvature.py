@@ -55,9 +55,7 @@ class CalculateSimplicialCurvature(torch_geometric.transforms.BaseTransform):
         torch_geometric.data.Data
             Data with the zero cell curvature.
         """
-        data["0_cell_curvature"] = torch.mm(
-            abs(data["incidence_1"]), data["1_cell_curvature"]
-        )
+        data["0_cell_curvature"] = torch.mm(abs(data["incidence_1"]), data["1_cell_curvature"])
         return data
 
     def one_cell_curvature(
@@ -106,9 +104,7 @@ class CalculateSimplicialCurvature(torch_geometric.transforms.BaseTransform):
         idx = torch.where(data["2_cell_degrees"] > 1)[0]
         two_cell_degrees[idx] = 0
         up = data["incidence_3"].to_dense() @ data["incidence_3"].to_dense().T
-        down = (
-            data["incidence_2"].to_dense().T @ data["incidence_2"].to_dense()
-        )
+        down = data["incidence_2"].to_dense().T @ data["incidence_2"].to_dense()
         mask = torch.eye(up.size()[0]).bool()
         up.masked_fill_(mask, 0)
         down.masked_fill_(mask, 0)

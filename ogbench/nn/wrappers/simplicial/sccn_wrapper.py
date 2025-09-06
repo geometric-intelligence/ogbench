@@ -6,8 +6,8 @@ from ogbench.nn.wrappers.base import AbstractWrapper
 class SCCNWrapper(AbstractWrapper):
     r"""Wrapper for the SCCN model.
 
-    This wrapper defines the forward pass of the model. The SCCN model returns
-    the embeddings of the cells of any rank.
+    This wrapper defines the forward pass of the model. The SCCN model returns the embeddings of
+    the cells of any rank.
     """
 
     def forward(self, batch):
@@ -24,8 +24,7 @@ class SCCNWrapper(AbstractWrapper):
             Dictionary containing the updated model output.
         """
         features = {
-            f"rank_{r}": batch[f"x_{r}"]
-            for r in range(self.backbone.layers[0].max_rank + 1)
+            f"rank_{r}": batch[f"x_{r}"] for r in range(self.backbone.layers[0].max_rank + 1)
         }
         incidences = {
             f"rank_{r}": batch[f"incidence_{r}"]
@@ -57,8 +56,6 @@ class SCCNWrapper(AbstractWrapper):
             model_out["x_0"] = x_0
 
         else:
-            raise ValueError(
-                f"Invalid number of output tensors: {len(output)}"
-            )
+            raise ValueError(f"Invalid number of output tensors: {len(output)}")
 
         return model_out

@@ -44,9 +44,7 @@ class GraphLifting(AbstractLifting):
         """
         return hasattr(data, "edge_attr") and data.edge_attr is not None
 
-    def _generate_graph_from_data(
-        self, data: torch_geometric.data.Data
-    ) -> nx.Graph:
+    def _generate_graph_from_data(self, data: torch_geometric.data.Data) -> nx.Graph:
         r"""Generate a NetworkX graph from the input data object.
 
         Parameters
@@ -60,10 +58,7 @@ class GraphLifting(AbstractLifting):
             The generated NetworkX graph.
         """
         # Check if data object have edge_attr, return list of tuples as [(node_id, {'features':data}, 'dim':1)] or ??
-        nodes = [
-            (n, dict(features=data.x[n], dim=0))
-            for n in range(data.x.shape[0])
-        ]
+        nodes = [(n, dict(features=data.x[n], dim=0)) for n in range(data.x.shape[0])]
 
         if self.preserve_edge_attr and self._data_has_edge_attr(data):
             # In case edge features are given, assign features to every edge
@@ -77,18 +72,14 @@ class GraphLifting(AbstractLifting):
             )
             edges = [
                 (i.item(), j.item(), dict(features=edge_attr[edge_idx], dim=1))
-                for edge_idx, (i, j) in enumerate(
-                    zip(edge_index[0], edge_index[1], strict=False)
-                )
+                for edge_idx, (i, j) in enumerate(zip(edge_index[0], edge_index[1], strict=False))
             ]
             self.contains_edge_attr = True
         else:
             # If edge_attr is not present, return list list of edges
             edges = [
                 (i.item(), j.item(), {})
-                for i, j in zip(
-                    data.edge_index[0], data.edge_index[1], strict=False
-                )
+                for i, j in zip(data.edge_index[0], data.edge_index[1], strict=False)
             ]
             self.contains_edge_attr = False
         graph = nx.Graph()

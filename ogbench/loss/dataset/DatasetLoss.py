@@ -21,14 +21,14 @@ class DatasetLoss(AbstractLoss):
         self.loss_type = dataset_loss["loss_type"]
         # Dataset loss
         if self.task == "classification":
-            assert self.loss_type == "cross_entropy", (
-                "Invalid loss type for classification task,TB supports only cross_entropy loss for classification task"
-            )
+            assert (
+                self.loss_type == "cross_entropy"
+            ), "Invalid loss type for classification task,TB supports only cross_entropy loss for classification task"
             self.criterion = torch.nn.CrossEntropyLoss()
         elif self.task == "multilabel classification":
-            assert self.loss_type == "BCE", (
-                "Invalid loss type for classification task,TB supports only BCE for multilabel classification task"
-            )
+            assert (
+                self.loss_type == "BCE"
+            ), "Invalid loss type for classification task,TB supports only BCE for multilabel classification task"
             self.criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         elif self.task == "regression" and self.loss_type == "mse":
             self.criterion = torch.nn.MSELoss()

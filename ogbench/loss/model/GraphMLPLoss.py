@@ -69,9 +69,7 @@ class GraphMLPLoss(AbstractLoss):
         loss = -torch.log(x_dis_sum_pos * (x_dis_sum ** (-1)) + 1e-8).mean()
         return loss
 
-    def forward(
-        self, model_out: dict, batch: torch_geometric.data.Data
-    ) -> torch.Tensor:
+    def forward(self, model_out: dict, batch: torch_geometric.data.Data) -> torch.Tensor:
         r"""Forward pass of the loss function.
 
         Parameters
@@ -90,7 +88,5 @@ class GraphMLPLoss(AbstractLoss):
         if x_dis is None:  # Validation and test
             return torch.tensor(0.0)
         adj_label = self.get_power_adj(batch.edge_index)
-        graph_mlp_loss = self.loss_weight * self.graph_mlp_contrast_loss(
-            x_dis, adj_label
-        )
+        graph_mlp_loss = self.loss_weight * self.graph_mlp_contrast_loss(x_dis, adj_label)
         return graph_mlp_loss

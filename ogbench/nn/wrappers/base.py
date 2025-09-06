@@ -79,11 +79,7 @@ class AbstractWrapper(ABC, torch.nn.Module):
             Dictionary containing the updated model output.
         """
         for i in self.dimensions:
-            if (
-                (f"x_{i}" in batch)
-                and hasattr(self, f"ln_{i}")
-                and (f"x_{i}" in model_out)
-            ):
+            if (f"x_{i}" in batch) and hasattr(self, f"ln_{i}") and (f"x_{i}" in model_out):
                 residual = model_out[f"x_{i}"] + batch[f"x_{i}"]
                 model_out[f"x_{i}"] = getattr(self, f"ln_{i}")(residual)
         return model_out

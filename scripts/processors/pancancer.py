@@ -1,6 +1,5 @@
 """PanCancer dataset processor."""
 
-
 import os
 from typing import Dict, Tuple
 
@@ -24,7 +23,8 @@ def process_pancancer(output_dir: str = "temp_data") -> None:
     # Download files
     for name, url in urls.items():
         file_path = os.path.join(
-            output_dir, f"pancancer_{name}.{'xlsx' if name == 'proteomics' else 'csv.gz'}"
+            output_dir,
+            f"pancancer_{name}.{'xlsx' if name == 'proteomics' else 'csv.gz'}",
         )
         if not os.path.exists(file_path):
             print(f"Downloading {name}...")

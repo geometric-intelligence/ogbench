@@ -9,7 +9,8 @@ from torch_sparse import SparseTensor
 
 
 class DomainData(torch_geometric.data.Data):
-    r"""Helper Data class so that not only sparse matrices with adj in the name can work with PyG dataloaders.
+    r"""Helper Data class so that not only sparse matrices with adj in the name can work with PyG
+    dataloaders.
 
     It overwrites some methods from `torch_geometric.data.Data`
     """
@@ -31,7 +32,8 @@ class DomainData(torch_geometric.data.Data):
         return any(name in string for name in valid_names)
 
     def __cat_dim__(self, key: str, value: Any, *args, **kwargs) -> Any:
-        r"""Overwrite the `__cat_dim__` method to handle sparse matrices to handle the names specified in `is_valid`.
+        r"""Overwrite the `__cat_dim__` method to handle sparse matrices to handle the names
+        specified in `is_valid`.
 
         Parameters
         ----------
@@ -58,7 +60,8 @@ class DomainData(torch_geometric.data.Data):
 
 
 def to_data_list(batch):
-    """Workaround needed since `torch_geometric` doesn't work when using `torch.sparse` instead of `torch_sparse`.
+    """Workaround needed since `torch_geometric` doesn't work when using `torch.sparse` instead of
+    `torch_sparse`.
 
     Parameters
     ----------
@@ -127,14 +130,10 @@ def collate_fn(batch):
             )
 
             if running_idx.get(f"cell_running_idx_number_{cell_dim}") is None:
-                running_idx[f"cell_running_idx_number_{cell_dim}"] = (
-                    current_number_of_cells
-                )
+                running_idx[f"cell_running_idx_number_{cell_dim}"] = current_number_of_cells
 
             else:
-                running_idx[f"cell_running_idx_number_{cell_dim}"] += (
-                    current_number_of_cells
-                )
+                running_idx[f"cell_running_idx_number_{cell_dim}"] += current_number_of_cells
 
         data_list.append(data)
 
@@ -152,9 +151,9 @@ def collate_fn(batch):
     # Rename batch.batch to batch.batch_0 for consistency
     if (batch.get("batch") is not None) and (batch.get("batch_0") is not None):
         # Back compatiility check
-        assert torch.all(batch["batch_0"].cpu() == batch.pop("batch").cpu()), (
-            "batch['batch_0'] and batch['batch'] should match in the number of nodes"
-        )
+        assert torch.all(
+            batch["batch_0"].cpu() == batch.pop("batch").cpu()
+        ), "batch['batch_0'] and batch['batch'] should match in the number of nodes"
 
     if (batch.get("batch") is not None) and (batch.get("batch_0") is None):
         # Back compatiility check

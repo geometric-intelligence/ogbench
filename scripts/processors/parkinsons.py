@@ -1,6 +1,5 @@
 """Parkinsons dataset processor."""
 
-
 import gzip
 import os
 from typing import Dict, Tuple

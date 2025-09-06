@@ -91,16 +91,10 @@ class ModuleExportsManager:
 manager = ModuleExportsManager()
 
 # Automatically discover and populate FEATURE_LIFTINGS with special case for None
-FEATURE_LIFTINGS = manager.discover_liftings(
-    __file__, special_cases={None: Identity}
-)
+FEATURE_LIFTINGS = manager.discover_liftings(__file__, special_cases={None: Identity})
 
 # Automatically generate __all__ (excluding None key)
-__all__ = [name for name in FEATURE_LIFTINGS if isinstance(name, str)] + [
-    "FEATURE_LIFTINGS"
-]
+__all__ = [name for name in FEATURE_LIFTINGS if isinstance(name, str)] + ["FEATURE_LIFTINGS"]
 
 # For backwards compatibility, create individual imports (excluding None key)
-locals().update(
-    {k: v for k, v in FEATURE_LIFTINGS.items() if isinstance(k, str)}
-)
+locals().update({k: v for k, v in FEATURE_LIFTINGS.items() if isinstance(k, str)})

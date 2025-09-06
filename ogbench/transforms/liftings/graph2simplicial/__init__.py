@@ -5,9 +5,7 @@ from importlib import util
 from pathlib import Path
 from typing import Any
 
-from ogbench.transforms.liftings.graph2simplicial.base import (
-    Graph2SimplicialLifting,
-)
+from ogbench.transforms.liftings.graph2simplicial.base import Graph2SimplicialLifting
 
 
 class ModuleExportsManager:

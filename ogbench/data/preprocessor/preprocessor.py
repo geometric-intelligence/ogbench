@@ -15,6 +15,7 @@ from ogbench.data.utils import (
     make_hash,
 )
 from ogbench.dataloader import DataloadDataset
+from ogbench.transforms import DataTransform
 
 
 class PreProcessor(torch_geometric.data.InMemoryDataset):
@@ -36,12 +37,8 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
         self.dataset = dataset
         if transforms_config is not None:
             self.transforms_applied = True
-            pre_transform = self.instantiate_pre_transform(
-                data_dir, transforms_config
-            )
-            super().__init__(
-                self.processed_data_dir, None, pre_transform, **kwargs
-            )
+            pre_transform = self.instantiate_pre_transform(data_dir, transforms_config)
+            super().__init__(self.processed_data_dir, None, pre_transform, **kwargs)
             self.save_transform_parameters()
             self.load(self.processed_paths[0])
             self.data_list = [self.get(idx) for idx in range(len(self))]
@@ -104,20 +101,13 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
             transforms_config = transforms_config.liftings
         pre_transforms_dict = hydra.utils.instantiate(transforms_config)
         pre_transforms_dict = {
-            key: DataTransform(**value)
-            for key, value in transforms_config.items()
+            key: DataTransform(**value) for key, value in transforms_config.items()
         }
-        pre_transforms = torch_geometric.transforms.Compose(
-            list(pre_transforms_dict.values())
-        )
-        self.set_processed_data_dir(
-            pre_transforms_dict, data_dir, transforms_config
-        )
+        pre_transforms = torch_geometric.transforms.Compose(list(pre_transforms_dict.values()))
+        self.set_processed_data_dir(pre_transforms_dict, data_dir, transforms_config)
         return pre_transforms
 
-    def set_processed_data_dir(
-        self, pre_transforms_dict, data_dir, transforms_config
-    ) -> None:
+    def set_processed_data_dir(self, pre_transforms_dict, data_dir, transforms_config) -> None:
         """Set the processed data directory.
 
         Parameters
@@ -137,9 +127,7 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
         }
         params_hash = make_hash(transforms_parameters)
         self.transforms_parameters = ensure_serializable(transforms_parameters)
-        self.processed_data_dir = os.path.join(
-            *[data_dir, repo_name, f"{params_hash}"]
-        )
+        self.processed_data_dir = os.path.join(*[data_dir, repo_name, f"{params_hash}"])
 
     def save_transform_parameters(self) -> None:
         """Save the transform parameters."""
@@ -156,9 +144,7 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
                 saved_transform_parameters = json.load(f)
 
             if saved_transform_parameters != self.transforms_parameters:
-                raise ValueError(
-                    "Different transform parameters for the same data_dir"
-                )
+                raise ValueError("Different transform parameters for the same data_dir")
 
             print(
                 f"Transform parameters are the same, using existing data_dir: {self.processed_data_dir}"
@@ -167,9 +153,7 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
     def process(self) -> None:
         """Method that processes the data."""
         if isinstance(self.dataset, torch_geometric.data.Dataset):
-            data_list = [
-                self.dataset.get(idx) for idx in range(len(self.dataset))
-            ]
+            data_list = [self.dataset.get(idx) for idx in range(len(self.dataset))]
         elif isinstance(self.dataset, torch.utils.data.Dataset):
             data_list = [self.dataset[idx] for idx in range(len(self.dataset))]
         elif isinstance(self.dataset, torch_geometric.data.Data):
@@ -212,9 +196,7 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
 
     def load_dataset_splits(
         self, split_params
-    ) -> tuple[
-        DataloadDataset, DataloadDataset | None, DataloadDataset | None
-    ]:
+    ) -> tuple[DataloadDataset, DataloadDataset | None, DataloadDataset | None]:
         """Load the dataset splits.
 
         Parameters

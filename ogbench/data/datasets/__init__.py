@@ -45,9 +45,7 @@ class DatasetManager:
     ]
 
     @classmethod
-    def discover_datasets(
-        cls, package_path: str
-    ) -> dict[str, type[InMemoryDataset]]:
+    def discover_datasets(cls, package_path: str) -> dict[str, type[InMemoryDataset]]:
         """Dynamically discover all dataset classes in the package.
 
         Parameters

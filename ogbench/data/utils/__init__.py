@@ -1,18 +1,17 @@
 """Init file for data/utils module."""
 
-from .utils import (
+from .utils import data2simplicial  # noqa: F401
+from .utils import ensure_serializable  # noqa: F401
+from .utils import generate_zero_sparse_connectivity  # noqa: F401
+from .utils import get_combinatorial_complex_connectivity  # noqa: F401
+from .utils import get_complex_connectivity  # noqa: F401
+from .utils import get_routes_from_neighborhoods  # noqa: F401
+from .utils import load_manual_graph  # noqa: F401
+from .utils import make_hash  # noqa: F401
+from .utils import select_neighborhoods_of_interest  # noqa: F401
+from .utils import (  # import function here, add noqa: F401 for PR
     MeanStdNormalizer,
     MinMaxNormalizer,
-    data2simplicial,  # noqa: F401
-    # import function here, add noqa: F401 for PR
-    ensure_serializable,  # noqa: F401
-    generate_zero_sparse_connectivity,  # noqa: F401
-    get_combinatorial_complex_connectivity,  # noqa: F401
-    get_complex_connectivity,  # noqa: F401
-    get_routes_from_neighborhoods,  # noqa: F401
-    load_manual_graph,  # noqa: F401
-    make_hash,  # noqa: F401
-    select_neighborhoods_of_interest,  # noqa: F401
 )
 
 utils_functions = [
@@ -32,10 +31,9 @@ utils_functions = [
     # add function name here
 ]
 
-from .split_utils import (  # noqa: E402
-    load_inductive_splits,  # noqa: F401
-    load_transductive_splits,  # noqa: F401
-    # import function here, add noqa: F401 for PR
+from .split_utils import load_inductive_splits  # noqa: F401
+from .split_utils import (  # noqa: E402; import function here, add noqa: F401 for PR; noqa: F401
+    load_transductive_splits,
 )
 
 split_helper_functions = [
@@ -45,9 +43,8 @@ split_helper_functions = [
     # add function name here
 ]
 
-from .io_utils import (  # noqa: E402
-    download_file_from_drive,  # noqa: F401
-    # import function here, add noqa: F401 for PR
+from .io_utils import (  # noqa: E402; import function here, add noqa: F401 for PR; noqa: F401
+    download_file_from_drive,
 )
 
 io_helper_functions = [

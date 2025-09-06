@@ -16,9 +16,7 @@ class AbstractFeatureEncoder(torch.nn.Module):
         return f"{self.__class__.__name__}()"
 
     @abstractmethod
-    def forward(
-        self, data: torch_geometric.data.Data
-    ) -> torch_geometric.data.Data:
+    def forward(self, data: torch_geometric.data.Data) -> torch_geometric.data.Data:
         r"""Forward pass of the feature encoder model.
 
         Parameters

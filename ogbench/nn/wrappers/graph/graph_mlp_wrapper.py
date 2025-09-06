@@ -6,8 +6,8 @@ from ogbench.nn.wrappers.base import AbstractWrapper
 class GraphMLPWrapper(AbstractWrapper):
     r"""Wrapper for the GNN models.
 
-    This wrapper defines the forward pass of the model. The GNN models return
-    the embeddings of the cells of rank 0.
+    This wrapper defines the forward pass of the model. The GNN models return the embeddings of the
+    cells of rank 0.
     """
 
     def forward(self, batch):

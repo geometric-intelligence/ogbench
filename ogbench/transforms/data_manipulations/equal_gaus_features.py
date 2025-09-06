@@ -1,4 +1,5 @@
-"""This module contains a transform that generates equal Gaussian features for all nodes in the input graph."""
+"""This module contains a transform that generates equal Gaussian features for all nodes in the
+input graph."""
 
 import torch
 import torch_geometric
@@ -20,7 +21,7 @@ class EqualGausFeatures(torch_geometric.transforms.BaseTransform):
         super().__init__()
         self.type = "generate_non_informative_features"
 
-        # Torch generate feature vector from gaus distribution
+        # Torch generate feature vector from gaussian distribution
         self.mean = kwargs["mean"]
         self.std = kwargs["std"]
         self.feature_vector = kwargs["num_features"]

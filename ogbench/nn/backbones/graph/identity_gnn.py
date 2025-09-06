@@ -1,6 +1,4 @@
-"""
-This module contains the implementation of identity GNNs.
-"""
+"""This module contains the implementation of identity GNNs."""
 
 import torch
 from torch_geometric.nn import GAT, GCN, GIN, GraphSAGE

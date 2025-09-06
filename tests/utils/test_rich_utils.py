@@ -1,8 +1,12 @@
 """Unit tests for rich_utils."""
-import pytest
+
 from unittest.mock import MagicMock, patch
-from ogbench.utils.rich_utils import enforce_tags, print_config_tree
+
+import pytest
 from omegaconf import DictConfig
+
+from ogbench.utils.rich_utils import enforce_tags, print_config_tree
+
 
 @patch("ogbench.utils.rich_utils.pylogger.RankedLogger.info")
 @patch("ogbench.utils.rich_utils.rich.tree.Tree")
@@ -10,9 +14,16 @@ from omegaconf import DictConfig
 @patch("ogbench.utils.rich_utils.rich.print")
 @patch("ogbench.utils.rich_utils.Path.write_text")
 @patch("ogbench.utils.rich_utils.HydraConfig.get")
-def test_print_config_tree(mock_hydra_config_get, mock_write_text, mock_rich_print, mock_syntax, mock_tree, mock_info):
-    '''Test the print_config_tree function.
-    
+def test_print_config_tree(
+    mock_hydra_config_get,
+    mock_write_text,
+    mock_rich_print,
+    mock_syntax,
+    mock_tree,
+    mock_info,
+):
+    """Test the print_config_tree function.
+
     Parameters
     ----------
     mock_hydra_config_get : MagicMock
@@ -27,17 +38,19 @@ def test_print_config_tree(mock_hydra_config_get, mock_write_text, mock_rich_pri
         Mock of rich.tree.Tree.
     mock_info : MagicMock
         Mock of pylogger.RankedLogger.info.
-    '''
+    """
     # Mock the input DictConfig
-    mock_cfg = DictConfig({
-        "data": "mock_data",
-        "model": "mock_model",
-        "callbacks": "mock_callbacks",
-        "logger": "mock_logger",
-        "trainer": "mock_trainer",
-        "paths": {"output_dir": "mock_output_dir"},
-        "extras": "mock_extras"
-    })
+    mock_cfg = DictConfig(
+        {
+            "data": "mock_data",
+            "model": "mock_model",
+            "callbacks": "mock_callbacks",
+            "logger": "mock_logger",
+            "trainer": "mock_trainer",
+            "paths": {"output_dir": "mock_output_dir"},
+            "extras": "mock_extras",
+        }
+    )
 
     # Mock the HydraConfig.get return value
     mock_hydra_config_get.return_value = {"run": {"dir": "mock_dir"}}
@@ -54,16 +67,22 @@ def test_print_config_tree(mock_hydra_config_get, mock_write_text, mock_rich_pri
     with pytest.raises(FileNotFoundError):
         # Call the function with save_to_file=True
         print_config_tree(mock_cfg, save_to_file=True)
-        
+
 
 @patch("ogbench.utils.rich_utils.HydraConfig")
 @patch("ogbench.utils.rich_utils.Prompt.ask")
 @patch("ogbench.utils.rich_utils.pylogger.RankedLogger.warning")
 @patch("ogbench.utils.rich_utils.pylogger.RankedLogger.info")
 @patch("ogbench.utils.rich_utils.rich.print")
-def test_enforce_tags_no_tags(mock_rich_print, mock_info, mock_warning, mock_prompt_ask, mock_hydra_config):
+def test_enforce_tags_no_tags(
+    mock_rich_print,
+    mock_info,
+    mock_warning,
+    mock_prompt_ask,
+    mock_hydra_config,
+):
     """Test the enforce_tags function when no tags are provided in the config.
-    
+
     Parameters
     ----------
     mock_rich_print : MagicMock
@@ -78,9 +97,7 @@ def test_enforce_tags_no_tags(mock_rich_print, mock_info, mock_warning, mock_pro
         Mock of HydraConfig.
     """
     # Mock the input DictConfig without tags
-    mock_cfg = DictConfig({
-        "paths": {"output_dir": "mock_output_dir"}
-    })
+    mock_cfg = DictConfig({"paths": {"output_dir": "mock_output_dir"}})
 
     # Mock the HydraConfig
     mock_hydra_config().cfg.hydra.job = {}
@@ -92,7 +109,9 @@ def test_enforce_tags_no_tags(mock_rich_print, mock_info, mock_warning, mock_pro
     enforce_tags(mock_cfg, save_to_file=False)
 
     # Check if the warning was called
-    mock_warning.assert_called_once_with("No tags provided in config. Prompting user to input tags...")
+    mock_warning.assert_called_once_with(
+        "No tags provided in config. Prompting user to input tags..."
+    )
 
     # Check if the Prompt.ask was called
     mock_prompt_ask.assert_called_once_with("Enter a list of comma separated tags", default="dev")

@@ -1,12 +1,18 @@
 """Unit tests for TopoTune_OneHasse."""
 
+from test._utils.nn_module_auto_test import NNModuleAutoTest
+
 import pytest
 import torch
-from torch_geometric.data import Data
-from test._utils.nn_module_auto_test import NNModuleAutoTest
-from ogbench.nn.backbones.combinatorial.gccn_onehasse import TopoTune_OneHasse, get_activation
-from torch_geometric.nn import GCNConv
 from omegaconf import OmegaConf
+from torch_geometric.data import Data
+from torch_geometric.nn import GCNConv
+
+from ogbench.nn.backbones.combinatorial.gccn_onehasse import (
+    TopoTune_OneHasse,
+    get_activation,
+)
+
 
 class MockGNN(torch.nn.Module):
     """Mock GNN module for testing purposes.
@@ -43,11 +49,10 @@ class MockGNN(torch.nn.Module):
             Output of the GCN layer.
         """
         return self.conv(x, edge_index)
-    
+
 
 class MockGNNWithLinear(MockGNN):
-    """
-    Mock GNN with Linear layer (ignoring edge_index).
+    """Mock GNN with Linear layer (ignoring edge_index).
 
     Parameters
     ----------
@@ -58,6 +63,7 @@ class MockGNNWithLinear(MockGNN):
     out_channels : int
         Number of output channels.
     """
+
     def __init__(self, in_channels, hidden_channels, out_channels):
         super().__init__(in_channels, hidden_channels, out_channels)
         self.linear = torch.nn.Linear(in_channels, out_channels)
@@ -92,53 +98,52 @@ def create_mock_complex_batch():
     x_0 = torch.randn(3, 16)  # 3 nodes
     x_1 = torch.randn(3, 16)  # 3 edges
     x_2 = torch.randn(1, 16)  # 1 face
-    
+
     batch = Data(x_0=x_0, x_1=x_1, x_2=x_2)
 
     # Incidence matrices
     incidence_1 = torch.sparse_coo_tensor(
-        indices=torch.tensor([[0, 1, 1, 2, 0, 2],  # node indices
-                              [0, 0, 1, 1, 2, 2]]),  # edge indices
+        indices=torch.tensor(
+            [[0, 1, 1, 2, 0, 2], [0, 0, 1, 1, 2, 2]]  # node indices
+        ),  # edge indices
         values=torch.ones(6),
-        size=(3, 3)  # (num_nodes, num_edges)
+        size=(3, 3),  # (num_nodes, num_edges)
     ).coalesce()
     batch["down_incidence-1"] = incidence_1
 
     incidence_2 = torch.sparse_coo_tensor(
-        indices=torch.tensor([[0, 1, 2],  # edge indices
-                              [0, 0, 0]]),  # face index
+        indices=torch.tensor([[0, 1, 2], [0, 0, 0]]),  # edge indices  # face index
         values=torch.ones(3),
-        size=(3, 1)  # (num_edges, num_faces)
+        size=(3, 1),  # (num_edges, num_faces)
     ).coalesce()
     batch["down_incidence-2"] = incidence_2
 
     # Adjacency matrices (remain unchanged)
     adjacency_0 = torch.sparse_coo_tensor(
-        indices=torch.tensor([[0, 0, 1, 1, 2, 2],
-                              [1, 2, 0, 2, 0, 1]]),
+        indices=torch.tensor([[0, 0, 1, 1, 2, 2], [1, 2, 0, 2, 0, 1]]),
         values=torch.ones(6),
-        size=(3, 3)  # (num_nodes, num_nodes)
+        size=(3, 3),  # (num_nodes, num_nodes)
     ).coalesce()
     batch["up_adjacency-0"] = adjacency_0
 
     adjacency_1 = torch.sparse_coo_tensor(
-        indices=torch.tensor([[0, 0, 1, 1, 2, 2],
-                              [1, 2, 0, 2, 0, 1]]),
+        indices=torch.tensor([[0, 0, 1, 1, 2, 2], [1, 2, 0, 2, 0, 1]]),
         values=torch.ones(6),
-        size=(3, 3)  # (num_edges, num_edges)
+        size=(3, 3),  # (num_edges, num_edges)
     ).coalesce()
     batch["up_adjacency-1"] = adjacency_1
 
     adjacency_2 = torch.sparse_coo_tensor(
         indices=torch.tensor([[0], [0]]),
         values=torch.ones(1),
-        size=(1, 1)  # (num_faces, num_faces)
+        size=(1, 1),  # (num_faces, num_faces)
     ).coalesce()
     batch["up_adjacency-2"] = adjacency_2
 
-    cell_statistics = torch.tensor([[3, 3, 1]]) 
+    cell_statistics = torch.tensor([[3, 3, 1]])
     batch["cell_statistics"] = cell_statistics
     return batch
+
 
 class ModifiedNNModuleAutoTest(NNModuleAutoTest):
     """Modified NNModuleAutoTest class for TopoTune_OneHasse testing."""
@@ -151,7 +156,10 @@ class ModifiedNNModuleAutoTest(NNModuleAutoTest):
         result : Any
             The result to check.
         """
-        assert any(isinstance(r, dict) and any(isinstance(v, torch.Tensor) for v in r.values()) for r in result)
+        assert any(
+            isinstance(r, dict) and any(isinstance(v, torch.Tensor) for v in r.values())
+            for r in result
+        )
 
     def assert_equal_output(self, module, result, result_2):
         """Assert that two outputs are equal.
@@ -172,39 +180,60 @@ class ModifiedNNModuleAutoTest(NNModuleAutoTest):
             if isinstance(r1, dict) and isinstance(r2, dict):
                 assert r1.keys() == r2.keys(), f"Dictionaries have different keys at index {i}"
                 for key in r1.keys():
-                    assert torch.allclose(r1[key], r2[key], atol=1e-6), f"Tensors not equal for key {key} at index {i}"
+                    assert torch.allclose(
+                        r1[key], r2[key], atol=1e-6
+                    ), f"Tensors not equal for key {key} at index {i}"
             elif isinstance(r1, torch.Tensor):
                 assert torch.allclose(r1, r2, atol=1e-6), f"Tensors not equal at index {i}"
             else:
                 assert r1 == r2, f"Values not equal at index {i}"
 
+
 def test_topotune_onehasse():
     """Test the TopoTune_OneHasse module using ModifiedNNModuleAutoTest."""
     batch = create_mock_complex_batch()
     gnn = MockGNN(16, 32, 16)
-    neighborhoods = OmegaConf.create(["up_adjacency-0", "up_adjacency-1", "down_incidence-1", "down_incidence-2"])#[[[0, 0], "adjacency"], [[1, 1], "adjacency"], [[1, 0], "boundary"], [[2, 1], "boundary"]])
-    
-    auto_test = ModifiedNNModuleAutoTest([
-        {
-            "module": TopoTune_OneHasse,
-            "init": {
-                "GNN": gnn,
-                "neighborhoods": neighborhoods,
-                "layers": 2,
-                "use_edge_attr": False,
-                "activation": "relu"
-            },
-            "forward": (batch,),
-        }
-    ])
+    neighborhoods = OmegaConf.create(
+        [
+            "up_adjacency-0",
+            "up_adjacency-1",
+            "down_incidence-1",
+            "down_incidence-2",
+        ]
+    )  # [[[0, 0], "adjacency"], [[1, 1], "adjacency"], [[1, 0], "boundary"], [[2, 1], "boundary"]])
+
+    auto_test = ModifiedNNModuleAutoTest(
+        [
+            {
+                "module": TopoTune_OneHasse,
+                "init": {
+                    "GNN": gnn,
+                    "neighborhoods": neighborhoods,
+                    "layers": 2,
+                    "use_edge_attr": False,
+                    "activation": "relu",
+                },
+                "forward": (batch,),
+            }
+        ]
+    )
     auto_test.run()
+
 
 def test_topotune_onehasse_methods():
     """Test individual methods of the TopoTune_OneHasse module."""
     batch = create_mock_complex_batch()
     gnn = MockGNN(16, 32, 16)
-    neighborhoods = OmegaConf.create(["up_adjacency-0", "down_incidence-1"])#[[[0, 0], "adjacency"], [[1, 0], "boundary"]])
-    topotune = TopoTune_OneHasse(GNN=gnn, neighborhoods=neighborhoods, layers=2, use_edge_attr=False, activation="relu")
+    neighborhoods = OmegaConf.create(
+        ["up_adjacency-0", "down_incidence-1"]
+    )  # [[[0, 0], "adjacency"], [[1, 0], "boundary"]])
+    topotune = TopoTune_OneHasse(
+        GNN=gnn,
+        neighborhoods=neighborhoods,
+        layers=2,
+        use_edge_attr=False,
+        activation="relu",
+    )
 
     # Test generate_membership_vectors
     membership = topotune.generate_membership_vectors(batch)
@@ -219,7 +248,10 @@ def test_topotune_onehasse_methods():
     # Test all_nbhds_expand
     expanded = topotune.all_nbhds_expand(batch, membership)
     assert isinstance(expanded, Data)
-    assert expanded.x.shape == (7, 16)  # (3 nodes + 3 edges + 1 face) * 2 batches
+    assert expanded.x.shape == (
+        7,
+        16,
+    )  # (3 nodes + 3 edges + 1 face) * 2 batches
     assert expanded.edge_index.shape[0] == 2
     assert expanded.batch.shape == (7,)
 
@@ -243,29 +275,28 @@ def test_topotune_onehasse_methods():
     assert output[1].shape == (3, 16)  # 3 edges * 2 batches
     assert output[2].shape == (1, 16)  # 1 face * 2 batches
 
+
 def test_get_activation():
     """Test the get_activation function."""
     relu_func = get_activation("relu")
     assert callable(relu_func)
-    
+
     relu_module = get_activation("relu", return_module=True)
     assert issubclass(relu_module, torch.nn.Module)
-    
+
     with pytest.raises(NotImplementedError):
         get_activation("invalid_activation")
 
 
 def test_topotune_onehasse_early_return_x2_zero():
-    """
-    Test the early return path in forward() when batch.x_2.shape[0] == 0.
-    """
+    """Test the early return path in forward() when batch.x_2.shape[0] == 0."""
     batch = create_mock_complex_batch()
     batch.x_2 = torch.zeros((0, 16))  # Force x_2 to have 0 faces
     gnn = MockGNN(16, 32, 16)
-    
+
     # Define any neighborhoods; they won't matter since x_2=0 triggers early return
     neighborhoods = OmegaConf.create(["up_adjacency-0", "down_incidence-2"])
-    
+
     model = TopoTune_OneHasse(
         GNN=gnn,
         neighborhoods=neighborhoods,
@@ -286,9 +317,7 @@ def test_topotune_onehasse_early_return_x2_zero():
 
 
 def test_topotune_onehasse_fallback_rank_not_updated():
-    """
-    Test the fallback in forward() for a rank that is never updated.
-    """
+    """Test the fallback in forward() for a rank that is never updated."""
     batch = create_mock_complex_batch()
     gnn = MockGNN(16, 32, 16)
 
@@ -315,14 +344,22 @@ def test_topotune_onehasse_fallback_rank_not_updated():
     "bad_neighborhood,expected_errmsg",
     [
         ("up_adjacency-2", "Unsupported src_rank for 'up' neighborhood: 2"),
-        ("down_adjacency-0", "Unsupported src_rank for 'down' neighborhood: 0"),
-        ("down_incidence-0", "Unsupported src_rank for 'down_incidence' neighborhood: 0"),
-        ("up_incidence-2", "Unsupported src_rank for 'up_incidence' neighborhood: 2"),
-    ]
+        (
+            "down_adjacency-0",
+            "Unsupported src_rank for 'down' neighborhood: 0",
+        ),
+        (
+            "down_incidence-0",
+            "Unsupported src_rank for 'down_incidence' neighborhood: 0",
+        ),
+        (
+            "up_incidence-2",
+            "Unsupported src_rank for 'up_incidence' neighborhood: 2",
+        ),
+    ],
 )
 def test_topotune_onehasse_unsupported_src_rank_raises(bad_neighborhood, expected_errmsg):
-    """
-    Test that a ValueError is raised if a neighborhood implies an unsupported src_rank.
+    """Test that a ValueError is raised if a neighborhood implies an unsupported src_rank.
 
     Parameters
     ----------
@@ -333,7 +370,7 @@ def test_topotune_onehasse_unsupported_src_rank_raises(bad_neighborhood, expecte
     """
     batch = create_mock_complex_batch()
     gnn = MockGNN(16, 32, 16)
-    
+
     neighborhoods = OmegaConf.create([bad_neighborhood])
     model = TopoTune_OneHasse(
         GNN=gnn,
@@ -348,8 +385,7 @@ def test_topotune_onehasse_unsupported_src_rank_raises(bad_neighborhood, expecte
 
 
 def test_topotune_onehasse_indexerror_in_aggregate_inter_nbhd(mocker):
-    """
-    Force an IndexError in aggregate_inter_nbhd to cover that branch.
+    """Force an IndexError in aggregate_inter_nbhd to cover that branch.
 
     Parameters
     ----------
@@ -359,7 +395,7 @@ def test_topotune_onehasse_indexerror_in_aggregate_inter_nbhd(mocker):
     batch = create_mock_complex_batch()
     gnn = MockGNN(16, 32, 16)
     neighborhoods = OmegaConf.create(["up_adjacency-0", "down_incidence-1"])
-    
+
     model = TopoTune_OneHasse(
         GNN=gnn,
         neighborhoods=neighborhoods,
@@ -374,14 +410,13 @@ def test_topotune_onehasse_indexerror_in_aggregate_inter_nbhd(mocker):
     original_generate_membership_vectors = model.generate_membership_vectors
 
     def fake_generate_membership_vectors(b):
-        """
-        Fake membership vector generation that inflates membership for rank=0.
+        """Fake membership vector generation that inflates membership for rank=0.
 
         Parameters
         ----------
         b : torch_geometric.data.Data
             The input batch data.
-        
+
         Returns
         -------
         dict of {int: torch.Tensor}
@@ -391,18 +426,21 @@ def test_topotune_onehasse_indexerror_in_aggregate_inter_nbhd(mocker):
         membership[0] = torch.arange(10)  # artificially claim 10 'nodes' at rank=0
         return membership
 
-    mocker.patch.object(model, 'generate_membership_vectors', side_effect=fake_generate_membership_vectors)
+    mocker.patch.object(
+        model,
+        "generate_membership_vectors",
+        side_effect=fake_generate_membership_vectors,
+    )
 
     with pytest.raises(IndexError, match="out of bounds"):
         model(batch)
 
 
 def create_special_batch():
-    """
-    Create a batch with shapes adjusted to trigger certain corner cases.
-    
+    """Create a batch with shapes adjusted to trigger certain corner cases.
+
     For instance:
-    - 2 faces (x_2 of size [2, *]) 
+    - 2 faces (x_2 of size [2, *])
     - Non-square adjacency or incidence to see if it leads to certain expansions
       or error-handling in all_nbhds_expand.
 
@@ -411,9 +449,9 @@ def create_special_batch():
     Data
         Bacthed graphs.
     """
-    x_0 = torch.randn(4, 8)   # rank 0: 4 nodes
-    x_1 = torch.randn(2, 8)   # rank 1: 2 edges
-    x_2 = torch.randn(2, 8)   # rank 2: 2 faces
+    x_0 = torch.randn(4, 8)  # rank 0: 4 nodes
+    x_1 = torch.randn(2, 8)  # rank 1: 2 edges
+    x_2 = torch.randn(2, 8)  # rank 2: 2 faces
     batch = Data(x_0=x_0, x_1=x_1, x_2=x_2)
 
     # Minimal adjacency/incidence, possibly non-square
@@ -421,12 +459,15 @@ def create_special_batch():
     batch["up_adjacency-0"] = torch.sparse_coo_tensor(
         indices=torch.tensor([[0, 1], [1, 2]]),  # slightly "irregular"
         values=torch.ones(2),
-        size=(4, 4)
+        size=(4, 4),
     ).coalesce()
     batch["down_incidence-1"] = torch.sparse_coo_tensor(
         indices=torch.tensor([[0, 1], [0, 0]]),
         values=torch.ones(2),
-        size=(4, 2)  # node->edge shape or something that might not match typical
+        size=(
+            4,
+            2,
+        ),  # node->edge shape or something that might not match typical
     ).coalesce()
     # Possibly no adjacency for rank=2 or something partial
 
@@ -435,9 +476,8 @@ def create_special_batch():
 
 
 def test_valueerror_in_all_nbhds_expand_missing_neighborhood_key():
-    """
-    Trigger a ValueError by passing a neighborhood type that leads to an unsupported condition.
-    """
+    """Trigger a ValueError by passing a neighborhood type that leads to an unsupported
+    condition."""
     batch = create_special_batch()
     gnn = MockGNNWithLinear(8, 16, 8)
     # Suppose 'down_laplacian-2' is not recognized by the code, or leads to a raise.
@@ -451,13 +491,16 @@ def test_valueerror_in_all_nbhds_expand_missing_neighborhood_key():
         activation="relu",
     )
 
-    with pytest.raises(AttributeError, match="GlobalStorage' object has no attribute 'down_laplacian-2"):
+    with pytest.raises(
+        AttributeError,
+        match="GlobalStorage' object has no attribute 'down_laplacian-2",
+    ):
         model(batch)
 
 
 def test_aggregate_inter_nbhd_index_error(mocker):
-    """
-    Force an IndexError in aggregate_inter_nbhd by artificially inflating membership for one of the ranks so end_idx exceeds x_out.shape[0].
+    """Force an IndexError in aggregate_inter_nbhd by artificially inflating membership for one of
+    the ranks so end_idx exceeds x_out.shape[0].
 
     Parameters
     ----------
@@ -490,9 +533,7 @@ def test_aggregate_inter_nbhd_index_error(mocker):
 
 
 def test_fallback_for_unupdated_rank():
-    """
-    Test the scenario where a rank never gets updated because no neighborhoods exist for it.
-    """
+    """Test the scenario where a rank never gets updated because no neighborhoods exist for it."""
     batch = create_special_batch()
     # Suppose we define a neighborhood that only touches rank=0 and rank=1
     # but never rank=2. This ensures rank=2 is not updated.
@@ -515,9 +556,7 @@ def test_fallback_for_unupdated_rank():
 
 
 def test_partial_layer_execution_x2_nonzero():
-    """
-    Cover the scenario where batch.x_2.shape[0] > 0 but we still have partial execution.
-    """
+    """Cover the scenario where batch.x_2.shape[0] > 0 but we still have partial execution."""
     batch = create_special_batch()
     # We have 2 faces, so x_2.shape[0] != 0 => no early return
     # Let's define neighborhoods that do a partial coverage across layers
@@ -543,9 +582,7 @@ def test_partial_layer_execution_x2_nonzero():
 
 
 def test_activation_id():
-    """
-    Ensure coverage of the 'id' activation path.
-    """
+    """Ensure coverage of the 'id' activation path."""
     batch = create_special_batch()
     neighborhoods = OmegaConf.create(["up_adjacency-0"])
     gnn = MockGNNWithLinear(8, 16, 8)

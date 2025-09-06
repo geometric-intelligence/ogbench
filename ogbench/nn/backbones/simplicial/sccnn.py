@@ -1,4 +1,5 @@
-"""Implementation of the Simplicial Complex Convolutional Neural Network (SCCNN) for complex classification."""
+"""Implementation of the Simplicial Complex Convolutional Neural Network (SCCNN) for complex
+classification."""
 
 import torch
 from torch.nn.parameter import Parameter
@@ -41,15 +42,9 @@ class SCCNNCustom(torch.nn.Module):
         super().__init__()
         # first layer
         # we use an MLP to map the features on simplices of different dimensions to the same dimension
-        self.in_linear_0 = torch.nn.Linear(
-            in_channels_all[0], hidden_channels_all[0]
-        )
-        self.in_linear_1 = torch.nn.Linear(
-            in_channels_all[1], hidden_channels_all[1]
-        )
-        self.in_linear_2 = torch.nn.Linear(
-            in_channels_all[2], hidden_channels_all[2]
-        )
+        self.in_linear_0 = torch.nn.Linear(in_channels_all[0], hidden_channels_all[0])
+        self.in_linear_1 = torch.nn.Linear(in_channels_all[1], hidden_channels_all[1])
+        self.in_linear_2 = torch.nn.Linear(in_channels_all[2], hidden_channels_all[2])
 
         self.layers = torch.nn.ModuleList(
             SCCNNLayer(
@@ -269,9 +264,7 @@ class SCCNNLayer(torch.nn.Module):
             Output tensor.
         """
         num_simplices, num_channels = x.shape
-        X = torch.empty(size=(num_simplices, num_channels, conv_order)).to(
-            x.device
-        )
+        X = torch.empty(size=(num_simplices, num_channels, conv_order)).to(x.device)
 
         if self.aggr_norm:
             X[:, :, 0] = torch.mm(conv_operator, x)
@@ -309,9 +302,7 @@ class SCCNNLayer(torch.nn.Module):
         x_0, x_1, x_2 = x_all
 
         if self.sc_order == 2:
-            laplacian_0, laplacian_down_1, laplacian_up_1, laplacian_2 = (
-                laplacian_all
-            )
+            laplacian_0, laplacian_down_1, laplacian_up_1, laplacian_2 = laplacian_all
         elif self.sc_order > 2:
             (
                 laplacian_0,
@@ -348,12 +339,8 @@ class SCCNNLayer(torch.nn.Module):
         # x_1_to_0 = torch.cat((x_1_to_0_identity, x_1_to_0), 2)
 
         x_1_to_0_upper = torch.mm(b1, x_1)
-        x_1_to_0_laplacian = self.chebyshev_conv(
-            laplacian_0, self.conv_order, x_1_to_0_upper
-        )
-        x_1_to_0 = torch.cat(
-            [x_1_to_0_upper.unsqueeze(2), x_1_to_0_laplacian], dim=2
-        )
+        x_1_to_0_laplacian = self.chebyshev_conv(laplacian_0, self.conv_order, x_1_to_0_upper)
+        x_1_to_0 = torch.cat([x_1_to_0_upper.unsqueeze(2), x_1_to_0_laplacian], dim=2)
         # -------------------
 
         x_0_all = torch.cat((x_0_to_0, x_1_to_0), 2)
@@ -384,19 +371,13 @@ class SCCNNLayer(torch.nn.Module):
         x_0_1_lower = torch.mm(b1.T, x_0)
 
         # Calculate lowwer chebyshev_conv
-        x_0_1_down = self.chebyshev_conv(
-            laplacian_down_1, self.conv_order, x_0_1_lower
-        )
+        x_0_1_down = self.chebyshev_conv(laplacian_down_1, self.conv_order, x_0_1_lower)
 
         # Calculate upper chebyshev_conv (Note: in case of signed incidence should be always zero)
-        x_0_1_up = self.chebyshev_conv(
-            laplacian_up_1, self.conv_order, x_0_1_lower
-        )
+        x_0_1_up = self.chebyshev_conv(laplacian_up_1, self.conv_order, x_0_1_lower)
 
         # Concatenate output of filters
-        x_0_to_1 = torch.cat(
-            [x_0_1_lower.unsqueeze(2), x_0_1_down, x_0_1_up], dim=2
-        )
+        x_0_to_1 = torch.cat([x_0_1_lower.unsqueeze(2), x_0_1_down, x_0_1_up], dim=2)
         # -------------------
 
         # x_2_to_1 = torch.mm(b2, x_2)
@@ -407,23 +388,17 @@ class SCCNNLayer(torch.nn.Module):
         x_2_1_upper = torch.mm(b2, x_2)
 
         # Calculate lowwer chebyshev_conv (Note: In case of signed incidence should be always zero)
-        x_2_1_down = self.chebyshev_conv(
-            laplacian_down_1, self.conv_order, x_2_1_upper
-        )
+        x_2_1_down = self.chebyshev_conv(laplacian_down_1, self.conv_order, x_2_1_upper)
 
         # Calculate upper chebyshev_conv
-        x_2_1_up = self.chebyshev_conv(
-            laplacian_up_1, self.conv_order, x_2_1_upper
-        )
+        x_2_1_up = self.chebyshev_conv(laplacian_up_1, self.conv_order, x_2_1_upper)
 
-        x_2_to_1 = torch.cat(
-            [x_2_1_upper.unsqueeze(2), x_2_1_down, x_2_1_up], dim=2
-        )
+        x_2_to_1 = torch.cat([x_2_1_upper.unsqueeze(2), x_2_1_down, x_2_1_up], dim=2)
 
         # -------------------
         x_1_all = torch.cat((x_0_to_1, x_1_to_1, x_2_to_1), 2)
-        """Convolution in the face (triangle) space, depending on the SC order,
-        the exact form maybe a little different."""
+        """Convolution in the face (triangle) space, depending on the SC order, the exact form
+        maybe a little different."""
         # -------------------Logic to obtain update for 2-cells --------
         # x_identity_2 = torch.unsqueeze(identity_2 @ x_2, 2)
 
@@ -449,16 +424,10 @@ class SCCNNLayer(torch.nn.Module):
         # x_1_to_2 = torch.cat((x_1_to_2_identity, x_1_to_2), 2)
 
         x_1_2_lower = torch.mm(b2.T, x_1)
-        x_1_2_down = self.chebyshev_conv(
-            laplacian_down_2, self.conv_order, x_1_2_lower
-        )
-        x_1_2_down = self.chebyshev_conv(
-            laplacian_up_2, self.conv_order, x_1_2_lower
-        )
+        x_1_2_down = self.chebyshev_conv(laplacian_down_2, self.conv_order, x_1_2_lower)
+        x_1_2_down = self.chebyshev_conv(laplacian_up_2, self.conv_order, x_1_2_lower)
 
-        x_1_to_2 = torch.cat(
-            [x_1_2_lower.unsqueeze(2), x_1_2_down, x_1_2_down], dim=2
-        )
+        x_1_to_2 = torch.cat([x_1_2_lower.unsqueeze(2), x_1_2_down, x_1_2_down], dim=2)
 
         # That is my code, but to execute this part we need to have simplices order of k+1 in this case order of 3
         # x_3_2_upper = x_1_to_2 = torch.mm(b2, x_3)

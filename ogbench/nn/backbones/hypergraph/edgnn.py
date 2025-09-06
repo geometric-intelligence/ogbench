@@ -67,12 +67,8 @@ class EDGNN(nn.Module):
         self.hidden_channels = self.in_channels
 
         self.mlp1_layers = MLP_num_layers
-        self.mlp2_layers = (
-            MLP_num_layers if MLP2_num_layers < 0 else MLP2_num_layers
-        )
-        self.mlp3_layers = (
-            MLP_num_layers if MLP3_num_layers < 0 else MLP3_num_layers
-        )
+        self.mlp2_layers = MLP_num_layers if MLP2_num_layers < 0 else MLP2_num_layers
+        self.mlp3_layers = MLP_num_layers if MLP3_num_layers < 0 else MLP3_num_layers
         self.nlayer = All_num_layers
         self.edconv_type = edconv_type
 
@@ -202,9 +198,7 @@ class customMLP(nn.Module):
                 self.lins.append(nn.Linear(in_channels, hidden_channels))
                 self.normalizations.append(nn.BatchNorm1d(hidden_channels))
                 for _ in range(num_layers - 2):
-                    self.lins.append(
-                        nn.Linear(hidden_channels, hidden_channels)
-                    )
+                    self.lins.append(nn.Linear(hidden_channels, hidden_channels))
                     self.normalizations.append(nn.BatchNorm1d(hidden_channels))
                 self.lins.append(nn.Linear(hidden_channels, out_channels))
         elif Normalization == "ln":
@@ -223,9 +217,7 @@ class customMLP(nn.Module):
                 self.lins.append(nn.Linear(in_channels, hidden_channels))
                 self.normalizations.append(nn.LayerNorm(hidden_channels))
                 for _ in range(num_layers - 2):
-                    self.lins.append(
-                        nn.Linear(hidden_channels, hidden_channels)
-                    )
+                    self.lins.append(nn.Linear(hidden_channels, hidden_channels))
                     self.normalizations.append(nn.LayerNorm(hidden_channels))
                 self.lins.append(nn.Linear(hidden_channels, out_channels))
         else:
@@ -238,9 +230,7 @@ class customMLP(nn.Module):
                 self.lins.append(nn.Linear(in_channels, hidden_channels))
                 self.normalizations.append(nn.Identity())
                 for _ in range(num_layers - 2):
-                    self.lins.append(
-                        nn.Linear(hidden_channels, hidden_channels)
-                    )
+                    self.lins.append(nn.Linear(hidden_channels, hidden_channels))
                     self.normalizations.append(nn.Identity())
                 self.lins.append(nn.Linear(hidden_channels, out_channels))
 
@@ -291,9 +281,7 @@ class customMLP(nn.Module):
         """
         num_samples = np.prod(x.shape[:-1])
         flops = num_samples * self.in_channels  # first normalization
-        flops += (
-            num_samples * self.in_channels * self.hidden_channels
-        )  # first linear layer
+        flops += num_samples * self.in_channels * self.hidden_channels  # first linear layer
         flops += num_samples * self.hidden_channels  # first relu layer
 
         # flops for each layer
@@ -301,9 +289,7 @@ class customMLP(nn.Module):
         per_layer += num_samples * self.hidden_channels  # relu + normalization
         flops += per_layer * (len(self.lins) - 2)
 
-        flops += (
-            num_samples * self.out_channels * self.hidden_channels
-        )  # last linear layer
+        flops += num_samples * self.out_channels * self.hidden_channels  # last linear layer
 
         return flops
 
@@ -491,9 +477,7 @@ class EquivSetConv(nn.Module):
 
         Xev = Xe[..., edges, :]  # [nnz, C]
         Xev = self.W2(torch.cat([X[..., vertex, :], Xev], -1))
-        Xv = torch_scatter.scatter(
-            Xev, vertex, dim=-2, reduce=self.aggr, dim_size=N
-        )  # [N, C]
+        Xv = torch_scatter.scatter(Xev, vertex, dim=-2, reduce=self.aggr, dim_size=N)  # [N, C]
 
         X = Xv
 
@@ -520,9 +504,7 @@ class JumpLinkConv(nn.Module):
         Alpha value. Defaults to 0.5.
     """
 
-    def __init__(
-        self, in_features, out_features, mlp_layers=2, aggr="add", alpha=0.5
-    ):
+    def __init__(self, in_features, out_features, mlp_layers=2, aggr="add", alpha=0.5):
         super().__init__()
         self.W = customMLP(
             in_features,
@@ -570,9 +552,7 @@ class JumpLinkConv(nn.Module):
         )  # [E, C], reduce is 'mean' here as default
 
         Xev = Xe[..., edges, :]  # [nnz, C]
-        Xv = torch_scatter.scatter(
-            Xev, vertex, dim=-2, reduce=self.aggr, dim_size=N
-        )  # [N, C]
+        Xv = torch_scatter.scatter(Xev, vertex, dim=-2, reduce=self.aggr, dim_size=N)  # [N, C]
 
         X = Xv
 
@@ -683,9 +663,7 @@ class MeanDegConv(nn.Module):
 
         Xev = Xe[..., edges, :]  # [nnz, C]
         Xev = self.W2(torch.cat([X[..., vertex, :], Xev], -1))
-        Xv = torch_scatter.scatter(
-            Xev, vertex, dim=-2, reduce="mean", dim_size=N
-        )  # [N, C]
+        Xv = torch_scatter.scatter(Xev, vertex, dim=-2, reduce="mean", dim_size=N)  # [N, C]
 
         deg_v = torch_scatter.scatter(
             torch.ones(Xev.shape[0], device=Xev.device),

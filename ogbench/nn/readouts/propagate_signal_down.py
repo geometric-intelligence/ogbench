@@ -1,4 +1,5 @@
-"""Readout layer that propagates the signal from cells of a certain order to the cells of the lower order."""
+"""Readout layer that propagates the signal from cells of a certain order to the cells of the lower
+order."""
 
 import topomodelx
 import torch
@@ -32,9 +33,7 @@ class PropagateSignalDown(AbstractZeroCellReadOut):
             setattr(
                 self,
                 f"agg_conv_{i}",
-                topomodelx.base.conv.Conv(
-                    self.hidden_dim, self.hidden_dim, aggr_norm=False
-                ),
+                topomodelx.base.conv.Conv(self.hidden_dim, self.hidden_dim, aggr_norm=False),
             )
 
             setattr(self, f"ln_{i}", torch.nn.LayerNorm(self.hidden_dim))
@@ -63,9 +62,7 @@ class PropagateSignalDown(AbstractZeroCellReadOut):
             Dictionary containing the updated model output.
         """
         for i in self.dimensions:
-            x_i = getattr(self, f"agg_conv_{i}")(
-                model_out[f"x_{i}"], batch[f"incidence_{i}"]
-            )
+            x_i = getattr(self, f"agg_conv_{i}")(model_out[f"x_{i}"], batch[f"incidence_{i}"])
             x_i = getattr(self, f"ln_{i}")(x_i)
             model_out[f"x_{i - 1}"] = getattr(self, f"projector_{i}")(
                 torch.cat([x_i, model_out[f"x_{i - 1}"]], dim=1)

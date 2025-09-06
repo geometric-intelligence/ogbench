@@ -46,14 +46,10 @@ class TBModel(LightningModule):
 
         # This line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
-        self.save_hyperparameters(
-            logger=False, ignore=["backbone", "readout", "feature_encoder"]
-        )
+        self.save_hyperparameters(logger=False, ignore=["backbone", "readout", "feature_encoder"])
 
         self.feature_encoder = (
-            feature_encoder
-            if feature_encoder is not None
-            else torch.nn.Identity()
+            feature_encoder if feature_encoder is not None else torch.nn.Identity()
         )
         if backbone_wrapper is None:
             self.backbone = backbone
@@ -266,8 +262,8 @@ class TBModel(LightningModule):
     def on_validation_epoch_start(self) -> None:
         r"""Hook called when a validation epoch begins.
 
-        According pytorch lightning documentation this hook is called at the
-        beginning of the validation epoch.
+        According pytorch lightning documentation this hook is called at the beginning of the
+        validation epoch.
 
         https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#hooks
 

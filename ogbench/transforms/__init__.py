@@ -5,12 +5,8 @@ from typing import Any
 from ogbench.transforms.data_manipulations import DATA_MANIPULATIONS
 from ogbench.transforms.feature_liftings import FEATURE_LIFTINGS
 from ogbench.transforms.liftings.graph2cell import GRAPH2CELL_LIFTINGS
-from ogbench.transforms.liftings.graph2hypergraph import (
-    GRAPH2HYPERGRAPH_LIFTINGS,
-)
-from ogbench.transforms.liftings.graph2simplicial import (
-    GRAPH2SIMPLICIAL_LIFTINGS,
-)
+from ogbench.transforms.liftings.graph2hypergraph import GRAPH2HYPERGRAPH_LIFTINGS
+from ogbench.transforms.liftings.graph2simplicial import GRAPH2SIMPLICIAL_LIFTINGS
 
 LIFTINGS = {
     **GRAPH2CELL_LIFTINGS,

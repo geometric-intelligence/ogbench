@@ -19,9 +19,7 @@ class NoReadOut(AbstractZeroCellReadOut):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def forward(
-        self, model_out: dict, batch: torch_geometric.data.Data
-    ) -> dict:
+    def forward(self, model_out: dict, batch: torch_geometric.data.Data) -> dict:
         r"""Forward pass of the no readout layer.
 
         It returns the model output without any modification.

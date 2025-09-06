@@ -3,9 +3,7 @@
 import torch
 import torch_geometric
 
-from ogbench.transforms.liftings.graph2hypergraph import (
-    Graph2HypergraphLifting,
-)
+from ogbench.transforms.liftings.graph2hypergraph import Graph2HypergraphLifting
 
 
 class HypergraphKHopLifting(Graph2HypergraphLifting):
@@ -53,25 +51,19 @@ class HypergraphKHopLifting(Graph2HypergraphLifting):
         edge_index = torch_geometric.utils.to_undirected(data.edge_index)
 
         # Detect isolated nodes
-        isolated_nodes = [
-            i for i in range(num_nodes) if i not in edge_index[0]
-        ]
+        isolated_nodes = [i for i in range(num_nodes) if i not in edge_index[0]]
         if len(isolated_nodes) > 0:
             # Add completely isolated nodes to the edge_index
             edge_index = torch.cat(
                 [
                     edge_index,
-                    torch.tensor(
-                        [isolated_nodes, isolated_nodes], dtype=torch.long
-                    ),
+                    torch.tensor([isolated_nodes, isolated_nodes], dtype=torch.long),
                 ],
                 dim=1,
             )
 
         for n in range(num_nodes):
-            neighbors, _, _, _ = torch_geometric.utils.k_hop_subgraph(
-                n, self.k, edge_index
-            )
+            neighbors, _, _, _ = torch_geometric.utils.k_hop_subgraph(n, self.k, edge_index)
             incidence_1[n, neighbors] = 1
 
         num_hyperedges = incidence_1.shape[1]

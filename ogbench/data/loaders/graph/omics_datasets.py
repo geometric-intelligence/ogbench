@@ -1,13 +1,14 @@
 """Loaders for PLANETOID datasets."""
 
 import os.path as osp
-import numpy as np
 from pathlib import Path
-from omegaconf import DictConfig
-from torch_geometric.data import Dataset, Data
 
-from ogbench.data.loaders.base import AbstractLoader
+import numpy as np
+from omegaconf import DictConfig
+from torch_geometric.data import Data, Dataset
+
 from ogbench.data.datasets import HFOmicsDataset
+from ogbench.data.loaders.base import AbstractLoader
 
 
 class OmicsDatasetLoader(AbstractLoader):
@@ -69,7 +70,7 @@ class OmicsDatasetLoader(AbstractLoader):
             dataset_length,
         )
         return split_idx
-    
+
     def load(self, **kwargs) -> tuple[Data, str]:
         """Load data.
 

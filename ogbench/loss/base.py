@@ -13,9 +13,7 @@ class AbstractLoss(ABC):
     ):
         super().__init__()
 
-    def __call__(
-        self, model_out: dict, batch: torch_geometric.data.Data
-    ) -> dict:
+    def __call__(self, model_out: dict, batch: torch_geometric.data.Data) -> dict:
         r"""Logic for the loss based on model_output.
 
         Parameters

@@ -3,10 +3,7 @@
 import logging
 from collections.abc import Mapping
 
-from lightning_utilities.core.rank_zero import (
-    rank_prefixed_message,
-    rank_zero_only,
-)
+from lightning_utilities.core.rank_zero import rank_prefixed_message, rank_zero_only
 
 
 class RankedLogger(logging.LoggerAdapter):
@@ -37,9 +34,7 @@ class RankedLogger(logging.LoggerAdapter):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.logger.name!r}, rank_zero_only={self.rank_zero_only!r}, extra={self.extra})"
 
-    def log(
-        self, level: int, msg: str, rank: int | None = None, *args, **kwargs
-    ) -> None:
+    def log(self, level: int, msg: str, rank: int | None = None, *args, **kwargs) -> None:
         r"""Delegate a log call to the underlying logger.
 
         The function first prefixes the message with the rank of the process it's being logged from and then logs the message. If `'rank'` is provided, then the log will only occur on that rank/process.
@@ -61,9 +56,7 @@ class RankedLogger(logging.LoggerAdapter):
             msg, kwargs = self.process(msg, kwargs)
             current_rank = getattr(rank_zero_only, "rank", None)
             if current_rank is None:
-                raise RuntimeError(
-                    "The `rank_zero_only.rank` needs to be set before use"
-                )
+                raise RuntimeError("The `rank_zero_only.rank` needs to be set before use")
             msg = rank_prefixed_message(msg, current_rank)
             if self.rank_zero_only:
                 if current_rank == 0:

@@ -51,30 +51,22 @@ class GroupCombinatorialHomophily(torch_geometric.transforms.BaseTransform):
         """
         labels = data.y
         unique_labels, count_labels = torch.unique(labels, return_counts=True)
-        # Crate a dictionary with the number of nodes in each class
+        # Create a dictionary with the number of nodes in each class
 
         # {label: number of nodes in class}
         # DO WE NEED TO CALCULATE THIS FOR EACH K? OR once for all graph?
-        unique_labels = dict(
-            zip(unique_labels.numpy(), count_labels.numpy(), strict=False)
-        )
+        unique_labels = dict(zip(unique_labels.numpy(), count_labels.numpy(), strict=False))
 
-        # Enhancment: avoid to_dense
+        # Enhancement: avoid to_dense
         H = data.incidence_hyperedges.to_dense()
         he_cardinalities = H.sum(0)
 
         # DO WE NEED TO CALCULATE THIS FOR EACH K? OR once for all graph?
-        class_node_idxs = {
-            label: torch.where(labels == label)[0] for label in unique_labels
-        }
+        class_node_idxs = {label: torch.where(labels == label)[0] for label in unique_labels}
         n_nodes = H.shape[0]
 
-        unique_he, unique_he_counts = torch.unique(
-            he_cardinalities, return_counts=True
-        )
-        idx_sorted = torch.argsort(unique_he_counts, descending=True, axis=0)[
-            : self.top_k
-        ]
+        unique_he, unique_he_counts = torch.unique(he_cardinalities, return_counts=True)
+        idx_sorted = torch.argsort(unique_he_counts, descending=True, axis=0)[: self.top_k]
 
         out = {}
         # temp_global_idx = 0
@@ -140,9 +132,7 @@ class GroupCombinatorialHomophily(torch_geometric.transforms.BaseTransform):
 
         return (term_1 * term_2) / term_3
 
-    def calculate_D_matrix(
-        self, H, labels, he_cardinalities, unique_labels, class_node_idxs
-    ):
+    def calculate_D_matrix(self, H, labels, he_cardinalities, unique_labels, class_node_idxs):
         """Calculate the degree matrices D and D_t for the hypergraph.
 
         Parameters
@@ -191,7 +181,7 @@ class GroupCombinatorialHomophily(torch_geometric.transforms.BaseTransform):
             node_idxs = class_node_idxs[unique_class]
 
             # Extract from D matrix only rows corresponding to nodes belonging to current 'unique_class'
-            # Transfose to be alligned with paper
+            # Transfose to be aligned with paper
             D_class = D[node_idxs, :].T
 
             # Denominator of (1)

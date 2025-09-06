@@ -51,9 +51,7 @@ def k_fold_split(labels, parameters):
 
         skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
 
-        for fold_n, (train_idx, valid_idx) in enumerate(
-            skf.split(x_idx, labels)
-        ):
+        for fold_n, (train_idx, valid_idx) in enumerate(skf.split(x_idx, labels)):
             split_idx = {
                 "train": train_idx,
                 "valid": valid_idx,
@@ -62,12 +60,7 @@ def k_fold_split(labels, parameters):
 
             # Check that all nodes/graph have been assigned to some split
             assert np.all(
-                np.sort(
-                    np.array(
-                        split_idx["train"].tolist()
-                        + split_idx["valid"].tolist()
-                    )
-                )
+                np.sort(np.array(split_idx["train"].tolist() + split_idx["valid"].tolist()))
                 == np.sort(np.arange(len(labels)))
             ), "Not every sample has been loaded."
             split_path = os.path.join(split_dir, f"{fold_n}.npz")
@@ -117,9 +110,7 @@ def random_splitting(labels, parameters, global_data_seed=42):
     valid_prop = (1 - train_prop) / 2
 
     # Create split directory if it does not exist
-    split_dir = os.path.join(
-        data_dir, f"train_prop={train_prop}_global_seed={global_data_seed}"
-    )
+    split_dir = os.path.join(data_dir, f"train_prop={train_prop}_global_seed={global_data_seed}")
     generate_splits = False
     if not os.path.isdir(split_dir):
         os.makedirs(split_dir)
@@ -235,9 +226,7 @@ def load_transductive_splits(dataset, parameters):
         List containing the train, validation, and test splits.
     """
     # Extract labels from dataset object
-    assert len(dataset) == 1, (
-        "Dataset should have only one graph in a transductive setting."
-    )
+    assert len(dataset) == 1, "Dataset should have only one graph in a transductive setting."
 
     data = dataset.data_list[0]
     labels = data.y.numpy()
@@ -263,12 +252,8 @@ def load_transductive_splits(dataset, parameters):
 
     if parameters.get("standardize", False):
         # Standardize the node features respecting train mask
-        data.x = (data.x - data.x[data.train_mask].mean(0)) / data.x[
-            data.train_mask
-        ].std(0)
-        data.y = (data.y - data.y[data.train_mask].mean(0)) / data.y[
-            data.train_mask
-        ].std(0)
+        data.x = (data.x - data.x[data.train_mask].mean(0)) / data.x[data.train_mask].std(0)
+        data.y = (data.y - data.y[data.train_mask].mean(0)) / data.y[data.train_mask].std(0)
 
     return DataloadDataset([data]), None, None
 
@@ -289,12 +274,8 @@ def load_inductive_splits(dataset, parameters):
         List containing the train, validation, and test splits.
     """
     # Extract labels from dataset object
-    assert len(dataset) > 1, (
-        "Datasets should have more than one graph in an inductive setting."
-    )
-    labels = np.array(
-        [data.y.squeeze(0).numpy() for data in dataset.data_list]
-    )
+    assert len(dataset) > 1, "Datasets should have more than one graph in an inductive setting."
+    labels = np.array([data.y.squeeze(0).numpy() for data in dataset.data_list])
 
     if parameters.split_type == "random":
         split_idx = random_splitting(labels, parameters)
@@ -311,8 +292,8 @@ def load_inductive_splits(dataset, parameters):
             If 'fixed' is chosen, the dataset should have the attribute split_idx"
         )
 
-    train_dataset, val_dataset, test_dataset = (
-        assign_train_val_test_mask_to_graphs(dataset, split_idx)
+    train_dataset, val_dataset, test_dataset = assign_train_val_test_mask_to_graphs(
+        dataset, split_idx
     )
 
     return train_dataset, val_dataset, test_dataset

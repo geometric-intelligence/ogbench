@@ -25,9 +25,7 @@ class Graph2SimplicialLifting(GraphLifting):
         self.type = "graph2simplicial"
         self.signed = kwargs.get("signed", False)
 
-    def _get_lifted_topology(
-        self, simplicial_complex: SimplicialComplex, graph: nx.Graph
-    ) -> dict:
+    def _get_lifted_topology(self, simplicial_complex: SimplicialComplex, graph: nx.Graph) -> dict:
         r"""Return the lifted topology.
 
         Parameters
@@ -49,26 +47,14 @@ class Graph2SimplicialLifting(GraphLifting):
             signed=self.signed,
         )
         lifted_topology["x_0"] = torch.stack(
-            list(
-                simplicial_complex.get_simplex_attributes(
-                    "features", 0
-                ).values()
-            )
+            list(simplicial_complex.get_simplex_attributes("features", 0).values())
         )
         # If new edges have been added during the lifting process, we discard the edge attributes
-        if self.contains_edge_attr and simplicial_complex.shape[1] == (
-            graph.number_of_edges()
-        ):
+        if self.contains_edge_attr and simplicial_complex.shape[1] == (graph.number_of_edges()):
             lifted_topology["x_1"] = torch.stack(
-                list(
-                    simplicial_complex.get_simplex_attributes(
-                        "features", 1
-                    ).values()
-                )
+                list(simplicial_complex.get_simplex_attributes("features", 1).values())
             )
-        elif self.contains_edge_attr and simplicial_complex.shape[1] != (
-            graph.number_of_edges()
-        ):
+        elif self.contains_edge_attr and simplicial_complex.shape[1] != (graph.number_of_edges()):
             # Stop the processing to avoid errors
             raise ValueError(
                 f" The variable self.contains_edge_attr is {self.contains_edge_attr} however number of edges (1-cells) is not equal to the number of edges (1-cells) in the original graph. The number of edges in the simplicial complex is {simplicial_complex.shape[1]} and the number of edges in the original graph is {graph.number_of_edges()}. This is not expected behavior. Please, check your code. Please set self.contains_edge_attr to False or chose other lifting method that preserves number of edges (1-cells) (For example cluque lifting)."

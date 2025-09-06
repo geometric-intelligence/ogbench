@@ -73,10 +73,7 @@ class LoadManager:
                 new_encoders = {
                     name: obj
                     for name, obj in inspect.getmembers(module)
-                    if (
-                        cls.is_encoder_class(obj)
-                        and obj.__module__ == module.__name__
-                    )
+                    if (cls.is_encoder_class(obj) and obj.__module__ == module.__name__)
                 }
                 encoders.update(new_encoders)
             except ImportError as e:
