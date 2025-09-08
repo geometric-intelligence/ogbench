@@ -51,7 +51,17 @@ class TBEvaluator(AbstractEvaluator):
         for name in metric_names:
             if name in ["recall", "precision", "auroc"]:
                 metrics[name] = METRICS[name](average="macro", **parameters)
-
+            elif name == "f1":
+                metrics[name] = METRICS[name](average="macro", **parameters)
+            elif name == "f1_macro":
+                metrics[name] = METRICS[name](average="macro", **parameters)
+            elif name == "f1_weighted":
+                metrics[name] = METRICS[name](average="weighted", **parameters)
+            elif name == "confusion_matrix":
+                metrics[name] = METRICS[name](**parameters)
+            elif name == "rmse":
+                # RMSE is MSE with squared=False
+                metrics[name] = METRICS[name](squared=False, **parameters)
             else:
                 metrics[name] = METRICS[name](**parameters)
         self.metrics = MetricCollection(metrics)

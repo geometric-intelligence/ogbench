@@ -1,4 +1,3 @@
-# Dataset loader config
 loader:
   _target_: ogbench.data.loaders.graph.omics_datasets.OmicsDatasetLoader
   parameters:
@@ -12,7 +11,6 @@ loader:
     imputation_method: mean
     train_val_test_split: [0.7, 0.15, 0.15]
 
-# Dataset parameters
 parameters:
   num_features: 1
   num_classes: 1 # it is actually a classification with 17 different labels
@@ -23,14 +21,12 @@ parameters:
   monitor_metric: mse
   task_level: graph
 
-#splits
 split_params:
   learning_setting: inductive
   data_split_dir: ${paths.data_dir}/${dataset.loader.parameters.data_name}/data_splits
   data_seed: 0
   split_type: "fixed"
 
-# Dataloader parameters
 dataloader_params:
   batch_size: 16
   num_workers: 0
