@@ -1,29 +1,38 @@
-_target_: src.models.gnn_module.GNNLitModule
+_target_: ogbench.model.TBModel
 
-optimizer:
-  _target_: torch.optim.Adam
+model_name: gcn
+model_domain: graph
+
+feature_encoder:
+  _target_: ogbench.nn.encoders.${model.feature_encoder.encoder_name}
+  encoder_name: AllCellFeatureEncoder
+  in_channels: ${infer_in_channels:${dataset},${oc.select:transforms,null}}
+  out_channels: 64
+  proj_dropout: 0.0
+
+backbone:
+  _target_: torch_geometric.nn.models.GCN
+  in_channels: ${model.feature_encoder.out_channels}
+  hidden_channels: ${model.feature_encoder.out_channels}
+  num_layers: 2
+  dropout: 0.0
+  act: relu
+
+backbone_wrapper:
+  _target_: ogbench.nn.wrappers.GNNWrapper
   _partial_: true
-  lr: 0.001
-  weight_decay: 0.0
+  wrapper_name: GNNWrapper
+  out_channels: ${model.feature_encoder.out_channels}
+  num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}}
 
-scheduler:
-  _target_: src.scheduler.schedulers.LinearWarmupCosineAnnealingLR
-  _partial_: true
-  eta_min: 1.0e-7
-  warmup_epochs: 5
-  max_epochs: 200
-  warmup_start_lr: 0.00001
-  last_epoch: -1
+readout:
+  _target_: ogbench.nn.readouts.${model.readout.readout_name}
+  readout_name: NoReadOut #  Use <NoReadOut> in case readout is not needed Options: PropagateSignalDown
+  num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}} # The highest order of cell dimensions to consider
+  hidden_dim: ${model.feature_encoder.out_channels}
+  out_channels: ${dataset.parameters.num_classes}
+  task_level: ${dataset.parameters.task_level}
+  pooling_type: sum
 
-net:
-  _target_: torch_geometric.nn.GCN
-  num_layers: 4
-  in_channels: 1
-  hidden_channels: 2048
-  out_channels: 1
-  dropout: 0.2
 # compile model for faster training with pytorch 2.0
 compile: false
-
-adjacency_aware: true
-head_channels: 128

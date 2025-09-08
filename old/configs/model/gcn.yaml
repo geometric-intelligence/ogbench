@@ -1,0 +1,29 @@
+_target_: src.models.gnn_module.GNNLitModule
+
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.0
+
+scheduler:
+  _target_: src.scheduler.schedulers.LinearWarmupCosineAnnealingLR
+  _partial_: true
+  eta_min: 1.0e-7
+  warmup_epochs: 5
+  max_epochs: 200
+  warmup_start_lr: 0.00001
+  last_epoch: -1
+
+net:
+  _target_: torch_geometric.nn.GCN
+  num_layers: 4
+  in_channels: 1
+  hidden_channels: 2048
+  out_channels: 1
+  dropout: 0.2
+# compile model for faster training with pytorch 2.0
+compile: false
+
+adjacency_aware: true
+head_channels: 128

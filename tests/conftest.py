@@ -1,108 +1,265 @@
-"""This file prepares config fixtures for other tests."""
+"""Configuration file for pytest."""
 
-
-from pathlib import Path
-
+import networkx as nx
 import pytest
-import rootutils
-from hydra import compose, initialize
-from hydra.core.global_hydra import GlobalHydra
-from omegaconf import DictConfig, open_dict
+import torch
+import torch_geometric
+
+from ogbench.transforms.liftings.graph2cell import CellCycleLifting
+from ogbench.transforms.liftings.graph2simplicial import SimplicialCliqueLifting
 
 
-@pytest.fixture(scope="package")
-def cfg_train_global() -> DictConfig:
-    """A pytest fixture for setting up a default Hydra DictConfig for training.
+@pytest.fixture
+def mocker_fixture(mocker):
+    """Return pytest mocker, used when one want to use mocker in setup_method.
 
-    :return: A DictConfig object containing a default Hydra configuration for training.
+    Parameters
+    ----------
+    mocker : pytest_mock.plugin.MockerFixture
+        A pytest mocker.
+
+    Returns
+    -------
+    pytest_mock.plugin.MockerFixture
+        A pytest mocker.
     """
-    with initialize(version_base="1.3", config_path="../configs"):
-        cfg = compose(config_name="train.yaml", return_hydra_config=True, overrides=[])
-
-        # set defaults for all tests
-        with open_dict(cfg):
-            cfg.paths.root_dir = str(rootutils.find_root(indicator=".project-root"))
-            cfg.trainer.max_epochs = 1
-            cfg.trainer.limit_train_batches = 0.01
-            cfg.trainer.limit_val_batches = 0.1
-            cfg.trainer.limit_test_batches = 0.1
-            cfg.trainer.accelerator = "cpu"
-            cfg.trainer.devices = 1
-            cfg.data.num_workers = 0
-            cfg.data.pin_memory = False
-            cfg.extras.print_config = False
-            cfg.extras.enforce_tags = False
-            cfg.logger = None
-
-    return cfg
+    return mocker
 
 
-@pytest.fixture(scope="package")
-def cfg_eval_global() -> DictConfig:
-    """A pytest fixture for setting up a default Hydra DictConfig for evaluation.
+@pytest.fixture
+def simple_graph_0():
+    """Create a manual graph for testing purposes.
 
-    :return: A DictConfig containing a default Hydra configuration for evaluation.
+    Returns
+    -------
+    torch_geometric.data.Data
+        A simple graph data object.
     """
-    with initialize(version_base="1.3", config_path="../configs"):
-        cfg = compose(config_name="eval.yaml", return_hydra_config=True, overrides=["ckpt_path=."])
+    # Define the vertices (just 8 vertices)
+    vertices = [i for i in range(8)]
+    y = [0, 1, 1, 1, 0, 0, 0, 0]
+    # Define the edges
+    edges = [
+        [0, 1],
+        [0, 2],
+        [0, 4],
+        [2, 3],
+        [5, 2],
+        [5, 6],
+        [6, 3],
+        [2, 7],
+    ]
 
-        # set defaults for all tests
-        with open_dict(cfg):
-            cfg.paths.root_dir = str(rootutils.find_root(indicator=".project-root"))
-            cfg.trainer.max_epochs = 1
-            cfg.trainer.limit_test_batches = 0.1
-            cfg.trainer.accelerator = "cpu"
-            cfg.trainer.devices = 1
-            cfg.data.num_workers = 0
-            cfg.data.pin_memory = False
-            cfg.extras.print_config = False
-            cfg.extras.enforce_tags = False
-            cfg.logger = None
+    # Create a graph
+    G = nx.Graph()
 
-    return cfg
+    # Add vertices
+    G.add_nodes_from(vertices)
+
+    # Add edges
+    G.add_edges_from(edges)
+    G.to_undirected()
+    edge_list = torch.Tensor(list(G.edges())).T.long()
+
+    # Generate feature from 0 to 9
+    x = torch.tensor([1, 5, 10, 50, 100, 500, 1000, 5000]).unsqueeze(1).float()
+
+    data = torch_geometric.data.Data(
+        x=x,
+        edge_index=edge_list,
+        num_nodes=len(vertices),
+        y=torch.tensor(y),
+    )
+    return data
 
 
-@pytest.fixture(scope="function")
-def cfg_train(cfg_train_global: DictConfig, tmp_path: Path) -> DictConfig:
-    """A pytest fixture built on top of the `cfg_train_global()` fixture, which accepts a temporary
-    logging path `tmp_path` for generating a temporary logging path.
+@pytest.fixture
+def simple_graph_1():
+    """Create a manual graph for testing purposes.
 
-    This is called by each test which uses the `cfg_train` arg. Each test generates its own temporary logging path.
-
-    :param cfg_train_global: The input DictConfig object to be modified.
-    :param tmp_path: The temporary logging path.
-
-    :return: A DictConfig with updated output and log directories corresponding to `tmp_path`.
+    Returns
+    -------
+    torch_geometric.data.Data
+        A simple graph data object.
     """
-    cfg = cfg_train_global.copy()
+    # Define the vertices (just 8 vertices)
+    vertices = [i for i in range(8)]
+    y = [0, 1, 1, 1, 0, 0, 0, 0]
+    # Define the edges
+    edges = [
+        [0, 1],
+        [0, 2],
+        [0, 4],
+        [1, 2],
+        [2, 3],
+        [5, 2],
+        [5, 6],
+        [6, 3],
+        [5, 7],
+        [2, 7],
+        [0, 7],
+    ]
 
-    with open_dict(cfg):
-        cfg.paths.output_dir = str(tmp_path)
-        cfg.paths.log_dir = str(tmp_path)
+    # Define the tetrahedrons
+    tetrahedrons = [[0, 1, 2, 4]]
 
-    yield cfg
+    # Add tetrahedrons
+    for tetrahedron in tetrahedrons:
+        for i in range(len(tetrahedron)):
+            for j in range(i + 1, len(tetrahedron)):
+                edges.append([tetrahedron[i], tetrahedron[j]])  # noqa: PERF401
 
-    GlobalHydra.instance().clear()
+    # Create a graph
+    G = nx.Graph()
+
+    # Add vertices
+    G.add_nodes_from(vertices)
+
+    # Add edges
+    G.add_edges_from(edges)
+    G.to_undirected()
+    edge_list = torch.Tensor(list(G.edges())).T.long()
+
+    # Generate feature from 0 to 9
+    x = torch.tensor([1, 5, 10, 50, 100, 500, 1000, 5000]).unsqueeze(1).float()
+
+    data = torch_geometric.data.Data(
+        x=x,
+        edge_index=edge_list,
+        num_nodes=len(vertices),
+        y=torch.tensor(y),
+    )
+    return data
 
 
-@pytest.fixture(scope="function")
-def cfg_eval(cfg_eval_global: DictConfig, tmp_path: Path) -> DictConfig:
-    """A pytest fixture built on top of the `cfg_eval_global()` fixture, which accepts a temporary
-    logging path `tmp_path` for generating a temporary logging path.
+@pytest.fixture
+def sg1_clique_lifted(simple_graph_1):
+    """Return a simple graph with a clique lifting.
 
-    This is called by each test which uses the `cfg_eval` arg. Each test generates its own temporary logging path.
+    Parameters
+    ----------
+    simple_graph_1 : torch_geometric.data.Data
+        A simple graph data object.
 
-    :param cfg_train_global: The input DictConfig object to be modified.
-    :param tmp_path: The temporary logging path.
-
-    :return: A DictConfig with updated output and log directories corresponding to `tmp_path`.
+    Returns
+    -------
+    torch_geometric.data.Data
+        A simple graph data object with a clique lifting.
     """
-    cfg = cfg_eval_global.copy()
+    lifting_signed = SimplicialCliqueLifting(complex_dim=3, signed=True)
+    data = lifting_signed(simple_graph_1)
+    data.batch_0 = "null"
+    return data
 
-    with open_dict(cfg):
-        cfg.paths.output_dir = str(tmp_path)
-        cfg.paths.log_dir = str(tmp_path)
 
-    yield cfg
+@pytest.fixture
+def sg1_cell_lifted(simple_graph_1):
+    """Return a simple graph with a cell lifting.
 
-    GlobalHydra.instance().clear()
+    Parameters
+    ----------
+    simple_graph_1 : torch_geometric.data.Data
+        A simple graph data object.
+
+    Returns
+    -------
+    torch_geometric.data.Data
+        A simple graph data object with a cell lifting.
+    """
+    lifting = CellCycleLifting()
+    data = lifting(simple_graph_1)
+    data.batch_0 = "null"
+    return data
+
+
+@pytest.fixture
+def simple_graph_2():
+    """Create a manual graph for testing purposes.
+
+    Returns
+    -------
+    torch_geometric.data.Data
+        A simple graph data object.
+    """
+    # Define the vertices (just 9 vertices)
+    vertices = [i for i in range(9)]
+    y = [0, 1, 1, 1, 0, 0, 0, 0, 0]
+    # Define the edges
+    edges = [
+        [0, 1],
+        [0, 2],
+        [0, 3],
+        [0, 4],
+        [1, 2],
+        [1, 3],
+        [2, 3],
+        [5, 2],
+        [5, 6],
+        [6, 3],
+        [2, 6],
+        [5, 7],
+        [2, 8],
+        [0, 8],
+    ]
+
+    # Define the tetrahedrons
+    tetrahedrons = [[0, 1, 2, 3], [0, 1, 2, 4]]
+
+    # Add tetrahedrons
+    for tetrahedron in tetrahedrons:
+        for i in range(len(tetrahedron)):
+            for j in range(i + 1, len(tetrahedron)):
+                edges.append([tetrahedron[i], tetrahedron[j]])  # noqa: PERF401
+
+    # Create a graph
+    G = nx.Graph()
+
+    # Add vertices
+    G.add_nodes_from(vertices)
+
+    # Add edges
+    G.add_edges_from(edges)
+    G.to_undirected()
+    edge_list = torch.Tensor(list(G.edges())).T.long()
+
+    # Generate feature from 0 to 9
+    x = torch.tensor([1, 5, 10, 50, 100, 500, 1000, 5000, 10000]).unsqueeze(1).float()
+
+    data = torch_geometric.data.Data(
+        x=x,
+        edge_index=edge_list,
+        num_nodes=len(vertices),
+        y=torch.tensor(y),
+    )
+    return data
+
+
+@pytest.fixture
+def random_graph_input():
+    """Create a random graph for testing purposes.
+
+    Returns
+    -------
+    torch.Tensor
+        A tensor with the input features.
+    torch.Tensor
+        A tensor with the input features for the edges.
+    torch.Tensor
+        A tensor with the input features for the faces.
+    torch.Tensor
+        A tensor with the edge index for the edges.
+    torch.Tensor
+        A tensor with the edge index for the faces.
+    """
+    num_nodes = 8
+    d_feat = 12
+    x = torch.randn(num_nodes, 12)
+    edges_1 = torch.randint(0, num_nodes, (2, num_nodes * 2))
+    edges_2 = torch.randint(0, num_nodes, (2, num_nodes * 2))
+
+    d_feat_1, d_feat_2 = 5, 17
+
+    x_1 = torch.randn(num_nodes * 2, d_feat_1)
+    x_2 = torch.randn(num_nodes * 2, d_feat_2)
+
+    return x, x_1, x_2, edges_1, edges_2
