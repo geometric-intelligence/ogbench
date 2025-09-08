@@ -2,10 +2,10 @@
 
 import gzip
 import os
-from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
+from IPython import embed
 
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
 
@@ -65,6 +65,7 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
 
     # Remove rows with nan values
     mask = (~pd.isna(raw_data)).any(axis=1).values & ~pd.isna(targets)
+    embed()
     raw_data = raw_data[mask]
     targets = targets[mask]
 
