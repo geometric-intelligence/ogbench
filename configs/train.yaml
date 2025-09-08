@@ -5,8 +5,8 @@
 defaults:
   - _self_
   - dataset: covidaki
-  - model: graph/gatv4
-  - transforms: ${get_default_transform:${dataset},${model}} #no_transform
+  - model: gatv4
+  - transforms: no_transform
   - optimizer: default
   - loss: default
   - evaluator: default

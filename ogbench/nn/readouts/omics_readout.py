@@ -1,8 +1,7 @@
 import torch.nn as nn
-import torch
 from torch_geometric.nn.models import MLP
-from topobench.nn.readouts import AbstractZeroCellReadOut
-from torch_geometric.utils import scatter
+
+from ogbench.nn.readouts.base import AbstractZeroCellReadOut
 
 
 class OmicsReadOut(AbstractZeroCellReadOut):
@@ -23,12 +22,14 @@ class OmicsReadOut(AbstractZeroCellReadOut):
         fc_dropout=None,
         fc_act=None,
         out_channels=None,
-        graph_encoder_dim=None, #256
+        graph_encoder_dim=None,  # 256
         **kwargs,
     ):
         super().__init__(out_channels=out_channels, hidden_dim=hidden_dim, **kwargs)
         self.hidden_dim = hidden_dim
-        self.graph_encoder_dim = [graph_encoder_dim] if isinstance(graph_encoder_dim, int) else list(graph_encoder_dim)
+        self.graph_encoder_dim = (
+            [graph_encoder_dim] if isinstance(graph_encoder_dim, int) else list(graph_encoder_dim)
+        )
         self.which_layer = which_layer
         self.fc_dim = fc_dim
         self.fc_dropout = fc_dropout
@@ -39,9 +40,9 @@ class OmicsReadOut(AbstractZeroCellReadOut):
         self.graph_encoder = self.build_graph_encoder()
 
     def build_graph_encoder(self):
-        channel_list = [self.hidden_dim] + self.graph_encoder_dim 
+        channel_list = [self.hidden_dim] + self.graph_encoder_dim
         return MLP(channel_list, dropout=self.fc_dropout, act=self.ACT_MAP[self.fc_act])
-   
+
     def build_readout_layers(self):
         layers = []
         fc_layer_input_dim = self.fc_input_dim
