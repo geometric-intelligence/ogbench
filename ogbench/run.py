@@ -57,33 +57,40 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 
 
-OmegaConf.register_new_resolver("calculate_num_nodes", calculate_num_nodes, replace=True)
-OmegaConf.register_new_resolver("get_default_metrics", get_default_metrics, replace=True)
-OmegaConf.register_new_resolver("get_default_trainer", get_default_trainer, replace=True)
-OmegaConf.register_new_resolver("get_default_transform", get_default_transform, replace=True)
-OmegaConf.register_new_resolver(
-    "get_flattened_channels",
-    get_flattened_channels,
-    replace=True,
-)
-OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, replace=True)
-OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
-OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
-OmegaConf.register_new_resolver("get_gatv4_output_dim", get_gatv4_output_dim, replace=True)
-OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, replace=True)
-OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
-OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
-OmegaConf.register_new_resolver(
-    "get_non_relational_out_channels", get_non_relational_out_channels, replace=True
-)
-OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
-OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
-OmegaConf.register_new_resolver(
-    "infer_num_cell_dimensions", infer_num_cell_dimensions, replace=True
-)
-OmegaConf.register_new_resolver(
-    "parameter_multiplication", lambda x, y: int(int(x) * int(y)), replace=True
-)
+# Register custom resolvers before Hydra initialization
+def register_resolvers():
+    """Register all custom OmegaConf resolvers."""
+    OmegaConf.register_new_resolver("calculate_num_nodes", calculate_num_nodes, replace=True)
+    OmegaConf.register_new_resolver("get_default_metrics", get_default_metrics, replace=True)
+    OmegaConf.register_new_resolver("get_default_trainer", get_default_trainer, replace=True)
+    OmegaConf.register_new_resolver("get_default_transform", get_default_transform, replace=True)
+    OmegaConf.register_new_resolver(
+        "get_flattened_channels",
+        get_flattened_channels,
+        replace=True,
+    )
+    OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, replace=True)
+    OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
+    OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
+    OmegaConf.register_new_resolver("get_gatv4_output_dim", get_gatv4_output_dim, replace=True)
+    OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, replace=True)
+    OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
+    OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
+    OmegaConf.register_new_resolver(
+        "get_non_relational_out_channels", get_non_relational_out_channels, replace=True
+    )
+    OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
+    OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
+    OmegaConf.register_new_resolver(
+        "infer_num_cell_dimensions", infer_num_cell_dimensions, replace=True
+    )
+    OmegaConf.register_new_resolver(
+        "parameter_multiplication", lambda x, y: int(int(x) * int(y)), replace=True
+    )
+
+
+# Register resolvers immediately
+register_resolvers()
 
 
 def initialize_hydra() -> DictConfig:
