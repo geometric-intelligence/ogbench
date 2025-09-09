@@ -10,7 +10,6 @@ import typer
 from scripts.processors.addneuromed import process_addneuromed
 from scripts.processors.covidaki import process_covidaki
 from scripts.processors.motrpac import process_motrpac
-from scripts.processors.pancancer import process_pancancer
 from scripts.processors.parkinsons import process_parkinsons
 
 app = typer.Typer(help="Download and upload omics datasets to HuggingFace")
@@ -29,21 +28,6 @@ def motrpac(
     typer.echo("Processing MotrPac dataset...")
     process_motrpac(output_dir)
     typer.echo("✅ MotrPac dataset processed and uploaded successfully!")
-
-
-@app.command()
-def pancancer(
-    output_dir: str = typer.Option(
-        "temp_data",
-        "--output-dir",
-        "-o",
-        help="Output directory for temporary files",
-    )
-) -> None:
-    """Download and upload PanCancer dataset to HuggingFace."""
-    typer.echo("Processing PanCancer dataset...")
-    process_pancancer(output_dir)
-    typer.echo("✅ PanCancer dataset processed and uploaded successfully!")
 
 
 @app.command()
@@ -112,9 +96,6 @@ def all(
         # Process each dataset
         typer.echo("\n📊 Processing MotrPac...")
         process_motrpac(output_dir)
-
-        typer.echo("\n📊 Processing PanCancer...")
-        process_pancancer(output_dir)
 
         typer.echo("\n📊 Processing AddNeuroMed...")
         process_addneuromed(output_dir)
