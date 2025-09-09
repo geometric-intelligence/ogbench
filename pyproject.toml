@@ -54,7 +54,7 @@ dependencies=[
     "typer>=0.9.0",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
     "toponetx @ git+https://github.com/pyt-team/TopoNetX.git",
-    "lightning==2.4.0",
+    "lightning==2.5.5",
 ]
 
 [project.optional-dependencies]
