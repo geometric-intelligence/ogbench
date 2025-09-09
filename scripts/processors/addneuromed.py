@@ -5,7 +5,6 @@ import os
 
 import numpy as np
 import pandas as pd
-from IPython import embed
 
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
 
@@ -22,7 +21,7 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
 
     raw_data: pd.DataFrame = pd.DataFrame()
     frames: list[pd.DataFrame] = []
-    ages: list[int] = []
+    statuses: list[str] = []
 
     for dataset, url in urls.items():
         gz_path: str = os.path.join(output_dir, f"{dataset}.txt.gz")
@@ -42,9 +41,9 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
         # Extract ages from the data
         with gzip.open(gz_path, "rt") as f:
             for line in f:
-                if line.startswith("!Sample_characteristics_ch1") and "age:" in line:
-                    ages.extend(
-                        [int(x.split(": ")[1].strip().strip('"')) for x in line.split("\t")[1:]]
+                if line.startswith("!Sample_characteristics_ch1") and "status:" in line:
+                    statuses.extend(
+                        [x.split(": ")[1].strip().strip('"') for x in line.split("\t")[1:]]
                     )
                     break
 
@@ -61,17 +60,16 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
 
     # Combine datasets
     raw_data = pd.concat(frames, axis=0)
-    targets = np.array(ages)
+    targets = np.array(statuses)
 
     # Remove rows with nan values
     mask = (~pd.isna(raw_data)).any(axis=1).values & ~pd.isna(targets)
-    embed()
     raw_data = raw_data[mask]
     targets = targets[mask]
 
     # Raise if raw data or targets have nan values
     assert not raw_data.isna().any().any(), "Raw data has nan values"
-    assert not np.isnan(targets).any(), "Targets have nan values"
+    assert not (targets == "").any(), "Targets have empty strings"
 
     # Save as parquet
     data_file = os.path.join(output_dir, "addneuromed_data.parquet")
@@ -83,12 +81,7 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
     pd.DataFrame({"target": targets}).to_parquet(targets_file)
 
     # Create metadata
-    target_stats = {
-        "mean": float(np.mean(targets)),
-        "std": float(np.std(targets)),
-        "min": float(np.min(targets)),
-        "max": float(np.max(targets)),
-    }
+    target_stats = {}
 
     metadata = create_dataset_metadata(
         dataset_name="addneuromed",

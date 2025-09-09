@@ -1,6 +1,8 @@
 """Utility functions for dataset processing."""
 
+import json
 import os
+import tempfile
 from datetime import datetime
 from typing import Any, Dict
 
@@ -66,22 +68,21 @@ def upload_to_huggingface(
     Args:
         dataset_name: Name of the dataset (used for subdirectory naming)
         data_files: Dictionary mapping file names to local file paths
-        metadata: Metadata dictionary to save as README
+        metadata: Metadata dictionary to save
     """
     api = huggingface_hub.HfApi()
-    repo_id = "bgbench"
+    repo_id = "geometric-intelligence/bgbench"
 
     # Create repository if it doesn't exist
     try:
         huggingface_hub.create_repo(repo_id=repo_id, repo_type="dataset", exist_ok=True)
     except Exception as e:
         print(f"Did not create repository {repo_id}: {e}")
-
     # Upload files to root of repository with dataset-specific naming
     for file_name, file_path in data_files.items():
         if os.path.exists(file_path):
             # Rename files to include dataset name prefix for hf_omics compatibility
-            hf_file_name = f"{dataset_name}_{file_name}"
+            hf_file_name = f"{dataset_name}_{file_name}.parquet"
             api.upload_file(
                 path_or_fileobj=file_path,
                 path_in_repo=hf_file_name,
@@ -91,3 +92,16 @@ def upload_to_huggingface(
             print(f"Uploaded {hf_file_name}")
         else:
             print(f"Warning: File {file_path} does not exist")
+
+    # Save metadata as JSON
+    metadata_file = f"{dataset_name}_metadata.json"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json") as f:
+        json.dump(metadata, f, indent=2)
+        f.flush()
+        api.upload_file(
+            path_or_fileobj=f.name,
+            path_in_repo=metadata_file,
+            repo_id=repo_id,
+            repo_type="dataset",
+        )
+    print(f"Uploaded {metadata_file}")
