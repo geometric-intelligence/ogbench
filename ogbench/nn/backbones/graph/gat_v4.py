@@ -168,7 +168,7 @@ class GATv4(nn.Module):
         if not isinstance(data, Batch):
             data = Batch().from_data_list([data])
 
-        batch = data.batch
+        batch = data.batch_0
         edge_index = data.edge_index
 
         # Initial operations before GAT layers
