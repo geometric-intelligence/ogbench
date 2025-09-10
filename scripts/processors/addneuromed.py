@@ -46,7 +46,7 @@ def parse_gpl6947(content: str) -> pd.DataFrame:
     df = pd.DataFrame(data, columns=header_line.split("\t"))
 
     # Select relevant columns
-    relevant_cols = ["ID", "Symbol", "ILMN_Gene", "RefSeq_ID", "Entrez_Gene_ID"]
+    relevant_cols = ["ID", "ILMN_Gene", "RefSeq_ID", "Entrez_Gene_ID"]
     available_cols = [col for col in relevant_cols if col in df.columns]
 
     return df[available_cols]
@@ -79,7 +79,7 @@ def parse_gpl10558(content: str) -> pd.DataFrame:
     df = pd.DataFrame(data, columns=header_line.split("\t"))
 
     # Select relevant columns - GPL10558 has different column names
-    relevant_cols = ["ID", "Symbol", "ILMN_Gene", "RefSeq_ID", "Entrez_Gene_ID"]
+    relevant_cols = ["ID", "ILMN_Gene", "RefSeq_ID", "Entrez_Gene_ID"]
     available_cols = [col for col in relevant_cols if col in df.columns]
 
     return df[available_cols]
@@ -102,9 +102,10 @@ def create_gene_probe_mapping() -> Dict[str, Set[str]]:
     gpl10558_df = parse_gpl10558(gpl10558_content)
     print(f"GPL10558: {len(gpl10558_df)} probes")
 
-    # Get gene symbols from both datasets - use ILMN_Gene if available, otherwise Symbol
-    gpl6947_gene_col = "ILMN_Gene" if "ILMN_Gene" in gpl6947_df.columns else "Symbol"
-    gpl10558_gene_col = "ILMN_Gene" if "ILMN_Gene" in gpl10558_df.columns else "Symbol"
+    gpl6947_gene_col = "Entrez_Gene_ID" if "Entrez_Gene_ID" in gpl6947_df.columns else "ILMN_Gene"
+    gpl10558_gene_col = (
+        "Entrez_Gene_ID" if "Entrez_Gene_ID" in gpl10558_df.columns else "ILMN_Gene"
+    )
 
     gpl6947_genes = set(gpl6947_df[gpl6947_gene_col].dropna().unique())
     gpl10558_genes = set(gpl10558_df[gpl10558_gene_col].dropna().unique())
