@@ -57,7 +57,7 @@ class AddEdgeIndex(T.BaseTransform):
 class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
-    revision: Final[str] = "bf5ef3f"
+    revision: Final[str] = "d31a9b3"
     classification_datasets: Final[list[str]] = [
         "covidaki",
         "addneuromed",
@@ -367,54 +367,3 @@ class HFOmicsDataset(InMemoryDataset):
             (self._data.to_dict(), self.slices, {}, self._data.__class__, self.edge_index),
             self.processed_paths[0],
         )
-
-
-# class HFMotrPacDataModule(HFOmicsDataModule):
-#     """`LightningDataModule` for MotrPac proteomics datasets from HuggingFace."""
-
-#     data_name: Final[str] = "motrpac"
-#     revision: Final[str] = "bf5ef3f"
-
-#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-#         super().__init__(data_dir=data_dir, *args, **kwargs)
-
-
-# class HFPanCancerDataModule(HFOmicsDataModule):
-#     """`LightningDataModule` for PanCancer proteomics datasets from HuggingFace."""
-
-#     data_name: Final[str] = "pancancer"
-#     revision: Final[str] = "bf5ef3f"
-
-#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-#         super().__init__(data_dir=data_dir, *args, **kwargs)
-
-
-# class HFAddNeuroMedOmicsDataModule(HFOmicsDataModule):
-#     """`LightningDataModule` for AddNeuroMed-style omics datasets from HuggingFace."""
-
-#     data_name: Final[str] = "addneuromed"
-#     revision: Final[str] = "bf5ef3f"
-
-#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-#         super().__init__(data_dir=data_dir, *args, **kwargs)
-
-
-# class HFCovidAKIOmicsDataModule(HFOmicsDataModule):
-#     """`LightningDataModule` for COVID AKI omics datasets from HuggingFace."""
-
-#     data_name: Final[str] = "covidaki"
-#     revision: Final[str] = "bf5ef3f"
-
-#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-#         super().__init__(data_dir=data_dir, *args, **kwargs)
-
-
-# class HFParkinsonsOmicsDataModule(HFOmicsDataModule):
-#     """LightningDataModule for GSE99039 (Parkinson's Disease) gene expression data from
-#     HuggingFace."""
-
-#     data_name: Final[str] = "parkinsons"
-#     revision: Final[str] = "bf5ef3f"
-
-#     def __init__(self, data_dir: str = "data/hf_omics/", *args, **kwargs) -> None:
-#         super().__init__(data_dir=data_dir, *args, **kwargs)
