@@ -13,11 +13,10 @@ import torch
 import torch_geometric.data
 import torch_geometric.transforms as T
 from huggingface_hub import hf_hub_download
-from lightning import LightningDataModule
 from sklearn.impute import SimpleImputer
 from tqdm import tqdm
 
-from ogbench.data.utils import MeanStdNormalizer, MinMaxNormalizer
+from ogbench.data.utils import MeanStdNormalizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +56,7 @@ class AddEdgeIndex(T.BaseTransform):
 class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
-    revision: Final[str] = "d31a9b3"
+    revision: Final[str] = "92c8054"
     classification_datasets: Final[list[str]] = [
         "covidaki",
         "addneuromed",
@@ -206,7 +205,6 @@ class HFOmicsDataset(InMemoryDataset):
         targets = targets_df["target"].values
 
         logger.info(f"Downloaded {len(targets)} samples with {raw_data.shape[1]} features")
-
         np.save(os.path.join(self.raw_dir, "targets.npy"), targets)
 
         # Calculate number of nodes to select
