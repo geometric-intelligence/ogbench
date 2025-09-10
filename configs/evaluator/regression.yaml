@@ -3,5 +3,4 @@ task: ${dataset.parameters.task}
 task_level: ${dataset.parameters.task_level}
 num_classes: ${dataset.parameters.num_classes}
 
-# Metrics
-metrics: [mae, mse] #Available options: mae, mse
+metrics: [mae, mse, rmse]
