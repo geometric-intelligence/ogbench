@@ -13,7 +13,6 @@ import torch
 import torch_geometric.data
 import torch_geometric.transforms as T
 from huggingface_hub import hf_hub_download
-from IPython import embed
 from sklearn.impute import SimpleImputer
 from tqdm import tqdm
 
@@ -206,7 +205,6 @@ class HFOmicsDataset(InMemoryDataset):
         targets = targets_df["target"].values
 
         logger.info(f"Downloaded {len(targets)} samples with {raw_data.shape[1]} features")
-        embed()
         np.save(os.path.join(self.raw_dir, "targets.npy"), targets)
 
         # Calculate number of nodes to select
