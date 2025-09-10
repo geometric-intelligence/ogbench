@@ -221,6 +221,11 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
     assert not raw_data.isna().any().any(), "Raw data has nan values"
     assert not (targets == "").any(), "Targets have empty strings"
 
+    # Convert string classes to integers
+    unique_classes = np.unique(targets)
+    class_to_int = {class_name: i for i, class_name in enumerate(unique_classes)}
+    targets_int = np.array([class_to_int[class_name] for class_name in targets])
+
     # Save as parquet
     data_file = os.path.join(output_dir, "addneuromed_data.parquet")
     targets_file = os.path.join(output_dir, "addneuromed_targets.parquet")
@@ -228,15 +233,19 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
     # Reset index to make it a proper DataFrame
     raw_data = raw_data.reset_index(drop=True)
     raw_data.to_parquet(data_file)
-    pd.DataFrame({"target": targets}).to_parquet(targets_file)
+    pd.DataFrame({"target": targets_int}).to_parquet(targets_file)
 
     # Create metadata
-    target_stats = {}
+    target_stats = {
+        "class_mapping": class_to_int,
+        "num_classes": len(unique_classes),
+        "class_names": list(unique_classes),
+    }
 
     metadata = create_dataset_metadata(
         dataset_name="addneuromed",
         download_urls=urls,
-        num_samples=len(targets),
+        num_samples=len(targets_int),
         num_features=raw_data.shape[1],
         target_stats=target_stats,
     )
@@ -247,6 +256,6 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
     upload_to_huggingface("addneuromed", data_files, metadata)
 
     print("Successfully processed and uploaded AddNeuroMed dataset")
-    print(f"  Samples: {len(targets)}")
+    print(f"  Samples: {len(targets_int)}")
     print(f"  Features: {raw_data.shape[1]}")
     print(f"  Target stats: {target_stats}")
