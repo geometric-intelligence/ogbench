@@ -1,6 +1,6 @@
+import gc
 from typing import Optional, Tuple, Union
 
-import gc
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,7 +12,7 @@ from torch_geometric.nn.dense.linear import Linear
 from torch_geometric.utils import to_dense_batch
 
 
-# Overriding parameter intitialization
+# Overriding parameter initialization
 class CustomGATConv(GATv2Conv):
     def __init__(
         self,
@@ -24,7 +24,7 @@ class CustomGATConv(GATv2Conv):
         dropout: float = 0.0,
         add_self_loops: bool = True,
         edge_dim: Optional[int] = None,
-        fill_value: Union[float, Tensor, str] = 'mean',
+        fill_value: Union[float, Tensor, str] = "mean",
         bias: bool = True,
         share_weights: bool = False,
         residual: bool = False,
@@ -110,7 +110,7 @@ class GATv4(nn.Module):
         num_nodes,
         weight_initializer,
     ):
-        super(GATv4, self).__init__()
+        super().__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
         self.out_channels = out_channels
@@ -168,7 +168,7 @@ class GATv4(nn.Module):
         if not isinstance(data, Batch):
             data = Batch().from_data_list([data])
 
-        batch = data.batch
+        batch = data.batch_0
         edge_index = data.edge_index
 
         # Initial operations before GAT layers
@@ -183,7 +183,7 @@ class GATv4(nn.Module):
             x, att1 = self.convs[0](x, edge_index, return_attention_weights=True)
         else:
             x = self.convs[0](x, edge_index)
-        
+
         # [bs*nodes, hidden_channels[0]*heads[0]], Apply the gatconv layer
         x = self.ACT_MAP[self.act](
             x
@@ -192,20 +192,19 @@ class GATv4(nn.Module):
         x1 = x1.squeeze(-1)  # [bs*nodes]
         x1, _ = to_dense_batch(x1, batch=batch)  # [bs, nodes]
 
-        
         # Apply second GAT layer and pooling
-        x = F.dropout(x, p=self.dropout, training=self.training)  # apply dropout if we are training
+        x = F.dropout(
+            x, p=self.dropout, training=self.training
+        )  # apply dropout if we are training
         if return_attention_weights:
             x, att2 = self.convs[1](x, edge_index, return_attention_weights=True)
         else:
             x = self.convs[1](x, edge_index)
-        
-        
+
         x = self.ACT_MAP[self.act](x)  # [bs*nodes, hidden_channels[1]*heads[1]]
         x2 = self.pools[1](x)  # [bs*nodes, 1]
         x2 = x2.squeeze(-1)  # [bs*nodes]
         x2, _ = to_dense_batch(x2, batch=batch)  # [bs, nodes]
-        
 
         # Apply layer normalization to each individual graph to have mean 0, std 1
         if self.use_layer_norm:
@@ -214,14 +213,14 @@ class GATv4(nn.Module):
             x2 = self.layer_norm(x2)  # [bs, nodes]
 
         # Concatenate multiscale features - results in [bs, 3*nodes]
-        multiscale_features = {'layer1': x0, 'layer2': x1, 'layer3': x2}
+        multiscale_features = {"layer1": x0, "layer2": x1, "layer3": x2}
         multiscale_features = torch.cat(
             [multiscale_features[layer] for layer in self.which_layer],
             dim=1,
         )
 
         aux = [x0, x1, x2, multiscale_features]
-        
+
         if return_attention_weights:
             return multiscale_features, aux, att1, att2
         return multiscale_features, aux
