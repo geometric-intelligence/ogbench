@@ -305,7 +305,7 @@ class HFOmicsDataset(InMemoryDataset):
         r"""Handle the data for the dataset."""
         logger.info("Loading data...")
         selected_data = pd.read_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
-        targets = np.load(osp.join(self.raw_dir, "targets.npy"), allow_pickle=True)
+        targets = np.load(osp.join(self.raw_dir, "targets.npy"))
         adj_matrix = np.load(osp.join(self.raw_dir, "adj_matrix.npy"))
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
