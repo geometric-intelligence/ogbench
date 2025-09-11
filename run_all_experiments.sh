@@ -7,7 +7,7 @@ models=(
     "gat"
     "gatv2"
     "gcn"
-    "graph_mlp"
+    "mlp"
     "graph_sage"
 )
 
