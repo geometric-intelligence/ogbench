@@ -1,6 +1,6 @@
 _target_: ogbench.model.TBModel
 
-model_name: gat
+model_name: gatv2
 model_domain: graph
 
 feature_encoder:
@@ -17,7 +17,7 @@ backbone:
   num_layers: 1
   dropout: 0.0
   act: relu
-  v2: false
+  v2: true
   heads: 4
   concat: true
 
