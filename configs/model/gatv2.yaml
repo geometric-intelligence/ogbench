@@ -1,6 +1,6 @@
 _target_: ogbench.model.TBModel
 
-model_name: GraphMLP
+model_name: gatv2
 model_domain: graph
 
 feature_encoder:
@@ -11,21 +11,20 @@ feature_encoder:
   proj_dropout: 0.0
 
 backbone:
-  _target_: ogbench.nn.backbones.GraphMLP
+  _target_: torch_geometric.nn.models.GAT
   in_channels: ${model.feature_encoder.out_channels}
   hidden_channels: ${model.feature_encoder.out_channels}
-  order: 2
+  num_layers: 1
   dropout: 0.0
-  loss:
-    _target_: ogbench.loss.model.GraphMLPLoss
-    r_adj_power: 2
-    tau: 1.
-    loss_weight: 0.5
+  act: relu
+  v2: true
+  heads: 4
+  concat: true
 
 backbone_wrapper:
-  _target_: ogbench.nn.wrappers.GraphMLPWrapper
+  _target_: ogbench.nn.wrappers.GNNWrapper
   _partial_: true
-  wrapper_name: GraphMLPWrapper
+  wrapper_name: GNNWrapper
   out_channels: ${model.feature_encoder.out_channels}
   num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}}
 

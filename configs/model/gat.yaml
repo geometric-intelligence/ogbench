@@ -17,7 +17,7 @@ backbone:
   num_layers: 1
   dropout: 0.0
   act: relu
-  v2: true
+  v2: false
   heads: 4
   concat: true
 
