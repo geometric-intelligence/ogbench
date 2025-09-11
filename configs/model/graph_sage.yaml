@@ -1,6 +1,6 @@
 _target_: ogbench.model.TBModel
 
-model_name: gin
+model_name: sage
 model_domain: graph
 
 feature_encoder:
