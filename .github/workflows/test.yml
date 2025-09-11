@@ -64,12 +64,11 @@ jobs:
           pip install pytest
           pip install pytest-cov[toml]
           pip install sh
-          pip install codecov
 
       - name: Run tests and collect coverage
         env:
           HF_HUB_ENABLE_HF_TRANSFER: "0"
-        run: pytest --cov src # NEEDS TO BE UPDATED WHEN CHANGING THE NAME OF "src" FOLDER
+        run: pytest --cov ogbench # NEEDS TO BE UPDATED WHEN CHANGING THE NAME OF "src" FOLDER
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
