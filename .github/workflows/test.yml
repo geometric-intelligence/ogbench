@@ -64,6 +64,7 @@ jobs:
           pip install pytest
           pip install pytest-cov[toml]
           pip install sh
+          pip install codecov
 
       - name: Run tests and collect coverage
         env:
