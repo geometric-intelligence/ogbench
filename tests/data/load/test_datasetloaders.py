@@ -95,7 +95,7 @@ class TestLoaders:
         ):
             print("Current config file: ", config_file)
             parameters = hydra.compose(
-                config_name="run.yaml",
+                config_name="train.yaml",
                 overrides=[
                     f"dataset={data_domain}/{config_file}",
                     "model=graph/gat",

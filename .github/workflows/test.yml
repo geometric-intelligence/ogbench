@@ -39,6 +39,8 @@ jobs:
           python -m pip list
 
       - name: Run pytest
+        env:
+          HF_HUB_ENABLE_HF_TRANSFER: "0"
         run: |
           pytest -v
 
@@ -64,6 +66,8 @@ jobs:
           pip install sh
 
       - name: Run tests and collect coverage
+        env:
+          HF_HUB_ENABLE_HF_TRANSFER: "0"
         run: pytest --cov src # NEEDS TO BE UPDATED WHEN CHANGING THE NAME OF "src" FOLDER
 
       - name: Upload coverage to Codecov
