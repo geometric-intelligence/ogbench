@@ -8,6 +8,7 @@ torchmetrics>=0.11.4
 torch-geometric
 torch-scatter
 torch-sparse
+torch-cluster
 
 # --------- data misc --------- #
 PyWGCNA
@@ -35,3 +36,6 @@ rootutils
 pre-commit
 rich
 pytest
+
+topomodelx@ git+https://github.com/pyt-team/TopoModelX.git
+toponetx@ git+https://github.com/pyt-team/TopoNetX.git

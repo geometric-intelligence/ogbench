@@ -22,7 +22,7 @@ class TestCollateFunction:
         """Setup the test."""
 
         hydra.initialize(version_base="1.3", config_path="../../../configs", job_name="run")
-        cfg = hydra.compose(config_name="run.yaml", overrides=["dataset=graph/NCI1"])
+        cfg = hydra.compose(config_name="train.yaml", overrides=["dataset=addneuromed"])
 
         graph_loader = hydra.utils.instantiate(cfg.dataset.loader, _recursive_=False)
 
