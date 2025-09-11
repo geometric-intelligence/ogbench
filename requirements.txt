@@ -1,9 +1,13 @@
 # --------- pytorch --------- #
-torch==2.6.0+cu118
+torch==2.8.0
 lightning>=2.0.0
 torchmetrics>=0.11.4
 
+
+--find-links https://data.pyg.org/whl/torch-2.8.0+cu129.html
 torch-geometric
+torch-scatter
+torch-sparse
 
 # --------- data misc --------- #
 PyWGCNA
@@ -31,4 +35,3 @@ rootutils
 pre-commit
 rich
 pytest
-torch_sparse
