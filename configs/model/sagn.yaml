@@ -1,0 +1,50 @@
+_target_: ogbench.model.TBModel
+
+model_name: SAGN
+model_domain: graph
+
+feature_encoder:
+  _target_: ogbench.nn.encoders.${model.feature_encoder.encoder_name}
+  encoder_name: AllCellFeatureEncoder
+  in_channels: ${infer_in_channels:${dataset},${oc.select:transforms,null}}
+  out_channels: 1
+  proj_dropout: 0.0
+
+backbone:
+  _target_: ogbench.nn.backbones.graph.sagn.SAGN
+  in_channels: ${model.feature_encoder.out_channels}
+  hidden_channels: 128
+  out_channels: 128
+  num_hops: 4
+  num_heads: 4
+  dropout: 0.25
+
+backbone_wrapper:
+  _target_: ogbench.nn.wrappers.SAGNWrapper
+  _partial_: true
+  wrapper_name: SAGNWrapper
+  out_channels: ${model.backbone.out_channels}
+  num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}}
+  features_to_keep: ${oc.select:dataset.parameters.features_to_keep,null} # list of features to keep in the final output
+  residual_connections: false # whether to use residual connections in the GNN
+
+readout:
+  _target_: ogbench.nn.readouts.${model.readout.readout_name}
+  readout_name: OmicsReadOut
+  num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}} # The highest order of cell dimensions to consider
+  hidden_dim: ${model.backbone.out_channels}
+  out_channels: ${dataset.parameters.num_classes}
+  task_level: ${dataset.parameters.task_level}
+  pooling_type: sum
+  which_layer: ["layer1", "layer2", "layer3"]
+
+  in_channels: ${model.backbone_wrapper.out_channels}
+  num_nodes: ${dataset.parameters.num_nodes}
+  fc_dim: [128, 64, 32]
+  fc_dropout: 0.4
+  fc_act: relu
+  fc_input_dim: ${model.backbone_wrapper.out_channels}
+  graph_encoder_dim: 256
+
+# compile model for faster training with pytorch 2.0
+compile: false
