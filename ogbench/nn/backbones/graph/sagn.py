@@ -159,9 +159,6 @@ class HopConv(nn.Module):
         return out, hop_features
 
 
-# ----------------------------- Encoder & Full Model -----------------------------
-
-
 class SAGNEncoder(nn.Module):
     """
     SAGN-style encoder:
