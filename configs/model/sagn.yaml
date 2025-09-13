@@ -1,0 +1,29 @@
+_target_: ogbench.model.TBModel
+
+model_name: sagn
+model_domain: graph
+
+feature_encoder:
+  _target_: torch.nn.Identity
+  encoder_name: Identity
+
+backbone:
+  _target_: ogbench.nn.backbones.SAGN
+  in_channels: ${dataset.parameters.num_features}
+  hidden_channels: 32
+  out_channels: ${model.backbone.in_channels}
+  dropout: 0.25
+  num_layers: 2
+  num_heads: 1
+
+readout:
+  _target_: ogbench.nn.readouts.${model.readout.readout_name}
+  readout_name: NoReadOut
+  hidden_dim: ${model.backbone.out_channels}
+  out_channels: ${model.backbone.out_channels}
+  task_level: ${dataset.parameters.task_level}
+  pooling_type: sum
+  logits_linear_layer: false
+
+# compile model for faster training with pytorch 2.0
+compile: false
