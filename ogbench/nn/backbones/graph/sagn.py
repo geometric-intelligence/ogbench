@@ -144,7 +144,7 @@ class SAGN(nn.Module):
         if return_attn:
             return out, a.mean(1) if a is not None else None
         else:
-            return out
+            return out.squeeze(1)
 
 
 ################################################################

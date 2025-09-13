@@ -24,7 +24,7 @@ class SAGNWrapper(AbstractWrapper):
             Dictionary containing the updated model output.
         """
 
-        x_0, _ = self.backbone(
+        x_0 = self.backbone(
             batch.xs,
         )
 
