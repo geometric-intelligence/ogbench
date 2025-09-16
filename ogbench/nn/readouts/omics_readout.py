@@ -34,17 +34,17 @@ class OmicsReadOut(AbstractZeroCellReadOut):
         self.fc_dim = fc_dim
         self.fc_dropout = fc_dropout
         self.fc_act = fc_act
-        self.fc_input_dim = self.graph_encoder_dim[-1]
+        self.fc_input_dim = self.hidden_dim
         self.out_channels = out_channels  # 1
         self.readout_layers = self.build_readout_layers()
-        self.graph_encoder = self.build_graph_encoder()
+        # self.graph_encoder = self.build_graph_encoder()
 
-    def build_graph_encoder(self):
-        channel_list = [self.hidden_dim] + self.graph_encoder_dim
-        return MLP(channel_list, dropout=self.fc_dropout, act=self.ACT_MAP[self.fc_act])
+    # def build_graph_encoder(self):
+    #     channel_list = [self.hidden_dim] + self.graph_encoder_dim
+    #     return MLP(channel_list, dropout=self.fc_dropout, act=self.ACT_MAP[self.fc_act])
 
     def build_readout_layers(self):
-        layers = []
+        layers = [nn.LayerNorm(self.hidden_dim)]
         fc_layer_input_dim = self.fc_input_dim
         for fc_dim in self.fc_dim:
             layers.append(
@@ -60,8 +60,8 @@ class OmicsReadOut(AbstractZeroCellReadOut):
 
     def forward(self, model_out, batch):
         flattened_features = model_out["x_0"].view(batch.batch_size, -1)
-        encoded_graph = self.graph_encoder(flattened_features)
-        model_out["x_0"] = self.readout_layers(encoded_graph)
+        # encoded_graph = self.graph_encoder(flattened_features)
+        model_out["x_0"] = self.readout_layers(flattened_features)
         return model_out
 
     def __call__(self, model_out, batch) -> dict:

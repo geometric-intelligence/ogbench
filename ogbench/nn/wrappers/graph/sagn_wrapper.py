@@ -3,8 +3,8 @@
 from ogbench.nn.wrappers.base import AbstractWrapper
 
 
-class GATv4Wrapper(AbstractWrapper):
-    r"""Wrapper for the GATv4 models.
+class SAGNWrapper(AbstractWrapper):
+    r"""Wrapper for the SAGN models.
 
     This wrapper defines the forward pass of the model. The GNN models return the embeddings of the
     cells of rank 0.
@@ -24,10 +24,8 @@ class GATv4Wrapper(AbstractWrapper):
             Dictionary containing the updated model output.
         """
 
-        x_0, _ = self.backbone(
-            batch.x_0,
-            batch.edge_index,
-            batch,
+        x_0 = self.backbone(
+            batch.xs,
         )
 
         model_out = {"labels": batch.y, "batch_0": batch.batch_0}

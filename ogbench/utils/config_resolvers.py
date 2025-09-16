@@ -24,7 +24,7 @@ def get_gatv4_output_dim(num_nodes, num_layers=3):
     return num_nodes * num_layers
 
 
-def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
+def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio, full_num_nodes):
     r"""Calculate the number of nodes for a given dataset.
 
     Parameters
@@ -33,7 +33,7 @@ def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
         Total number of samples in the dataset.
     train_val_test_split : list[float]
         Train/validation/test split ratios.
-    node_sample_ratio : float
+    node_sample_ratio : float or int
         Ratio of nodes to sample.
 
     Returns
@@ -42,7 +42,11 @@ def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
         Number of nodes.
     """
     n_training_samples = int(num_samples * train_val_test_split[0])
+    if node_sample_ratio == "full":
+        return full_num_nodes
     n_nodes = int(n_training_samples / node_sample_ratio)
+    if n_nodes > full_num_nodes:
+        return full_num_nodes
     return n_nodes
 
 
@@ -115,22 +119,23 @@ def get_default_transform(dataset, model):
     str
         Default transform.
     """
-    data_domain, dataset = dataset.split("/")
-    model_domain = model.split("/")[0]
-    if model_domain == "non_relational":
-        model_domain = "graph"
-    # Check if there is a default transform for the dataset at ./configs/transforms/dataset_defaults/
-    # If not, use the default lifting transform for the dataset to be compatible with the model
+    # data_domain, dataset = dataset.split("/")
+    # model_domain, model = model.split("/")
+    # if model_domain == "non_relational" or model_domain == "pointcloud":
+    #     model_domain = "graph"
+    # # Check if there is a default transform for the dataset at ./configs/transforms/dataset_defaults/
+    # # If not, use the default lifting transform for the dataset to be compatible with the model
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    configs_dir = os.path.join(base_dir, "configs", "transforms", "dataset_defaults")
-    datasets_with_defaults = [f.split(".")[0] for f in os.listdir(configs_dir)]
+    model_configs_dir = os.path.join(base_dir, "configs", "transforms", "model_defaults")
+    dataset_configs_dir = os.path.join(base_dir, "configs", "transforms", "dataset_defaults")
+    datasets_with_defaults = [f.split(".")[0] for f in os.listdir(dataset_configs_dir)]
+    model_with_defaults = [f.split(".")[0] for f in os.listdir(model_configs_dir)]
     if dataset in datasets_with_defaults:
         return f"dataset_defaults/{dataset}"
+    elif model in model_with_defaults:
+        return f"model_defaults/{model}"
     else:
-        if data_domain == model_domain:
-            return "no_transform"
-        else:
-            return f"liftings/{data_domain}2{model_domain}_default"
+        return "no_transform"
 
 
 def get_required_lifting(data_domain, model):

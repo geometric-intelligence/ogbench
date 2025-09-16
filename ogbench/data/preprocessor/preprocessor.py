@@ -49,7 +49,6 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
             self.data, self.slices = dataset._data, dataset.slices
             self.data_list = [data for data in dataset]
 
-        self.data_list = [self.get(idx) for idx in range(len(self))]
         # Some datasets have fixed splits, and those are stored as split_idx during loading
         # We need to store this information to be able to reproduce the splits afterwards
         if hasattr(dataset, "split_idx"):
@@ -153,7 +152,7 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
     def process(self) -> None:
         """Method that processes the data."""
         if isinstance(self.dataset, torch_geometric.data.Dataset):
-            data_list = [self.dataset.get(idx) for idx in range(len(self.dataset))]
+            data_list = [data for data in self.dataset]
         elif isinstance(self.dataset, torch.utils.data.Dataset):
             data_list = [self.dataset[idx] for idx in range(len(self.dataset))]
         elif isinstance(self.dataset, torch_geometric.data.Data):

@@ -4,7 +4,7 @@
 import abc
 import logging
 import os
-from typing import Any, Dict, Final, Optional, Tuple
+from typing import Any, Dict, Final, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -69,7 +69,7 @@ class HFOmicsDataset(InMemoryDataset):
         method: str = "variance",
         imputation_method: str = "mean",
         adjacency_threshold: float = 0.3,
-        node_sample_ratio: float = 1.0,
+        node_sample_ratio: Union[float, str] = 1.0,
         train_val_test_split: list[float] = [0.7, 0.15, 0.15],
         hf_repo_id: str = "geometric-intelligence/bgbench",
         **kwargs: Any,
@@ -209,7 +209,13 @@ class HFOmicsDataset(InMemoryDataset):
 
         # Calculate number of nodes to select
         n_training_samples = int(raw_data.shape[0] * self.train_val_test_split[0])
-        n_nodes = int(n_training_samples / self.node_sample_ratio)
+        if self.node_sample_ratio == "full":
+            print("Using full node sample ratio")
+            n_nodes = raw_data.shape[1]
+        elif isinstance(self.node_sample_ratio, float):
+            n_nodes = int(n_training_samples / self.node_sample_ratio)
+            if n_nodes > raw_data.shape[1]:
+                n_nodes = raw_data.shape[1]
         logger.info(
             f"Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}"
         )

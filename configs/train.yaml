@@ -5,8 +5,8 @@
 defaults:
   - _self_
   - dataset: motrpac
-  - model: gatv4
-  - transforms: no_transform
+  - model: mlp
+  - transforms: ${get_default_transform:${dataset},${model}}
   - optimizer: default
   - loss: default
   - evaluator: default

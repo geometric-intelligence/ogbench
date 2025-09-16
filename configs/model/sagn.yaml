@@ -1,0 +1,37 @@
+_target_: ogbench.model.TBModel
+
+model_name: sagn
+model_domain: graph
+
+feature_encoder:
+  _target_: torch.nn.Identity
+  encoder_name: Identity
+
+backbone:
+  _target_: ogbench.nn.backbones.SAGN
+  in_channels: ${dataset.parameters.num_features}
+  hidden_channels: 32
+  out_channels: ${model.backbone.hidden_channels} #${dataset.parameters.num_classes}
+  dropout: 0.25
+  num_layers: 2
+  alpha: 0.5
+  num_heads: 1
+
+backbone_wrapper:
+  _target_: ogbench.nn.wrappers.SAGNWrapper
+  _partial_: true
+  wrapper_name: SAGNWrapper
+  out_channels: ${model.backbone.out_channels}
+  num_nodes: ${dataset.parameters.num_nodes}
+  num_cell_dimensions: 1 #${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.backbone.in_channels}}
+  residual_connections: false # whether to use residual connections in the GNN
+
+readout:
+  _target_: ogbench.nn.readouts.${model.readout.readout_name}
+  readout_name: NoReadOut
+  num_cell_dimensions: ${model.backbone_wrapper.num_cell_dimensions}
+  hidden_dim: ${model.backbone.out_channels} #${get_flattened_channels:${model.backbone.out_channels},${dataset.parameters.num_nodes}}
+  out_channels: ${dataset.parameters.num_classes}
+  task_level: ${dataset.parameters.task_level}
+  pooling_type: mean
+compile: false
