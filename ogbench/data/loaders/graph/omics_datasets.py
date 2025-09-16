@@ -1,4 +1,4 @@
-"""Loaders for PLANETOID datasets."""
+"""Loaders for Omics datasets."""
 
 import os.path as osp
 from pathlib import Path
@@ -27,12 +27,12 @@ class OmicsDatasetLoader(AbstractLoader):
         super().__init__(parameters)
 
     def load_dataset(self) -> Dataset:
-        """Load Planetoid dataset.
+        """Load Omics dataset.
 
         Returns
         -------
         Dataset
-            The loaded Planetoid dataset.
+            The loaded Omics dataset.
 
         Raises
         ------

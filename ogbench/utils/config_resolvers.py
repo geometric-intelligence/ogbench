@@ -24,7 +24,7 @@ def get_gatv4_output_dim(num_nodes, num_layers=3):
     return num_nodes * num_layers
 
 
-def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
+def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio, full_num_nodes):
     r"""Calculate the number of nodes for a given dataset.
 
     Parameters
@@ -33,7 +33,7 @@ def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
         Total number of samples in the dataset.
     train_val_test_split : list[float]
         Train/validation/test split ratios.
-    node_sample_ratio : float
+    node_sample_ratio : float or int
         Ratio of nodes to sample.
 
     Returns
@@ -42,7 +42,11 @@ def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio):
         Number of nodes.
     """
     n_training_samples = int(num_samples * train_val_test_split[0])
+    if node_sample_ratio == "full":
+        return full_num_nodes
     n_nodes = int(n_training_samples / node_sample_ratio)
+    if n_nodes > full_num_nodes:
+        return full_num_nodes
     return n_nodes
 
 
