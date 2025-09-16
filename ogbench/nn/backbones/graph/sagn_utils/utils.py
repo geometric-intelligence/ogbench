@@ -1,10 +1,11 @@
+import numpy as np
+import torch
 from texttable import Texttable
 from torch_sparse import SparseTensor
-import torch
-import numpy as np
 
-MB = 1024 ** 2
-GB = 1024 ** 3
+MB = 1024**2
+GB = 1024**3
+
 
 def print_args(args):
     _dict = vars(args)
@@ -17,7 +18,7 @@ def print_args(args):
 
 
 def get_memory_usage(gpu, print_info=False):
-    """Get accurate gpu memory usage by querying torch runtime"""
+    """Get accurate gpu memory usage by querying torch runtime."""
     allocated = torch.cuda.memory_allocated(gpu)
     reserved = torch.cuda.memory_reserved(gpu)
     if print_info:
@@ -27,7 +28,7 @@ def get_memory_usage(gpu, print_info=False):
 
 
 def compute_tensor_bytes(tensors):
-    """Compute the bytes used by a list of tensors"""
+    """Compute the bytes used by a list of tensors."""
     if not isinstance(tensors, (list, tuple)):
         tensors = [tensors]
 

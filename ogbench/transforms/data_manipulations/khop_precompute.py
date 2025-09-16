@@ -3,9 +3,9 @@
 import torch_geometric
 from torch_geometric.transforms import SIGN
 
+
 class KHopPrecompute(torch_geometric.transforms.BaseTransform):
-    """
-    Precompute k-hop features using SIGN and attach them to `data`.
+    """Precompute k-hop features using SIGN and attach them to `data`.
 
     Produces:
       - data.x, data.x1, ..., data.xK   (SIGN outputs)
@@ -14,6 +14,7 @@ class KHopPrecompute(torch_geometric.transforms.BaseTransform):
     Args:
         num_layers (int): K in SIGN (number of hops).
     """
+
     def __init__(self, **kwargs):
         super().__init__()
         self.parameters = kwargs

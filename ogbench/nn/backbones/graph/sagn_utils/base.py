@@ -8,13 +8,12 @@ from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader
 from torch_geometric.transforms import SIGN
 from torch_sparse import SparseTensor
-
 from utils import GB, MB, compute_tensor_bytes, get_memory_usage
 
 
 class PrecomputingBase(torch.nn.Module):
     def __init__(self, args, data, train_idx, processed_dir):
-        super(PrecomputingBase, self).__init__()
+        super().__init__()
 
         self.num_layers = args.num_layers
         self.dim_hidden = args.dim_hidden
@@ -72,10 +71,7 @@ class PrecomputingBase(torch.nn.Module):
             "peak_mem": [],
             "duration": [],
         }
-        print(
-            "model + optimizer only, mem: %.2f MB"
-            % (usage_dict["model_opt_usage"] / MB)
-        )
+        print("model + optimizer only, mem: %.2f MB" % (usage_dict["model_opt_usage"] / MB))
         xs_train = torch.cat([x[split_idx["train"]] for x in self.xs], -1)
         y_train = input_dict["y"][split_idx["train"]]
         dim_feat = self.xs[0].shape[-1]
@@ -117,8 +113,9 @@ class PrecomputingBase(torch.nn.Module):
             usage_dict["peak_mem"].append(peak_usage)
             print(f"peak mem usage: {peak_usage / MB}")
         with open(
-            "./%s_%s_mem_speed_log.json"
-            % (self.saved_args["dataset"], self.__class__.__name__),
+            "./{}_{}_mem_speed_log.json".format(
+                self.saved_args["dataset"], self.__class__.__name__
+            ),
             "w",
         ) as fp:
             info_dict = {**self.saved_args, **usage_dict}

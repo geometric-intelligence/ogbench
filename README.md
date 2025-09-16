@@ -36,9 +36,3 @@ Example: Train model with default configuration for gatv2 as model and pancancer
 # train on GPU with DDP
 python src/run.py trainer=ddp experiment=gatv2 data=pancancer
 ```
-
-## Run a grid search over parameters:
-
-```bash
-python src/run.py trainer=ddp hparams_search=gcn_basic experiment=gatv2 data=pancancer
-```
