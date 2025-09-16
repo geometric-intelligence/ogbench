@@ -166,13 +166,6 @@ class MultiHeadLinear(nn.Module):
                 bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
                 nn.init.uniform_(bias, -bound, bound)
 
-    # def reset_parameters(self):
-    #     gain = nn.init.calculate_gain("relu")
-    #     for weight in self.weight:
-    #         nn.init.xavier_uniform_(weight, gain=gain)
-    #     if self.bias is not None:
-    #         nn.init.zeros_(self.bias)
-
     def forward(self, x):
         # input size: [N, d_in] or [H, N, d_in]
         # output size: [H, N, d_out]
@@ -272,7 +265,6 @@ class GroupMLP(nn.Module):
             self.layers.append(MultiHeadLinear(in_feats, hidden, n_heads))
             if normalization == "batch":
                 self.norms.append(MultiHeadBatchNorm(n_heads, hidden * n_heads))
-                # self.norms.append(nn.BatchNorm1d(hidden * n_heads))
             if normalization == "layer":
                 self.norms.append(nn.GroupNorm(n_heads, hidden * n_heads))
             if normalization == "none":
@@ -281,7 +273,6 @@ class GroupMLP(nn.Module):
                 self.layers.append(MultiHeadLinear(hidden, hidden, n_heads))
                 if normalization == "batch":
                     self.norms.append(MultiHeadBatchNorm(n_heads, hidden * n_heads))
-                    # self.norms.append(nn.BatchNorm1d(hidden * n_heads))
                 if normalization == "layer":
                     self.norms.append(nn.GroupNorm(n_heads, hidden * n_heads))
                 if normalization == "none":
@@ -310,13 +301,6 @@ class GroupMLP(nn.Module):
                     nn.init.zeros_(layer.bias[head])
         for norm in self.norms:
             norm.reset_parameters()
-            # for norm in self.norms:
-            #     norm.moving_mean[head].zero_()
-            #     norm.moving_var[head].fill_(1)
-            #     if norm._affine:
-            #         nn.init.ones_(norm.scale[head])
-            #         nn.init.zeros_(norm.offset[head])
-        # print(self.layers[0].weight[0])
 
     def forward(self, x):
         x = self.input_drop(x)
