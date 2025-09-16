@@ -37,28 +37,8 @@ readout:
   _target_: ogbench.nn.readouts.${model.readout.readout_name}
   readout_name: NoReadOut
   num_cell_dimensions: ${model.backbone_wrapper.num_cell_dimensions}
-  hidden_dim: ${model.backbone_wrapper.out_channels} #${get_flattened_channels:${model.backbone.out_channels},${dataset.parameters.num_nodes}}
+  hidden_dim: ${model.backbone_wrapper.out_channels}
   out_channels: ${dataset.parameters.num_classes}
   task_level: ${dataset.parameters.task_level}
   pooling_type: mean
-
-# readout:
-#   _target_: ogbench.nn.readouts.${model.readout.readout_name}
-#   readout_name: OmicsReadOut
-#   num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}} # The highest order of cell dimensions to consider
-#   hidden_dim: ${get_gatv4_output_dim:${dataset.parameters.num_nodes}}
-#   out_channels: ${dataset.parameters.num_classes}
-#   task_level: ${dataset.parameters.task_level}
-#   pooling_type: sum
-#   which_layer: ["layer1", "layer2", "layer3"]
-
-#   in_channels: ${model.backbone_wrapper.out_channels}
-#   num_nodes: ${dataset.parameters.num_nodes}
-#   fc_dim: [128, 64, 32]
-#   fc_dropout: 0.4
-#   fc_act: relu
-#   fc_input_dim: ${model.backbone_wrapper.out_channels}
-#   graph_encoder_dim: 256
-
-# compile model for faster training with pytorch 2.0
 compile: false

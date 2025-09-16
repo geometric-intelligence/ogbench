@@ -33,20 +33,6 @@ class PrecomputingBase(torch.nn.Module):
         self.saved_args = vars(args)
 
     def precompute(self, data, processed_dir):
-        # try:
-        #     t1 = time.time()
-        #     self.xs = torch.load(os.path.join(processed_dir, 'pre_xs.pt'))
-        #     t2 = time.time()
-        #     print("cached features are loaded using %.4f ." % (t2-t1))
-        # except Exception as e:
-        #     print("precomputing features, may take a while.")
-        #     t1 = time.time()
-        #     data = SIGN(self.num_layers)(data)
-        #     self.xs = [data.x] + [data[f"x{i}"] for i in range(1, self.num_layers + 1)]
-        #     t2 = time.time()
-        #     print("precomputing finished using %.4f ." % (t2-t1))
-        #     torch.save(self.xs, os.path.join(processed_dir, "pre_xs.pt"))
-        #     print("precomputed features are cached.")
         print("precomputing features, may take a while.")
         t1 = time.time()
         data = SIGN(self.num_layers)(data)
@@ -159,14 +145,9 @@ class PrecomputingBase(torch.nn.Module):
             if not self.multi_label:
                 y_preds.append(out.argmax(dim=-1).detach().cpu())
                 y_true.append(y.detach().cpu())
-                # total_correct += int(out.argmax(dim=-1).eq(y).sum())
             else:
                 y_preds.append(out.detach().cpu())
                 y_true.append(y.detach().cpu())
-                # train_acc = f1_score(y_true[self.split_masks['train']],
-                #                     pred[self.split_masks['train']], average='micro') \
-                # if pred[self.split_masks['train']].sum() > 0 else 0
-                # total_correct += int(out.eq(y).sum())
 
         y_true = torch.cat(y_true, 0)
         y_preds = torch.cat(y_preds, 0)
