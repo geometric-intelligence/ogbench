@@ -11,7 +11,7 @@ backbone:
   _target_: ogbench.nn.backbones.SAGN
   in_channels: ${dataset.parameters.num_features}
   hidden_channels: 32
-  out_channels: ${dataset.parameters.num_classes}
+  out_channels: 4 #${dataset.parameters.num_classes}
   dropout: 0.25
   num_layers: 2
   num_heads: 1
@@ -21,26 +21,36 @@ backbone_wrapper:
   _partial_: true
   wrapper_name: SAGNWrapper
   out_channels: ${model.backbone.out_channels}
+  num_nodes: ${dataset.parameters.num_nodes}
   num_cell_dimensions: 1 #${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.backbone.in_channels}}
   residual_connections: false # whether to use residual connections in the GNN
 
 readout:
   _target_: ogbench.nn.readouts.${model.readout.readout_name}
-  readout_name: OmicsReadOut
-  num_cell_dimensions: ${model.backbone_wrapper.num_cell_dimensions} # The highest order of cell dimensions to consider
-  hidden_dim: ${get_flattened_channels:${model.backbone.out_channels},${dataset.parameters.num_nodes}}
+  readout_name: NoReadOut
+  num_cell_dimensions: ${model.backbone_wrapper.num_cell_dimensions}
+  hidden_dim: ${model.backbone.out_channels} #${get_flattened_channels:${model.backbone.out_channels},${dataset.parameters.num_nodes}}
   out_channels: ${dataset.parameters.num_classes}
   task_level: ${dataset.parameters.task_level}
-  pooling_type: sum
-  which_layer: ["layer1", "layer2", "layer3"]
+  pooling_type: mean
 
-  in_channels: ${model.backbone_wrapper.out_channels}
-  num_nodes: ${dataset.parameters.num_nodes}
-  fc_dim: [128, 64, 32]
-  fc_dropout: 0.4
-  fc_act: relu
-  fc_input_dim: ${model.backbone_wrapper.out_channels}
-  graph_encoder_dim: 256
+# readout:
+#   _target_: ogbench.nn.readouts.${model.readout.readout_name}
+#   readout_name: OmicsReadOut
+#   num_cell_dimensions: ${model.backbone_wrapper.num_cell_dimensions} # The highest order of cell dimensions to consider
+#   hidden_dim: ${get_flattened_channels:${model.backbone.out_channels},${dataset.parameters.num_nodes}}
+#   out_channels: ${dataset.parameters.num_classes}
+#   task_level: ${dataset.parameters.task_level}
+#   pooling_type: sum
+#   which_layer: ["layer1", "layer2", "layer3"]
+
+#   in_channels: ${model.backbone_wrapper.out_channels}
+#   num_nodes: ${dataset.parameters.num_nodes}
+#   fc_dim: [64]
+#   fc_dropout: 0.4
+#   fc_act: relu
+#   fc_input_dim: ${model.backbone_wrapper.out_channels}
+#   graph_encoder_dim: 128
 
 # compile model for faster training with pytorch 2.0
 compile: false

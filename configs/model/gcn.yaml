@@ -32,7 +32,7 @@ readout:
   hidden_dim: ${model.feature_encoder.out_channels}
   out_channels: ${dataset.parameters.num_classes}
   task_level: ${dataset.parameters.task_level}
-  pooling_type: sum
+  pooling_type: mean
 
 # compile model for faster training with pytorch 2.0
 compile: false

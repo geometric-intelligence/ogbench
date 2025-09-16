@@ -31,8 +31,8 @@ class AbstractZeroCellReadOut(torch.nn.Module):
         hidden_dim: int,
         out_channels: int,
         task_level: str,
-        pooling_type: str = "sum",
-        logits_linear_layer: bool = True,
+        pooling_type: str = "mean",
+        logits_linear_layer: bool = False,
         **kwargs,
     ):
         super().__init__()

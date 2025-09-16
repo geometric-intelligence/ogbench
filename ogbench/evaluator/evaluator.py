@@ -92,7 +92,10 @@ class TBEvaluator(AbstractEvaluator):
         target = model_out["labels"].cpu()
 
         if self.task == "regression":
-            self.metrics.update(preds, target.unsqueeze(1))
+            try:
+                self.metrics.update(preds, target.unsqueeze(1))
+            except RuntimeError:
+                self.metrics.update(preds.unsqueeze(1), target.unsqueeze(1))
 
         elif self.task == "classification":
             self.metrics.update(preds, target)

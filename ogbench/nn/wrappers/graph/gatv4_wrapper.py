@@ -31,6 +31,6 @@ class GATv4Wrapper(AbstractWrapper):
         )
 
         model_out = {"labels": batch.y, "batch_0": batch.batch_0}
-        model_out["x_0"] = x_0
+        model_out["x_0"] = x_0.view(self.num_nodes * batch.batch_size, -1)
 
         return model_out
