@@ -371,3 +371,13 @@ class HFOmicsDataset(InMemoryDataset):
             (self._data.to_dict(), self.slices, {}, self._data.__class__, self.edge_index),
             self.processed_paths[0],
         )
+
+    def __repr__(self) -> str:
+        return (
+            f"HFOmicsDataset(data_name={self.data_name}, "
+            f"adjacency_threshold={self.adjacency_threshold}, "
+            f"node_sample_ratio={self.node_sample_ratio}, "
+            f"method={self.method}, "
+            f"train_val_test_split={self.train_val_test_split}, "
+            f"normalize_targets={self.normalize_targets})"
+        )

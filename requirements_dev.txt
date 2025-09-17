@@ -6,3 +6,4 @@ pandas
 numpy
 torch
 torch-geometric
+ipykernel
