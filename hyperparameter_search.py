@@ -20,6 +20,7 @@ import torch
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from hydra.utils import instantiate
+from joblib import Parallel, delayed
 from omegaconf import OmegaConf
 
 # Import resolvers
@@ -63,16 +64,74 @@ def register_resolvers():
 register_resolvers()
 
 
+def run_single_config_worker(config_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Worker function for parallel execution using joblib."""
+    # Create a temporary search instance for this worker
+    search = HyperparameterSearch()
+    
+    run_id = config_data["run_id"]
+    model_key = config_data["model"]
+    dataset_key = config_data["dataset"]
+    hp = config_data["hp"]
+    overrides = config_data["overrides"]
+    timeout = config_data.get("timeout")
+    gpu_id = config_data.get("gpu_id")
+    dry_run = config_data.get("dry_run", False)
+
+    print(f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, GPU: {gpu_id}")
+    print(f"[{run_id}] Overrides: {' '.join(overrides)}")
+
+    start_time = time.time()
+
+    if dry_run:
+        n_params, error = search.dry_run_config(overrides)
+        success = n_params is not None
+        metrics = {"params": n_params} if success else None
+        error_msg = error
+    else:
+        success, error_msg, metrics = search.run_config(overrides, timeout, gpu_id)
+        n_params = None
+
+    elapsed = time.time() - start_time
+
+    result = {
+        "run_id": run_id,
+        "model": model_key,
+        "dataset": dataset_key,
+        "success": success,
+        "elapsed_time": elapsed,
+        "overrides": " ".join(overrides),
+        "error": error_msg,
+        "gpu_id": gpu_id,
+        **hp,
+    }
+
+    if dry_run:
+        result["params"] = n_params
+    elif metrics:
+        result.update(metrics)
+
+    status = "✅ SUCCESS" if success else "❌ FAILED"
+    print(f"[{run_id}] {status} ({elapsed:.1f}s)")
+    if not success:
+        print(f"[{run_id}] Error: {error_msg}")
+    print()
+
+    return result
+
+
 class HyperparameterSearch:
     """Driver for hyperparameter search via subprocess calls to run.py."""
 
-    def __init__(self, config_path: str = "configs", project_cfg: str = "train.yaml"):
+    def __init__(self, config_path: str = "configs", project_cfg: str = "train.yaml", n_jobs: Optional[int] = None):
         self.config_path = config_path
         self.project_cfg = project_cfg
         self.results: List[Dict[str, Any]] = []
-
+        self.n_jobs = n_jobs or min(torch.cuda.device_count() if torch.cuda.is_available() else -1, 8)
+        
         # Stay off GPU for dry runs
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        if not torch.cuda.is_available():
+            os.environ["CUDA_VISIBLE_DEVICES"] = ""
         torch.set_grad_enabled(False)
 
     def product_dict(self, grid: Dict[str, Iterable[Any]]) -> List[Dict[str, Any]]:
@@ -133,7 +192,7 @@ class HyperparameterSearch:
             return None, str(e)
 
     def run_config(
-        self, overrides: List[str], timeout: Optional[int] = None
+        self, overrides: List[str], timeout: Optional[int] = None, gpu_id: Optional[int] = None
     ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         """Run a configuration via subprocess call to run.py."""
         # Use overrides as-is since dataset is now explicitly included in grid
@@ -141,9 +200,14 @@ class HyperparameterSearch:
 
         cmd = [sys.executable, "ogbench/run.py"] + final_overrides
 
+        # Set GPU environment if specified
+        env = os.environ.copy()
+        if gpu_id is not None and torch.cuda.is_available():
+            env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout, cwd=Path(__file__).parent
+                cmd, capture_output=True, text=True, timeout=timeout, cwd=Path(__file__).parent, env=env
             )
 
             if result.returncode == 0:
@@ -169,6 +233,58 @@ class HyperparameterSearch:
         except Exception as e:
             return False, str(e), None
 
+    def run_single_config(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Run a single configuration (for sequential execution)."""
+        run_id = config_data["run_id"]
+        model_key = config_data["model"]
+        dataset_key = config_data["dataset"]
+        hp = config_data["hp"]
+        overrides = config_data["overrides"]
+        timeout = config_data.get("timeout")
+        gpu_id = config_data.get("gpu_id")
+        dry_run = config_data.get("dry_run", False)
+
+        print(f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, GPU: {gpu_id}")
+        print(f"[{run_id}] Overrides: {' '.join(overrides)}")
+
+        start_time = time.time()
+
+        if dry_run:
+            n_params, error = self.dry_run_config(overrides)
+            success = n_params is not None
+            metrics = {"params": n_params} if success else None
+            error_msg = error
+        else:
+            success, error_msg, metrics = self.run_config(overrides, timeout, gpu_id)
+            n_params = None
+
+        elapsed = time.time() - start_time
+
+        result = {
+            "run_id": run_id,
+            "model": model_key,
+            "dataset": dataset_key,
+            "success": success,
+            "elapsed_time": elapsed,
+            "overrides": " ".join(overrides),
+            "error": error_msg,
+            "gpu_id": gpu_id,
+            **hp,
+        }
+
+        if dry_run:
+            result["params"] = n_params
+        elif metrics:
+            result.update(metrics)
+
+        status = "✅ SUCCESS" if success else "❌ FAILED"
+        print(f"[{run_id}] {status} ({elapsed:.1f}s)")
+        if not success:
+            print(f"[{run_id}] Error: {error_msg}")
+        print()
+
+        return result
+
     def search(
         self,
         models: List[str],
@@ -178,6 +294,7 @@ class HyperparameterSearch:
         dry_run: bool = False,
         timeout: Optional[int] = None,
         output_dir: str = "./search_results",
+        parallel: bool = True,
     ) -> pd.DataFrame:
         """Perform hyperparameter search.
 
@@ -197,6 +314,8 @@ class HyperparameterSearch:
             Timeout in seconds for each run (None for no timeout)
         output_dir : str
             Directory to save results
+        parallel : bool
+            If True, run configurations in parallel across GPUs
 
         Returns
         -------
@@ -218,10 +337,14 @@ class HyperparameterSearch:
         print(f"Datasets: {datasets}")
         print(f"Total combinations: {total_combinations}")
         print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
+        print(f"Parallel: {parallel} ({self.n_jobs} jobs)")
         print(f"Output directory: {output_dir}")
         print("-" * 50)
 
+        # Prepare all configurations
+        configs = []
         current_run = 0
+        available_gpus = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else [None]
 
         for model_key in models:
             for dataset_key in datasets:
@@ -234,45 +357,34 @@ class HyperparameterSearch:
                     overrides = [f"model={model_key}", f"dataset={dataset_key}"]
                     overrides = self.build_overrides(overrides, hp)
 
-                    print(f"[{current_run}/{total_combinations}] Model: {model_key}, Dataset: {dataset_key}")
-                    print(f"Overrides: {' '.join(overrides)}")
+                    gpu_id = available_gpus[(current_run - 1) % len(available_gpus)] if parallel and not dry_run else None
 
-                    start_time = time.time()
-
-                    if dry_run:
-                        n_params, error = self.dry_run_config(overrides)
-                        success = n_params is not None
-                        metrics = {"params": n_params} if success else None
-                        error_msg = error
-                    else:
-                        success, error_msg, metrics = self.run_config(overrides, timeout)
-                        n_params = None
-
-                    elapsed = time.time() - start_time
-
-                    result = {
+                    config_data = {
                         "run_id": current_run,
                         "model": model_key,
                         "dataset": dataset_key,
-                        "success": success,
-                        "elapsed_time": elapsed,
-                        "overrides": " ".join(overrides),
-                        "error": error_msg,
-                        **hp,
+                        "hp": hp,
+                        "overrides": overrides,
+                        "timeout": timeout,
+                        "gpu_id": gpu_id,
+                        "dry_run": dry_run,
                     }
+                    configs.append(config_data)
 
-                    if dry_run:
-                        result["params"] = n_params
-                    elif metrics:
-                        result.update(metrics)
-
-                    self.results.append(result)
-
-                    status = "✅ SUCCESS" if success else "❌ FAILED"
-                    print(f"{status} ({elapsed:.1f}s)")
-                    if not success:
-                        print(f"Error: {error_msg}")
-                    print()
+        # Run configurations
+        if parallel and not dry_run:
+            # Parallel execution for training runs using joblib
+            print(f"Running {len(configs)} configurations in parallel with {self.n_jobs} jobs...")
+            results = Parallel(n_jobs=self.n_jobs, verbose=1)(
+                delayed(run_single_config_worker)(config) for config in configs
+            )
+            self.results = results
+        else:
+            # Sequential execution for dry runs or when parallel is disabled
+            print(f"Running {len(configs)} configurations sequentially...")
+            for config in configs:
+                result = self.run_single_config(config)
+                self.results.append(result)
 
         # Save results
         df = pd.DataFrame(self.results)
@@ -333,6 +445,8 @@ def main():
     parser.add_argument("--output-dir", default="./search_results", help="Output directory")
     parser.add_argument("--config-path", default="configs", help="Hydra config path")
     parser.add_argument("--models", nargs="+", help="Models to search (default: all)")
+    parser.add_argument("--n-jobs", type=int, help="Number of parallel jobs (default: auto)")
+    parser.add_argument("--no-parallel", action="store_true", help="Disable parallel execution")
 
     args = parser.parse_args()
 
@@ -542,7 +656,10 @@ def main():
     models_to_search = args.models if args.models else MODEL_KEYS
 
     # Initialize search
-    search = HyperparameterSearch(config_path=args.config_path)
+    search = HyperparameterSearch(
+        config_path=args.config_path, 
+        n_jobs=args.n_jobs
+    )
 
     # Run search
     results_df = search.search(
@@ -553,6 +670,7 @@ def main():
         dry_run=args.dry_run,
         timeout=args.timeout,
         output_dir=args.output_dir,
+        parallel=not args.no_parallel,
     )
 
     # Print summary
