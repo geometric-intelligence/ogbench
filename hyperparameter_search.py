@@ -112,20 +112,8 @@ class HyperparameterSearch:
 
             initialize(config_path=self.config_path, job_name="dry_run")
 
-            # Parse overrides to extract model and dataset
-            model_name = None
-            dataset_name = None
-            for override in overrides:
-                if override.startswith("model="):
-                    model_name = override.split("=", 1)[1]
-                elif override.startswith("dataset="):
-                    dataset_name = override.split("=", 1)[1]
-
-            # If we have model/dataset, add them to overrides for proper interpolation
+            # Use overrides as-is since dataset is now explicitly included in grid
             final_overrides = overrides.copy()
-            if model_name and not any(o.startswith("dataset=") for o in overrides):
-                # Use default dataset if not specified
-                final_overrides.append("dataset=motrpac")
 
             cfg = compose(
                 config_name=self.project_cfg,
@@ -148,19 +136,8 @@ class HyperparameterSearch:
         self, overrides: List[str], timeout: Optional[int] = None
     ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         """Run a configuration via subprocess call to run.py."""
-        # Parse overrides to ensure dataset is specified for proper interpolation
-        model_name = None
-        dataset_name = None
-        for override in overrides:
-            if override.startswith("model="):
-                model_name = override.split("=", 1)[1]
-            elif override.startswith("dataset="):
-                dataset_name = override.split("=", 1)[1]
-
-        # If we have model but no dataset, add default dataset
+        # Use overrides as-is since dataset is now explicitly included in grid
         final_overrides = overrides.copy()
-        if model_name and not any(o.startswith("dataset=") for o in overrides):
-            final_overrides.append("dataset=motrpac")
 
         cmd = [sys.executable, "ogbench/run.py"] + final_overrides
 
@@ -195,8 +172,9 @@ class HyperparameterSearch:
     def search(
         self,
         models: List[str],
+        datasets: List[str],
         shared_grid: Dict[str, Iterable[Any]],
-        per_model_grid: Dict[str, Dict[str, Iterable[Any]]],
+        per_model_dataset_grid: Dict[Tuple[str, str], Dict[str, Iterable[Any]]],
         dry_run: bool = False,
         timeout: Optional[int] = None,
         output_dir: str = "./search_results",
@@ -207,10 +185,12 @@ class HyperparameterSearch:
         ----------
         models : List[str]
             List of model names to search over
+        datasets : List[str]
+            List of dataset names to search over
         shared_grid : Dict[str, Iterable[Any]]
-            Shared hyperparameters for all models
-        per_model_grid : Dict[str, Dict[str, Iterable[Any]]]
-            Model-specific hyperparameters
+            Shared hyperparameters for all models and datasets
+        per_model_dataset_grid : Dict[Tuple[str, str], Dict[str, Iterable[Any]]]
+            Model and dataset-specific hyperparameters indexed by (model, dataset)
         dry_run : bool
             If True, only count parameters without training
         timeout : Optional[int]
@@ -227,13 +207,15 @@ class HyperparameterSearch:
 
         total_combinations = 0
         for model_key in models:
-            model_specific = per_model_grid.get(model_key, {})
-            full_grid = dict(shared_grid)
-            full_grid.update(model_specific)
-            total_combinations += len(self.product_dict(full_grid))
+            for dataset_key in datasets:
+                model_dataset_specific = per_model_dataset_grid.get((model_key, dataset_key), {})
+                full_grid = dict(shared_grid)
+                full_grid.update(model_dataset_specific)
+                total_combinations += len(self.product_dict(full_grid))
 
         print("Starting hyperparameter search...")
         print(f"Models: {models}")
+        print(f"Datasets: {datasets}")
         print(f"Total combinations: {total_combinations}")
         print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
         print(f"Output directory: {output_dir}")
@@ -242,53 +224,55 @@ class HyperparameterSearch:
         current_run = 0
 
         for model_key in models:
-            model_specific = per_model_grid.get(model_key, {})
-            full_grid = dict(shared_grid)
-            full_grid.update(model_specific)
+            for dataset_key in datasets:
+                model_dataset_specific = per_model_dataset_grid.get((model_key, dataset_key), {})
+                full_grid = dict(shared_grid)
+                full_grid.update(model_dataset_specific)
 
-            for hp in self.product_dict(full_grid):
-                current_run += 1
-                overrides = [f"model={model_key}"]
-                overrides = self.build_overrides(overrides, hp)
+                for hp in self.product_dict(full_grid):
+                    current_run += 1
+                    overrides = [f"model={model_key}", f"dataset={dataset_key}"]
+                    overrides = self.build_overrides(overrides, hp)
 
-                print(f"[{current_run}/{total_combinations}] Model: {model_key}")
-                print(f"Overrides: {' '.join(overrides)}")
+                    print(f"[{current_run}/{total_combinations}] Model: {model_key}, Dataset: {dataset_key}")
+                    print(f"Overrides: {' '.join(overrides)}")
 
-                start_time = time.time()
+                    start_time = time.time()
 
-                if dry_run:
-                    n_params, error = self.dry_run_config(overrides)
-                    success = n_params is not None
-                    metrics = {"params": n_params} if success else None
-                    error_msg = error
-                else:
-                    success, error_msg, metrics = self.run_config(overrides, timeout)
-                    n_params = None
+                    if dry_run:
+                        n_params, error = self.dry_run_config(overrides)
+                        success = n_params is not None
+                        metrics = {"params": n_params} if success else None
+                        error_msg = error
+                    else:
+                        success, error_msg, metrics = self.run_config(overrides, timeout)
+                        n_params = None
 
-                elapsed = time.time() - start_time
+                    elapsed = time.time() - start_time
 
-                result = {
-                    "run_id": current_run,
-                    "model": model_key,
-                    "success": success,
-                    "elapsed_time": elapsed,
-                    "overrides": " ".join(overrides),
-                    "error": error_msg,
-                    **hp,
-                }
+                    result = {
+                        "run_id": current_run,
+                        "model": model_key,
+                        "dataset": dataset_key,
+                        "success": success,
+                        "elapsed_time": elapsed,
+                        "overrides": " ".join(overrides),
+                        "error": error_msg,
+                        **hp,
+                    }
 
-                if dry_run:
-                    result["params"] = n_params
-                elif metrics:
-                    result.update(metrics)
+                    if dry_run:
+                        result["params"] = n_params
+                    elif metrics:
+                        result.update(metrics)
 
-                self.results.append(result)
+                    self.results.append(result)
 
-                status = "✅ SUCCESS" if success else "❌ FAILED"
-                print(f"{status} ({elapsed:.1f}s)")
-                if not success:
-                    print(f"Error: {error_msg}")
-                print()
+                    status = "✅ SUCCESS" if success else "❌ FAILED"
+                    print(f"{status} ({elapsed:.1f}s)")
+                    if not success:
+                        print(f"Error: {error_msg}")
+                    print()
 
         # Save results
         df = pd.DataFrame(self.results)
@@ -299,13 +283,14 @@ class HyperparameterSearch:
 
         # Create summary
         summary_rows = []
-        for model, group in df.groupby("model"):
+        for (model, dataset), group in df.groupby(["model", "dataset"]):
             total_runs = len(group)
             successful_runs = group["success"].sum()
             failed_runs = total_runs - successful_runs
 
             summary_row = {
                 "model": model,
+                "dataset": dataset,
                 "total_runs": total_runs,
                 "successful_runs": successful_runs,
                 "failed_runs": failed_runs,
@@ -353,9 +338,7 @@ def main():
 
     # Define hyperparameter grids (from your notebook)
     DATASETS = ["covidaki", "motrpac", "addneuromed", "parkinsons"]
-    ADJ_THRESHOLDS = [0.8, 0.85]
-    DATALOADER_BATCH_SIZES = [8, 16]
-    NODE_SAMPLE_RATIOS = [1.0, 0.5, 0.2, 0.125, "full"]
+    NODE_SAMPLE_RATIOS = [1.0, 0.5, 0.2, 0.125]
     SAMPLE_METHODS = ["variance", "random", "correlation"]
 
     OPT_LRS = [0.001]
@@ -371,43 +354,188 @@ def main():
     # Models
     MODEL_KEYS = ["sagn", "chebnet", "mlp", "gin", "gatv4", "gcn", "gatv2", "graph_sage"]
 
-    # Model-specific grids
-    PER_MODEL_GRID = {
-        "gcn": {"model.backbone.num_layers": [4]},
-        "gin": {"model.backbone.num_layers": [8]},
-        "gatv2": {
+    # Dataset-specific adjacency thresholds
+    DATASET_ADJ_THRESHOLDS = {
+        "addneuromed": [0.3, 0.4, 0.5],
+        "covidaki": [0.025, 0.05, 0.1],
+        "motrpac": [0.01, 0.02, 0.03],
+        "parkinsons": [0.01, 0.02, 0.03],
+    }
+
+    # Model and dataset-specific grids
+    PER_MODEL_DATASET_GRID = {
+        ("gcn", "covidaki"): {
+            "model.backbone.num_layers": [4],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
+        },
+        ("gcn", "motrpac"): {
+            "model.backbone.num_layers": [4],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
+        },
+        ("gcn", "addneuromed"): {
+            "model.backbone.num_layers": [4],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("gcn", "parkinsons"): {
+            "model.backbone.num_layers": [4],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
+        },
+        
+        ("gin", "covidaki"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
+        },
+        ("gin", "motrpac"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
+        },
+        ("gin", "addneuromed"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("gin", "parkinsons"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
+        },
+        
+        ("gatv2", "covidaki"): {
             "model.backbone.v2": [True],
             "model.backbone.heads": [8],
             "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
         },
-        "gatv4": {
+        ("gatv2", "motrpac"): {
+            "model.backbone.v2": [True],
+            "model.backbone.heads": [8],
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
+        },
+        ("gatv2", "addneuromed"): {
+            "model.backbone.v2": [True],
+            "model.backbone.heads": [8],
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("gatv2", "parkinsons"): {
+            "model.backbone.v2": [True],
+            "model.backbone.heads": [8],
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
+        },
+        
+        ("gatv4", "covidaki"): {
             "model.backbone.hidden_channels": [[384, 64, 32]],
             "model.backbone.heads": [[6]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
         },
-        "graph_sage": {"model.backbone.num_layers": [8]},
-        "chebnet": {
+        ("gatv4", "motrpac"): {
+            "model.backbone.hidden_channels": [[384, 64, 32]],
+            "model.backbone.heads": [[6]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
+        },
+        ("gatv4", "addneuromed"): {
+            "model.backbone.hidden_channels": [[384, 64, 32]],
+            "model.backbone.heads": [[6]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("gatv4", "parkinsons"): {
+            "model.backbone.hidden_channels": [[384, 64, 32]],
+            "model.backbone.heads": [[6]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
+        },
+        
+        ("graph_sage", "covidaki"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
+        },
+        ("graph_sage", "motrpac"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
+        },
+        ("graph_sage", "addneuromed"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("graph_sage", "parkinsons"): {
+            "model.backbone.num_layers": [8],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
+        },
+        
+        ("chebnet", "covidaki"): {
             "model.backbone.K": [2],
             "model.backbone.num_layers": [2],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
         },
-        "mlp": {
-            "model.backbone.hidden_channels": [
-                [8, 16, 4],
-            ],
+        ("chebnet", "motrpac"): {
+            "model.backbone.K": [2],
+            "model.backbone.num_layers": [2],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
         },
-        "sagn": {
+        ("chebnet", "addneuromed"): {
+            "model.backbone.K": [2],
+            "model.backbone.num_layers": [2],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("chebnet", "parkinsons"): {
+            "model.backbone.K": [2],
+            "model.backbone.num_layers": [2],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
+        },
+        
+        ("mlp", "covidaki"): {
+            "model.backbone.hidden_channels": [[6, 16, 4]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
+        },
+        ("mlp", "motrpac"): {
+            "model.backbone.hidden_channels": [[8, 16, 4]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
+        },
+        ("mlp", "addneuromed"): {
+            "model.backbone.hidden_channels": [[32, 16, 4]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("mlp", "parkinsons"): {
+            "model.backbone.hidden_channels": [[24, 16, 4]],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
+        },
+        
+        ("sagn", "covidaki"): {
             "model.backbone.hidden_channels": [32],
             "model.backbone.dropout": [0.2],
             "model.backbone.num_layers": [4],
             "model.backbone.alpha": [0.5],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
+        },
+        ("sagn", "motrpac"): {
+            "model.backbone.hidden_channels": [32],
+            "model.backbone.dropout": [0.2],
+            "model.backbone.num_layers": [4],
+            "model.backbone.alpha": [0.5],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
+        },
+        ("sagn", "addneuromed"): {
+            "model.backbone.hidden_channels": [32],
+            "model.backbone.dropout": [0.2],
+            "model.backbone.num_layers": [4],
+            "model.backbone.alpha": [0.5],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
+        },
+        ("sagn", "parkinsons"): {
+            "model.backbone.hidden_channels": [32],
+            "model.backbone.dropout": [0.2],
+            "model.backbone.num_layers": [4],
+            "model.backbone.alpha": [0.5],
+            "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
     }
 
     # Shared grid
     SHARED_GRID = {
-        "dataset": ["motrpac"],  # Default dataset to avoid interpolation issues
         "optimizer.parameters.lr": OPT_LRS,
         "optimizer.parameters.weight_decay": OPT_WD,
         "model.readout.pooling_type": READOUT_POOL,
+        "dataset.loader.parameters.node_sample_ratio": NODE_SAMPLE_RATIOS,
+        "dataset.loader.parameters.method": SAMPLE_METHODS,
     }
 
     # Filter models if specified
@@ -419,8 +547,9 @@ def main():
     # Run search
     results_df = search.search(
         models=models_to_search,
+        datasets=DATASETS,
         shared_grid=SHARED_GRID,
-        per_model_grid=PER_MODEL_GRID,
+        per_model_dataset_grid=PER_MODEL_DATASET_GRID,
         dry_run=args.dry_run,
         timeout=args.timeout,
         output_dir=args.output_dir,
@@ -430,7 +559,7 @@ def main():
     print("\n" + "=" * 50)
     print("SEARCH SUMMARY")
     print("=" * 50)
-    print(results_df.groupby("model")["success"].agg(["count", "sum"]).to_string())
+    print(results_df.groupby(["model", "dataset"])["success"].agg(["count", "sum"]).to_string())
 
 
 if __name__ == "__main__":
