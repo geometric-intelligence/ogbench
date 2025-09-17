@@ -150,7 +150,7 @@ python -m ogbench \
     dataset.loader.parameters.node_sample_ratio=full \
     dataset.loader.parameters.method=variance,random,correlation \
     model=gatv4 \
-    model.backbone.heads=2,4 \
+    model.backbone.heads=\[3,3\] \
     model.backbone.hidden_channels=\[8,16\],\[64,128\],\[128,256\] \
     model.backbone.dropout=0.2,0.4 \
     model.backbone.act=relu \
