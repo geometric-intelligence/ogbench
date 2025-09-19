@@ -68,17 +68,18 @@ def run_single_config_worker(config_data: Dict[str, Any]) -> Dict[str, Any]:
     """Worker function for parallel execution using joblib."""
     # Create a temporary search instance for this worker
     search = HyperparameterSearch()
-    
+
     run_id = config_data["run_id"]
     model_key = config_data["model"]
     dataset_key = config_data["dataset"]
+    seed = config_data["seed"]
     hp = config_data["hp"]
     overrides = config_data["overrides"]
     timeout = config_data.get("timeout")
     gpu_id = config_data.get("gpu_id")
     dry_run = config_data.get("dry_run", False)
 
-    print(f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, GPU: {gpu_id}")
+    print(f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, Seed: {seed}, GPU: {gpu_id}")
     print(f"[{run_id}] Overrides: {' '.join(overrides)}")
 
     start_time = time.time()
@@ -98,6 +99,7 @@ def run_single_config_worker(config_data: Dict[str, Any]) -> Dict[str, Any]:
         "run_id": run_id,
         "model": model_key,
         "dataset": dataset_key,
+        "seed": seed,
         "success": success,
         "elapsed_time": elapsed,
         "overrides": " ".join(overrides),
@@ -123,12 +125,19 @@ def run_single_config_worker(config_data: Dict[str, Any]) -> Dict[str, Any]:
 class HyperparameterSearch:
     """Driver for hyperparameter search via subprocess calls to run.py."""
 
-    def __init__(self, config_path: str = "configs", project_cfg: str = "train.yaml", n_jobs: Optional[int] = None):
+    def __init__(
+        self,
+        config_path: str = "configs",
+        project_cfg: str = "train.yaml",
+        n_jobs: Optional[int] = None,
+    ):
         self.config_path = config_path
         self.project_cfg = project_cfg
         self.results: List[Dict[str, Any]] = []
-        self.n_jobs = n_jobs or min(torch.cuda.device_count() if torch.cuda.is_available() else -1, 8)
-        
+        self.n_jobs = n_jobs or min(
+            torch.cuda.device_count() if torch.cuda.is_available() else -1, 8
+        )
+
         # Stay off GPU for dry runs
         if not torch.cuda.is_available():
             os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -207,7 +216,12 @@ class HyperparameterSearch:
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout, cwd=Path(__file__).parent, env=env
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=Path(__file__).parent,
+                env=env,
             )
 
             if result.returncode == 0:
@@ -238,13 +252,14 @@ class HyperparameterSearch:
         run_id = config_data["run_id"]
         model_key = config_data["model"]
         dataset_key = config_data["dataset"]
+        seed = config_data["seed"]
         hp = config_data["hp"]
         overrides = config_data["overrides"]
         timeout = config_data.get("timeout")
         gpu_id = config_data.get("gpu_id")
         dry_run = config_data.get("dry_run", False)
 
-        print(f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, GPU: {gpu_id}")
+        print(f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, Seed: {seed}, GPU: {gpu_id}")
         print(f"[{run_id}] Overrides: {' '.join(overrides)}")
 
         start_time = time.time()
@@ -264,6 +279,7 @@ class HyperparameterSearch:
             "run_id": run_id,
             "model": model_key,
             "dataset": dataset_key,
+            "seed": seed,
             "success": success,
             "elapsed_time": elapsed,
             "overrides": " ".join(overrides),
@@ -291,6 +307,7 @@ class HyperparameterSearch:
         datasets: List[str],
         shared_grid: Dict[str, Iterable[Any]],
         per_model_dataset_grid: Dict[Tuple[str, str], Dict[str, Iterable[Any]]],
+        seeds: List[int],
         dry_run: bool = False,
         timeout: Optional[int] = None,
         output_dir: str = "./search_results",
@@ -308,6 +325,8 @@ class HyperparameterSearch:
             Shared hyperparameters for all models and datasets
         per_model_dataset_grid : Dict[Tuple[str, str], Dict[str, Iterable[Any]]]
             Model and dataset-specific hyperparameters indexed by (model, dataset)
+        seeds : List[int]
+            List of random seeds to iterate over for each configuration
         dry_run : bool
             If True, only count parameters without training
         timeout : Optional[int]
@@ -330,11 +349,12 @@ class HyperparameterSearch:
                 model_dataset_specific = per_model_dataset_grid.get((model_key, dataset_key), {})
                 full_grid = dict(shared_grid)
                 full_grid.update(model_dataset_specific)
-                total_combinations += len(self.product_dict(full_grid))
+                total_combinations += len(self.product_dict(full_grid)) * len(seeds)
 
         print("Starting hyperparameter search...")
         print(f"Models: {models}")
         print(f"Datasets: {datasets}")
+        print(f"Seeds: {seeds}")
         print(f"Total combinations: {total_combinations}")
         print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
         print(f"Parallel: {parallel} ({self.n_jobs} jobs)")
@@ -344,32 +364,40 @@ class HyperparameterSearch:
         # Prepare all configurations
         configs = []
         current_run = 0
-        available_gpus = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else [None]
+        available_gpus = (
+            list(range(torch.cuda.device_count())) if torch.cuda.is_available() else [None]
+        )
 
-        for model_key in models:
-            for dataset_key in datasets:
-                model_dataset_specific = per_model_dataset_grid.get((model_key, dataset_key), {})
-                full_grid = dict(shared_grid)
-                full_grid.update(model_dataset_specific)
+        for seed in seeds:
+            for model_key in models:
+                for dataset_key in datasets:
+                    model_dataset_specific = per_model_dataset_grid.get((model_key, dataset_key), {})
+                    full_grid = dict(shared_grid)
+                    full_grid.update(model_dataset_specific)
 
-                for hp in self.product_dict(full_grid):
-                    current_run += 1
-                    overrides = [f"model={model_key}", f"dataset={dataset_key}"]
-                    overrides = self.build_overrides(overrides, hp)
+                    for hp in self.product_dict(full_grid):
+                        current_run += 1
+                        overrides = [f"model={model_key}", f"dataset={dataset_key}", f"seed={seed}"]
+                        overrides = self.build_overrides(overrides, hp)
 
-                    gpu_id = available_gpus[(current_run - 1) % len(available_gpus)] if parallel and not dry_run else None
+                        gpu_id = (
+                            available_gpus[(current_run - 1) % len(available_gpus)]
+                            if parallel and not dry_run
+                            else None
+                        )
 
-                    config_data = {
-                        "run_id": current_run,
-                        "model": model_key,
-                        "dataset": dataset_key,
-                        "hp": hp,
-                        "overrides": overrides,
-                        "timeout": timeout,
-                        "gpu_id": gpu_id,
-                        "dry_run": dry_run,
-                    }
-                    configs.append(config_data)
+                        config_data = {
+                            "run_id": current_run,
+                            "model": model_key,
+                            "dataset": dataset_key,
+                            "seed": seed,
+                            "hp": hp,
+                            "overrides": overrides,
+                            "timeout": timeout,
+                            "gpu_id": gpu_id,
+                            "dry_run": dry_run,
+                        }
+                        configs.append(config_data)
 
         # Run configurations
         if parallel and not dry_run:
@@ -452,7 +480,7 @@ def main():
 
     # Define hyperparameter grids (from your notebook)
     DATASETS = ["covidaki", "motrpac", "addneuromed", "parkinsons"]
-    NODE_SAMPLE_RATIOS = [1.0, 0.5, 0.2, 0.125]
+    NODE_SAMPLE_RATIOS = [1.0, 0.5, 0.2] #, 0.125]
     SAMPLE_METHODS = ["variance", "random", "correlation"]
 
     OPT_LRS = [0.001]
@@ -467,6 +495,9 @@ def main():
 
     # Models
     MODEL_KEYS = ["sagn", "chebnet", "mlp", "gin", "gatv4", "gcn", "gatv2", "graph_sage"]
+    
+    # Seeds for reproducibility
+    SEEDS = [42, 123, 456]
 
     # Dataset-specific adjacency thresholds
     DATASET_ADJ_THRESHOLDS = {
@@ -494,7 +525,6 @@ def main():
             "model.backbone.num_layers": [4],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
-        
         ("gin", "covidaki"): {
             "model.backbone.num_layers": [8],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
@@ -511,7 +541,6 @@ def main():
             "model.backbone.num_layers": [8],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
-        
         ("gatv2", "covidaki"): {
             "model.backbone.v2": [True],
             "model.backbone.heads": [8],
@@ -536,28 +565,26 @@ def main():
             "model.backbone.num_layers": [8],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
-        
         ("gatv4", "covidaki"): {
-            "model.backbone.hidden_channels": [[384, 64, 32]],
-            "model.backbone.heads": [[6]],
+            "model.backbone.hidden_channels": [[16,32]],
+            "model.backbone.heads": [[4,4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
         },
         ("gatv4", "motrpac"): {
-            "model.backbone.hidden_channels": [[384, 64, 32]],
-            "model.backbone.heads": [[6]],
+            "model.backbone.hidden_channels": [[16,32]],
+            "model.backbone.heads": [[4,4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
         },
         ("gatv4", "addneuromed"): {
-            "model.backbone.hidden_channels": [[384, 64, 32]],
-            "model.backbone.heads": [[6]],
+            "model.backbone.hidden_channels": [[16,32]],
+            "model.backbone.heads": [[4,4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
         },
         ("gatv4", "parkinsons"): {
-            "model.backbone.hidden_channels": [[384, 64, 32]],
-            "model.backbone.heads": [[6]],
+            "model.backbone.hidden_channels": [[16,32]],
+            "model.backbone.heads": [[4,4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
-        
         ("graph_sage", "covidaki"): {
             "model.backbone.num_layers": [8],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
@@ -574,7 +601,6 @@ def main():
             "model.backbone.num_layers": [8],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
-        
         ("chebnet", "covidaki"): {
             "model.backbone.K": [2],
             "model.backbone.num_layers": [2],
@@ -595,7 +621,6 @@ def main():
             "model.backbone.num_layers": [2],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
-        
         ("mlp", "covidaki"): {
             "model.backbone.hidden_channels": [[6, 16, 4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
@@ -612,7 +637,6 @@ def main():
             "model.backbone.hidden_channels": [[24, 16, 4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
-        
         ("sagn", "covidaki"): {
             "model.backbone.hidden_channels": [32],
             "model.backbone.dropout": [0.2],
@@ -656,10 +680,7 @@ def main():
     models_to_search = args.models if args.models else MODEL_KEYS
 
     # Initialize search
-    search = HyperparameterSearch(
-        config_path=args.config_path, 
-        n_jobs=args.n_jobs
-    )
+    search = HyperparameterSearch(config_path=args.config_path, n_jobs=args.n_jobs)
 
     # Run search
     results_df = search.search(
@@ -667,6 +688,7 @@ def main():
         datasets=DATASETS,
         shared_grid=SHARED_GRID,
         per_model_dataset_grid=PER_MODEL_DATASET_GRID,
+        seeds=SEEDS,
         dry_run=args.dry_run,
         timeout=args.timeout,
         output_dir=args.output_dir,
