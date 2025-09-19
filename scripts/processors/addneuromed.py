@@ -1,5 +1,6 @@
 """AddNeuroMed dataset processor."""
 
+
 import gzip
 import os
 from typing import Dict, Set
@@ -212,8 +213,15 @@ def process_addneuromed(output_dir: str = "temp_data") -> None:
     raw_data = pd.concat(frames, axis=0)
     targets = np.array(statuses)
 
-    # Remove rows with nan values
-    mask = (~pd.isna(raw_data)).any(axis=1).values & ~pd.isna(targets)
+    # Define classes to remove
+    classes_to_remove = {"CTL to AD", "MCI to CTL", "OTHER", "borderline MCI"}
+
+    # Filter out unwanted classes
+    mask = (
+        (~pd.isna(raw_data)).any(axis=1).values
+        & ~pd.isna(targets)
+        & ~np.isin(targets, list(classes_to_remove))
+    )
     raw_data = raw_data[mask]
     targets = targets[mask]
 

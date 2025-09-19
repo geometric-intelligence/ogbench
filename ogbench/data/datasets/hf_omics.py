@@ -56,7 +56,7 @@ class AddEdgeIndex(T.BaseTransform):
 class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
-    revision: Final[str] = "92c8054"
+    revision: Final[str] = "20caac3"
     classification_datasets: Final[list[str]] = [
         "covidaki",
         "addneuromed",
