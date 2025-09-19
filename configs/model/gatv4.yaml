@@ -13,7 +13,7 @@ feature_encoder:
 backbone:
   _target_: ogbench.nn.backbones.${model.model_name}
   in_channels: ${model.feature_encoder.out_channels}
-  hidden_channels: [64, 128]
+  hidden_channels: [16, 32]
   out_channels: 1
   heads: [3, 3]
   dropout: 0.25

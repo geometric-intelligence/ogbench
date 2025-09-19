@@ -259,7 +259,9 @@ class HyperparameterSearch:
         gpu_id = config_data.get("gpu_id")
         dry_run = config_data.get("dry_run", False)
 
-        print(f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, Seed: {seed}, GPU: {gpu_id}")
+        print(
+            f"[{run_id}] Model: {model_key}, Dataset: {dataset_key}, Seed: {seed}, GPU: {gpu_id}"
+        )
         print(f"[{run_id}] Overrides: {' '.join(overrides)}")
 
         start_time = time.time()
@@ -371,13 +373,19 @@ class HyperparameterSearch:
         for seed in seeds:
             for model_key in models:
                 for dataset_key in datasets:
-                    model_dataset_specific = per_model_dataset_grid.get((model_key, dataset_key), {})
+                    model_dataset_specific = per_model_dataset_grid.get(
+                        (model_key, dataset_key), {}
+                    )
                     full_grid = dict(shared_grid)
                     full_grid.update(model_dataset_specific)
 
                     for hp in self.product_dict(full_grid):
                         current_run += 1
-                        overrides = [f"model={model_key}", f"dataset={dataset_key}", f"seed={seed}"]
+                        overrides = [
+                            f"model={model_key}",
+                            f"dataset={dataset_key}",
+                            f"seed={seed}",
+                        ]
                         overrides = self.build_overrides(overrides, hp)
 
                         gpu_id = (
@@ -480,7 +488,7 @@ def main():
 
     # Define hyperparameter grids (from your notebook)
     DATASETS = ["covidaki", "motrpac", "addneuromed", "parkinsons"]
-    NODE_SAMPLE_RATIOS = [1.0, 0.5, 0.2] #, 0.125]
+    NODE_SAMPLE_RATIOS = [1.0, 0.5, 0.2]  # , 0.125]
     SAMPLE_METHODS = ["variance", "random", "correlation"]
 
     OPT_LRS = [0.001]
@@ -495,7 +503,7 @@ def main():
 
     # Models
     MODEL_KEYS = ["sagn", "chebnet", "mlp", "gin", "gatv4", "gcn", "gatv2", "graph_sage"]
-    
+
     # Seeds for reproducibility
     SEEDS = [42, 123, 456]
 
@@ -566,23 +574,23 @@ def main():
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
         ("gatv4", "covidaki"): {
-            "model.backbone.hidden_channels": [[16,32]],
-            "model.backbone.heads": [[4,4]],
+            "model.backbone.hidden_channels": [[16, 32]],
+            "model.backbone.heads": [[4, 4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["covidaki"],
         },
         ("gatv4", "motrpac"): {
-            "model.backbone.hidden_channels": [[16,32]],
-            "model.backbone.heads": [[4,4]],
+            "model.backbone.hidden_channels": [[16, 32]],
+            "model.backbone.heads": [[4, 4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["motrpac"],
         },
         ("gatv4", "addneuromed"): {
-            "model.backbone.hidden_channels": [[16,32]],
-            "model.backbone.heads": [[4,4]],
+            "model.backbone.hidden_channels": [[16, 32]],
+            "model.backbone.heads": [[4, 4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["addneuromed"],
         },
         ("gatv4", "parkinsons"): {
-            "model.backbone.hidden_channels": [[16,32]],
-            "model.backbone.heads": [[4,4]],
+            "model.backbone.hidden_channels": [[16, 32]],
+            "model.backbone.heads": [[4, 4]],
             "dataset.loader.parameters.adjacency_threshold": DATASET_ADJ_THRESHOLDS["parkinsons"],
         },
         ("graph_sage", "covidaki"): {
