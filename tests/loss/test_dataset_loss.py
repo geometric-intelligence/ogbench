@@ -31,8 +31,27 @@ class TestDatasetLoss:
         dataset_loss = {"task": "classification", "loss_type": "cross_entropy"}
         self.dataset5 = DatasetLoss(dataset_loss)
 
+        # Test with class weights
+        dataset_loss = {
+            "task": "classification",
+            "loss_type": "cross_entropy",
+            "class_weights": [1.0, 2.0, 1.5],
+        }
+        self.dataset6 = DatasetLoss(dataset_loss)
+
+        # Test with None class weights (backward compatibility)
+        dataset_loss = {
+            "task": "classification",
+            "loss_type": "cross_entropy",
+            "class_weights": None,
+        }
+        self.dataset7 = DatasetLoss(dataset_loss)
+
         repr = self.dataset1.__repr__()
         assert repr == "DatasetLoss(task=classification, loss_type=cross_entropy)"
+
+        repr = self.dataset6.__repr__()
+        assert "class_weights" in repr
 
     def test_forward(self):
         """Test the forward method."""
@@ -62,3 +81,40 @@ class TestDatasetLoss:
         self.dataset5.task = "not defined"
         with pytest.raises(Exception):
             self.dataset5(model_out, batch)
+
+    def test_class_weights(self):
+        """Test the class weights functionality."""
+        batch = torch_geometric.data.Data()
+
+        # Test with class weights - use one correct and one wrong prediction to see weight effect
+        model_out = {
+            "logits": torch.tensor(
+                [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+            ),  # First correct, second wrong
+            "labels": torch.tensor([0, 1]),  # True labels
+        }
+
+        # Test that the loss with weights is different from without weights
+        out_with_weights = self.dataset6.forward(model_out, batch)
+        out_without_weights = self.dataset1.forward(model_out, batch)
+
+        # The losses should be different due to different class weights
+        assert not torch.allclose(out_with_weights, out_without_weights)
+
+        # Test that class_weights tensor is properly created
+        assert self.dataset6.class_weights is not None
+        assert torch.allclose(self.dataset6.class_weights, torch.tensor([1.0, 2.0, 1.5]))
+
+        # Test that criterion has the correct weight
+        assert self.dataset6.criterion.weight is not None
+        assert torch.allclose(self.dataset6.criterion.weight, torch.tensor([1.0, 2.0, 1.5]))
+
+        # Test that the weighted loss is higher than unweighted loss
+        # because class 1 has higher weight (2.0) and we have a wrong prediction for class 1
+        assert out_with_weights > out_without_weights
+
+        # Test backward compatibility with None class weights
+        assert self.dataset7.class_weights is None
+        assert self.dataset7.criterion.weight is None
+        repr_none = self.dataset7.__repr__()
+        assert "class_weights" not in repr_none
