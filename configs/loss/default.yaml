@@ -3,6 +3,7 @@ _target_: ogbench.loss.TBLoss
 dataset_loss:
   task: ${dataset.parameters.task}
   loss_type: ${dataset.parameters.loss_type}
+  class_weights: ${dataset.parameters.class_weights}
 
 modules_losses: # Collect model losses
   feature_encoder: ${oc.select:model.feature_encoder.loss,null}
