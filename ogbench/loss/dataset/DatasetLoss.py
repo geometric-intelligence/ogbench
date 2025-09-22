@@ -19,12 +19,18 @@ class DatasetLoss(AbstractLoss):
         super().__init__()
         self.task = dataset_loss["task"]
         self.loss_type = dataset_loss["loss_type"]
+        self.class_weights = dataset_loss.get("class_weights", None)
+
+        # Convert class_weights to tensor if provided
+        if self.class_weights is not None:
+            self.class_weights = torch.tensor(self.class_weights, dtype=torch.float32)
+
         # Dataset loss
         if self.task == "classification":
             assert (
                 self.loss_type == "cross_entropy"
             ), "Invalid loss type for classification task,TB supports only cross_entropy loss for classification task"
-            self.criterion = torch.nn.CrossEntropyLoss()
+            self.criterion = torch.nn.CrossEntropyLoss(weight=self.class_weights)
         elif self.task == "multilabel classification":
             assert (
                 self.loss_type == "BCE"
@@ -38,7 +44,12 @@ class DatasetLoss(AbstractLoss):
             raise Exception("Loss is not defined")
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(task={self.task}, loss_type={self.loss_type})"
+        weights_str = (
+            f", class_weights={self.class_weights}" if self.class_weights is not None else ""
+        )
+        return (
+            f"{self.__class__.__name__}(task={self.task}, loss_type={self.loss_type}{weights_str})"
+        )
 
     def forward(self, model_out: dict, batch: torch_geometric.data.Data):
         r"""Forward pass of the loss function.

@@ -19,6 +19,7 @@ parameters:
   num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio}, ${dataset.parameters.full_num_nodes}} # 4698 # TODO: it depends on the node sample ratio!
   task: classification
   loss_type: cross_entropy
+  class_weights: null # Optional: list of weights for each class, e.g., [1.0, 2.0, 1.5, 1.0, 1.0, 1.0, 1.0]
   monitor_metric: f1_weighted
   task_level: graph
   metrics: ["accuracy", "precision", "recall", "auroc", "f1_weighted"]
