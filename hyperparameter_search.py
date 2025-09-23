@@ -489,8 +489,8 @@ def main():
     args = parser.parse_args()
 
     # Define hyperparameter grids (from your notebook)
-    DATASETS = ["covidaki"]  # , "motrpac", "addneuromed", "parkinsons"]
-    NODE_SAMPLE_RATIOS = [1.0]  # , 0.5, 0.2]  # , 0.125]
+    DATASETS = ["covidaki", "motrpac", "addneuromed", "parkinsons"]
+    NODE_SAMPLE_RATIOS = [1.0, 0.5]  # , 0.2]  # , 0.125]
     SAMPLE_METHODS = ["variance"]  # , "random", "correlation"]
 
     OPT_LRS = [0.001]
@@ -504,15 +504,15 @@ def main():
     READOUT_POOL = ["mean"]  # "sum"
 
     # Models
-    MODEL_KEYS = ["sagn", "chebnet", "mlp", "gcn"]  # "gin", "gatv4",  "gatv2", "graph_sage"]
+    MODEL_KEYS = ["sagn", "chebnet", "mlp", "gcn", "gin", "gatv4", "gatv2", "graph_sage"]
 
     # Seeds for reproducibility
-    SEEDS = [42]  # , 123, 456]
+    SEEDS = [123]  # , 123, 456]
 
     # Dataset-specific adjacency thresholds
     DATASET_ADJ_THRESHOLDS = {
         "addneuromed": [0.3, 0.4, 0.5],
-        "covidaki": [0.025],  # , 0.05, 0.1],
+        "covidaki": [0.025, 0.05, 0.1],
         "motrpac": [0.01, 0.02, 0.03],
         "parkinsons": [0.01, 0.02, 0.03],
     }
