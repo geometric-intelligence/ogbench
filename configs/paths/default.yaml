@@ -4,15 +4,15 @@
 root_dir: ${oc.env:PROJECT_ROOT}
 
 # path to data directory
-data_dir: "/scratch/bgbench/run_data/data/"
+data_dir: "${oc.env:PROJECT_ROOT}/run_data/data/"
 
 # path to logging directory
-log_dir: "/scratch/bgbench/run_data/logs/"
+log_dir: "${oc.env:PROJECT_ROOT}/run_data/logs/"
 
 # path to output directory, created dynamically by hydra
 # path generation pattern is specified in `configs/hydra/default.yaml`
 # use it to store all files generated during the run, like ckpts and metrics
-output_dir: "/scratch/bgbench/run_data/outputs/"
+output_dir: "${oc.env:PROJECT_ROOT}/run_data/outputs/"
 
 # path to working directory
 work_dir: ${hydra:runtime.cwd}
