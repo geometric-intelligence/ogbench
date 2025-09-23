@@ -7,4 +7,9 @@ num_classes: ${dataset.parameters.num_classes}
 # Classification: [accuracy, precision, recall, auroc]
 # Regression: [mae, mse]
 metrics: ${get_default_metrics:${evaluator.task},${oc.select:dataset.parameters.metrics,null}}
+
+# Target normalizer statistics for denormalized metrics (only used for regression tasks)
+# These come from the dataset config
+target_mean: ${oc.select:dataset.parameters.target_mean,0.0}
+target_std: ${oc.select:dataset.parameters.target_std,1.0}
 # Select classification/regression config files to manually define the metrics

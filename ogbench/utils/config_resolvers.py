@@ -1,5 +1,6 @@
 """Configuration resolvers for the ogbench package."""
 
+import json
 import os
 
 import omegaconf
@@ -433,3 +434,52 @@ def get_default_metrics(task, metrics=None):
             return ["mse", "mae"]
         else:
             raise ValueError(f"Invalid task {task}")
+
+
+def get_target_normalizer_stats(
+    data_dir, data_name, adjacency_threshold, method, node_sample_ratio, train_val_test_split
+):
+    r"""Get target normalizer statistics from processing stats file.
+
+    Parameters
+    ----------
+    data_dir : str
+        Data directory path.
+    data_name : str
+        Name of the dataset.
+    adjacency_threshold : float
+        Adjacency threshold used.
+    method : str
+        Node selection method used.
+    node_sample_ratio : float
+        Node sample ratio used.
+    train_val_test_split : list[float]
+        Train/validation/test split ratios.
+
+    Returns
+    -------
+    tuple[float, float]
+        Target mean and standard deviation.
+    """
+    # Construct the path to the processing stats file
+    stats_path = os.path.join(
+        data_dir,
+        data_name,
+        f"adj_thresh_{adjacency_threshold}",
+        method,
+        f"p_{node_sample_ratio}",
+        f"train_split_{train_val_test_split[0]}",
+        "processed",
+        "processing_stats.json",
+    )
+
+    try:
+        with open(stats_path) as f:
+            stats = json.load(f)
+
+        target_stats = stats["target_normalizer"]
+        return target_stats["mean"], target_stats["std"]
+    except (FileNotFoundError, KeyError) as e:
+        # Return default values if file not found or key missing
+        print(f"Warning: Could not load target normalizer stats from {stats_path}: {e}")
+        return 0.0, 1.0

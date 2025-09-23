@@ -34,6 +34,7 @@ from ogbench.utils.config_resolvers import (
     get_monitor_mode,
     get_non_relational_out_channels,
     get_required_lifting,
+    get_target_normalizer_stats,
     infer_in_channels,
     infer_num_cell_dimensions,
 )
@@ -86,6 +87,9 @@ def register_resolvers():
     )
     OmegaConf.register_new_resolver(
         "parameter_multiplication", lambda x, y: int(int(x) * int(y)), replace=True
+    )
+    OmegaConf.register_new_resolver(
+        "get_target_normalizer_stats", get_target_normalizer_stats, replace=True
     )
 
 
@@ -165,6 +169,7 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
 
     # Model for us is Network + logic: inputs backbone, readout, losses
     log.info(f"Instantiating model <{cfg.model._target_}>")
+
     model: LightningModule = hydra.utils.instantiate(
         cfg.model,
         evaluator=cfg.evaluator,

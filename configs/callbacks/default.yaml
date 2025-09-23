@@ -16,7 +16,7 @@ model_checkpoint:
 
 early_stopping:
   monitor: ${get_monitor_metric:${dataset.parameters.task},${dataset.parameters.monitor_metric}} #${callbacks.model_checkpoint.monitor}
-  patience: 25
+  patience: 50
   mode: "${get_monitor_mode:${dataset.parameters.task}}" #${callbacks.model_checkpoint.mode}
 
 model_summary:

@@ -9,20 +9,22 @@ loader:
     node_sample_ratio: 1.0
     method: variance
     imputation_method: mean
-    train_val_test_split: [0.7, 0.15, 0.15]
+    train_val_test_split: [0.7, 0.2, 0.1]
 
 parameters:
   num_features: 1
-  num_classes: 7 # ('AD', 'CTL', 'CTL to AD', 'MCI', 'MCI to CTL', 'OTHER', 'borderline MCI')
-  num_samples: 717
-  full_num_nodes: 17198
+  num_classes: 3 # ('AD', 'CTL', 'MCI')
+  num_samples: 711
+  full_num_nodes: 17112
   num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio}, ${dataset.parameters.full_num_nodes}} # 4698 # TODO: it depends on the node sample ratio!
   task: classification
   loss_type: cross_entropy
-  class_weights: null # Optional: list of weights for each class, e.g., [1.0, 2.0, 1.5, 1.0, 1.0, 1.0, 1.0]
+  # weight class: N_samples / (num_classes * n_samples_for_class)
+  class_weights: [0.835, 0.996, 1.254]
   monitor_metric: f1_weighted
   task_level: graph
-  metrics: ["accuracy", "precision", "recall", "auroc", "f1_weighted"]
+  metrics:
+    ["accuracy", "precision", "recall", "auroc", "f1_weighted", "f1_macro"]
 
 split_params:
   learning_setting: inductive

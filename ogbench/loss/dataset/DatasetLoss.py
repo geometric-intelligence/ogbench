@@ -86,6 +86,12 @@ class DatasetLoss(AbstractLoss):
         torch.Tensor
             Loss value.
         """
+        # Ensure class weights are on the same device as logits
+        if self.class_weights is not None and self.class_weights.device != logits.device:
+            self.class_weights = self.class_weights.to(logits.device)
+            # Update the criterion with the moved weights
+            self.criterion = torch.nn.CrossEntropyLoss(weight=self.class_weights)
+
         if self.task == "regression":
             target = target.unsqueeze(1)
             dataset_loss = self.criterion(logits, target)
