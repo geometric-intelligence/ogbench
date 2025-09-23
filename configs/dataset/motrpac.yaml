@@ -19,8 +19,14 @@ parameters:
   num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio}, ${dataset.parameters.full_num_nodes}} # 4698 # TODO: it depends on the node sample ratio!
   task: regression
   loss_type: mse
-  monitor_metric: mse
+  monitor_metric: rmse
+  class_weights: null
+  metrics: [mse, rmse, denormalized_rmse]
   task_level: graph
+
+  # Target normalizer stats for denormalized_rmse metric
+  target_mean: 383.32874617736996
+  target_std: 202.6667738495557
 
 split_params:
   learning_setting: inductive

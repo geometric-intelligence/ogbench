@@ -62,6 +62,13 @@ class TBEvaluator(AbstractEvaluator):
             elif name == "rmse":
                 # RMSE is MSE with squared=False
                 metrics[name] = METRICS[name](squared=False, **parameters)
+            elif name == "denormalized_rmse":
+                # Denormalized RMSE - get stats from dataset config
+                target_mean = kwargs.get("target_mean", 0.0)
+                target_std = kwargs.get("target_std", 1.0)
+                metrics[name] = METRICS[name](
+                    target_mean=target_mean, target_std=target_std, **parameters
+                )
             else:
                 metrics[name] = METRICS[name](**parameters)
         self.metrics = MetricCollection(metrics)
@@ -84,6 +91,7 @@ class TBEvaluator(AbstractEvaluator):
             "mae": "min",
             "mse": "min",
             "rmse": "min",
+            "denormalized_rmse": "min",
             "loss": "min",
         }
 
@@ -101,6 +109,8 @@ class TBEvaluator(AbstractEvaluator):
             The model predictions.
             - labels : torch.Tensor
             The ground truth labels.
+            - batch : torch_geometric.data.Data (optional)
+            The batch data containing target normalizer stats.
 
         Raises
         ------

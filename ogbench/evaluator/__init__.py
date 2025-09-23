@@ -11,6 +11,7 @@ from torchmetrics.classification import (
 from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError, R2Score
 
 from .metrics import ExampleRegressionMetric
+from .metrics.denormalized_rmse import DenormalizedRMSE
 
 # Define metrics
 METRICS = {
@@ -25,6 +26,7 @@ METRICS = {
     "mae": MeanAbsoluteError,
     "mse": MeanSquaredError,
     "rmse": MeanSquaredError,  # We'll configure this with squared=False
+    "denormalized_rmse": DenormalizedRMSE,
     "r2": R2Score,
     "example": ExampleRegressionMetric,
 }

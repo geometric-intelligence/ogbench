@@ -125,6 +125,10 @@ class TBModel(LightningModule):
 
         # Metric
         model_out = self.loss(model_out=model_out, batch=batch)
+
+        # Add batch to model_out for evaluator access to target normalizer stats
+        model_out["batch"] = batch
+
         self.evaluator.update(model_out)
 
         return model_out
