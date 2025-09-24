@@ -491,7 +491,7 @@ def main():
     # Define hyperparameter grids (from your notebook)
     DATASETS = ["covidaki", "motrpac", "addneuromed", "parkinsons"]
     NODE_SAMPLE_RATIOS = [1.0, 0.5]  # , 0.2]  # , 0.125]
-    SAMPLE_METHODS = ["variance"]  # , "random", "correlation"]
+    SAMPLE_METHODS = ["variance", "random", "correlation"]
 
     OPT_LRS = [0.001]
     OPT_WD = [0.0004]
@@ -507,7 +507,7 @@ def main():
     MODEL_KEYS = ["sagn", "chebnet", "mlp", "gcn", "gin", "gatv4", "gatv2", "graph_sage"]
 
     # Seeds for reproducibility
-    SEEDS = [123]  # , 123, 456]
+    SEEDS = [42, 123, 456]
 
     # Dataset-specific adjacency thresholds
     DATASET_ADJ_THRESHOLDS = {
