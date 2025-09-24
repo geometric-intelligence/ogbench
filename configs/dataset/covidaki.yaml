@@ -23,7 +23,8 @@ parameters:
   loss_type: cross_entropy
   monitor_metric: f1_weighted
   task_level: graph
-  metrics: ["accuracy", "precision", "recall", "auroc", "f1_weighted"]
+  metrics:
+    ["accuracy", "precision", "recall", "auroc", "f1_weighted", "f1_macro"]
 
 split_params:
   learning_setting: inductive
