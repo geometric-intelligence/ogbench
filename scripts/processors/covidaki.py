@@ -25,6 +25,9 @@ def process_covidaki(output_dir: str = "temp_data") -> None:
     frames: list[pd.DataFrame] = []
     covid_status: list[int] = []
     sample_ids: list[str] = []
+    age: list[int] = []
+    sex: list[str] = []
+    patient_classification_at_first_sample: list[str] = []
 
     for dataset, url in urls.items():
         gz_path: str = os.path.join(output_dir, f"{dataset}.txt.gz")
@@ -47,6 +50,21 @@ def process_covidaki(output_dir: str = "temp_data") -> None:
                         sample_ids.extend(
                             [x.split(": ")[1].strip().strip('"') for x in line.split("\t")[1:]]
                         )
+                    if line.startswith("!Sample_characteristics_ch1") and "age:" in line:
+                        age.extend(
+                            int(x.split(": ")[1].strip().strip('"')) for x in line.split("\t")[1:]
+                        )
+                    if line.startswith("!Sample_characteristics_ch1") and "sex:" in line.lower():
+                        sex.extend(
+                            (x.split(": ")[1].strip().strip('"')) for x in line.split("\t")[1:]
+                        )
+                    if (
+                        line.startswith("!Sample_characteristics_ch1")
+                        and "patient classification at first sample:" in line
+                    ):
+                        patient_classification_at_first_sample.extend(
+                            (x.split(": ")[1].strip().strip('"')) for x in line.split("\t")[1:]
+                        )
                     if (
                         line.startswith("!Sample_characteristics_ch1")
                         and "covid-19 status:" in line
@@ -61,6 +79,9 @@ def process_covidaki(output_dir: str = "temp_data") -> None:
                 {
                     "blood_sample_id": sample_ids,
                     "covid_status": [1 if s == "Positive" else 0 for s in covid_status],
+                    "age": age,
+                    "sex": sex,
+                    "patient_classification_at_first_sample": patient_classification_at_first_sample,
                 }
             ).set_index("blood_sample_id")
         else:
