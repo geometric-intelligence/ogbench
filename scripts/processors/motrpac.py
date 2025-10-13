@@ -4,8 +4,90 @@ import os
 
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LinearRegression
 
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
+
+
+def adjust_for_covariates(
+    data: pd.DataFrame, covariates: pd.DataFrame, covariate_names: list[str]
+) -> pd.DataFrame:
+    """Adjust protein data for specified covariates using linear regression.
+
+    For each protein column, fits: protein ~ covariates and returns residuals + mean.
+    Categorical variables (sex, batch, race) are automatically one-hot encoded.
+
+    Args:
+        data: DataFrame with protein columns (already log-transformed)
+        covariates: DataFrame with covariate columns
+        covariate_names: List of covariate column names to adjust for
+
+    Returns:
+        Adjusted data with same shape as input
+    """
+    adjusted_data = data.copy()
+
+    # Build covariate matrix with one-hot encoding for categoricals
+    cov_df = covariates[covariate_names].copy()
+
+    # Identify categorical columns (sex, race, batch)
+    categorical_cols = [col for col in covariate_names if col in {"sex", "race", "batch"}]
+    continuous_cols = [col for col in covariate_names if col not in categorical_cols]
+
+    # One-hot encode categoricals and combine with continuous
+    if categorical_cols:
+        cov_encoded = pd.get_dummies(cov_df[categorical_cols], drop_first=True, dtype=float)
+    else:
+        cov_encoded = pd.DataFrame()
+
+    if continuous_cols:
+        cov_continuous = cov_df[continuous_cols].astype(float)
+        X = pd.concat([cov_continuous, cov_encoded], axis=1)
+    else:
+        X = cov_encoded
+
+    # Find rows with complete covariate data
+    valid_mask = X.notna().all(axis=1)
+
+    if valid_mask.sum() == 0:
+        print("Warning: No samples with complete covariate data. Returning original data.")
+        return adjusted_data
+
+    X_valid = X.loc[valid_mask].values
+
+    # Adjust each protein column
+    for col in data.columns:
+        protein_vals = data[col].values
+
+        # Find samples with both valid covariates and non-NaN protein values
+        protein_valid_mask = valid_mask & (~pd.isna(protein_vals))
+
+        if protein_valid_mask.sum() < 2:
+            print(f"Warning: Insufficient data for {col}, skipping adjustment.")
+            continue
+
+        X_fit = X.loc[protein_valid_mask].values
+        y_fit = protein_vals[protein_valid_mask]
+
+        # Fit linear model
+        model = LinearRegression()
+        model.fit(X_fit, y_fit)
+
+        # Predict for all samples with valid covariates
+        y_pred = model.predict(X_valid)
+
+        # Compute adjusted values: residual + original mean
+        # This removes covariate effects while preserving scale
+        original_mean = np.nanmean(y_fit)
+        adjusted_vals = protein_vals.copy()
+        adjusted_vals[valid_mask] = protein_vals[valid_mask] - y_pred + original_mean
+
+        adjusted_data[col] = adjusted_vals
+
+    print(f"Adjusted for covariates: {covariate_names}")
+    print(f"  Valid samples for adjustment: {valid_mask.sum()} / {len(data)}")
+
+    return adjusted_data
 
 
 def process_motrpac(output_dir: str = "temp_data") -> None:
@@ -123,6 +205,13 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     raw_data = np.log1p(raw_data)  # log1p for stability
     raw_data = pd.DataFrame(raw_data, columns=raw_data.columns).reset_index(drop=True)
 
+    # 6.5) Adjust for covariates (age, sex, batch)
+    covariates_to_adjust = ["age", "sex"]
+    if "batch" in cov.columns:
+        covariates_to_adjust.append("batch")
+
+    raw_data = adjust_for_covariates(raw_data, cov, covariates_to_adjust)
+
     # 7) Emit multiple targets (regression + classification)
     out = os.path.join(output_dir, "motrpac")
     os.makedirs(out, exist_ok=True)
@@ -158,6 +247,11 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
         num_samples=len(raw_data),
         num_features=raw_data.shape[1],
         target_stats=target_stats,
+        preprocessing_notes=(
+            "Data is log1p-transformed and adjusted for covariates (age, sex, batch) "
+            "using linear regression. Adjustment preserves original mean while removing "
+            "linear effects of covariates."
+        ),
     )
 
     # Upload to HuggingFace
