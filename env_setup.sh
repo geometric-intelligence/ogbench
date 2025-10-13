@@ -1,16 +1,38 @@
 #!/bin/bash -l
+
+# Check if conda is installed
+if ! command -v conda &> /dev/null; then
+    echo "Conda not found. Installing Miniconda..."
+
+    # Download Miniconda installer
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
+
+    # Install Miniconda silently
+    bash /tmp/miniconda.sh -b -p "$HOME/miniconda"
+
+    # Remove installer
+    rm /tmp/miniconda.sh
+
+    # Initialize conda for bash shell
+    eval "$("${HOME}"/miniconda/bin/conda shell.bash hook)"
+
+    # Add conda to PATH permanently
+    echo "export PATH=${HOME}/miniconda/bin:$PATH" >> ~/.bashrc
+
+    # Source bashrc to apply changes
+    # shellcheck disable=SC1090
+    source ~/.bashrc
+
+    echo "Conda installation complete"
+fi
+
+if ! conda env list | grep -q "bgbench"; then
+    conda create -n bgbench python=3.12 -y
+fi
+
+conda activate bgbench
+
 pip install --upgrade pip
 pip install -e '.[all]'
 
-# Note that not all combinations of torch and CUDA are available
-# See https://github.com/pyg-team/pyg-lib to check the configuration that works for you
-TORCH="2.6.0"   # available options: 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.4.0, ...
-CUDA="cu118"      # if available, select the CUDA version suitable for your system
-                # available options: cpu, cu102, cu113, cu116, cu117, cu118, cu121, ...
-pip install torch==${TORCH} --extra-index-url https://download.pytorch.org/whl/${CUDA}
-pip install torch-scatter torch-sparse torch-cluster -f https://data.pyg.org/whl/torch-${TORCH}+${CUDA}.html
-
-#pytest
-
-conda install conda-forge::huggingface_hub
 pre-commit install
