@@ -19,7 +19,7 @@ def adjust_for_covariates(
 
     Fits: target ~ all_proteins + covariates, then adjusts proteins to remove covariate
     effects while preserving relationship with target.
-    Categorical variables (sex, batch, race) are automatically one-hot encoded.
+    Categorical variables (sex, race) are automatically one-hot encoded.
 
     Args:
         data: DataFrame with protein columns (already log-transformed)
@@ -35,8 +35,8 @@ def adjust_for_covariates(
     # Build covariate matrix with one-hot encoding for categoricals
     cov_df = covariates[covariate_names].copy()
 
-    # Identify categorical columns (sex, race, batch)
-    categorical_cols = [col for col in covariate_names if col in {"sex", "race", "batch"}]
+    # Identify categorical columns (sex, race)
+    categorical_cols = [col for col in covariate_names if col in {"sex", "race"}]
     continuous_cols = [col for col in covariate_names if col not in categorical_cols]
 
     # One-hot encode categoricals and combine with continuous
@@ -88,6 +88,15 @@ def adjust_for_covariates(
 
     print(f"Adjusted for covariates: {covariate_names}")
     print(f"  Valid samples for adjustment: {valid_mask.sum()} / {len(data)}")
+
+    # Print per-covariate adjustment impact
+    print("  Covariate effects on target:")
+    for i, cov_name in enumerate(X_cov.columns):
+        cov_contribution = X_cov_valid.values[:, i] * covariate_coefs[i]
+        mean_abs_effect = np.abs(cov_contribution - cov_contribution.mean()).mean()
+        print(
+            f"    {cov_name}: coef={covariate_coefs[i]:.4f}, mean_abs_adjustment={mean_abs_effect:.4f}"
+        )
 
     return adjusted_data
 
@@ -185,15 +194,7 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
         }
     ).reset_index(drop=True)
 
-    # 4) Batch / plate effects handling
-    plate_col = next(
-        (c for c in proteomics_df.columns if c.lower() in {"plate", "batch", "run"}), None
-    )
-    if plate_col:
-        batch = proteomics_df.loc[mask, plate_col].astype(str).reset_index(drop=True)
-        cov["batch"] = batch
-
-    # 5) Light QC at ingest time (no learning from labels)
+    # 4) Light QC at ingest time (no learning from labels)
     col_na = raw_data.isna().mean()
     raw_data = raw_data.loc[:, col_na <= 0.1]  # drop analytes with >10% NA
     # Leave remaining NaNs as-is; downstream will impute on train only
@@ -202,10 +203,14 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     raw_data = np.log1p(raw_data)  # log1p for stability
     raw_data = pd.DataFrame(raw_data, columns=raw_data.columns).reset_index(drop=True)
 
-    # 6.5) Adjust for covariates (age, sex, batch)
-    covariates_to_adjust = ["age", "sex"]
-    if "batch" in cov.columns:
-        covariates_to_adjust.append("batch")
+    # 6.5) Adjust for covariates (age, sex, bmi, race, vo2_baseline)
+    print("\nCovariate selection:")
+    print(f"  Available covariates in cov dataframe: {cov.columns.tolist()}")
+    print(f"  Non-null counts: {cov.notna().sum().to_dict()}")
+
+    covariates_to_adjust = ["age", "sex", "bmi", "race", "vo2_baseline"]
+
+    print(f"  Selected for adjustment: {covariates_to_adjust}")
 
     delta_rel_series = delta_rel.reset_index(drop=True)
     raw_data = adjust_for_covariates(raw_data, delta_rel_series, cov, covariates_to_adjust)
@@ -246,9 +251,9 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
         num_features=raw_data.shape[1],
         target_stats=target_stats,
         preprocessing_notes=(
-            "Data is log1p-transformed and adjusted for covariates (age, sex, batch) "
-            "using linear regression. Adjustment preserves original mean while removing "
-            "linear effects of covariates."
+            "Data is log1p-transformed and adjusted for covariates (age, sex, bmi, race, vo2_baseline) "
+            "using linear regression. Fits target ~ all_proteins + covariates, then adjusts proteins to "
+            "remove covariate effects while preserving their relationship with the target."
         ),
     )
 
