@@ -10,15 +10,20 @@ from scripts.utils import create_dataset_metadata, download_file, upload_to_hugg
 
 
 def adjust_for_covariates(
-    data: pd.DataFrame, covariates: pd.DataFrame, covariate_names: list[str]
+    data: pd.DataFrame,
+    target: pd.Series,
+    covariates: pd.DataFrame,
+    covariate_names: list[str],
 ) -> pd.DataFrame:
-    """Adjust protein data for specified covariates using linear regression.
+    """Adjust protein data for specified covariates using linear regression with target.
 
-    For each protein column, fits: protein ~ covariates and returns residuals + mean.
+    Fits: target ~ all_proteins + covariates, then adjusts proteins to remove covariate
+    effects while preserving relationship with target.
     Categorical variables (sex, batch, race) are automatically one-hot encoded.
 
     Args:
         data: DataFrame with protein columns (already log-transformed)
+        target: Target variable (e.g., delta_rel)
         covariates: DataFrame with covariate columns
         covariate_names: List of covariate column names to adjust for
 
@@ -42,47 +47,44 @@ def adjust_for_covariates(
 
     if continuous_cols:
         cov_continuous = cov_df[continuous_cols].astype(float)
-        X = pd.concat([cov_continuous, cov_encoded], axis=1)
+        X_cov = pd.concat([cov_continuous, cov_encoded], axis=1)
     else:
-        X = cov_encoded
+        X_cov = cov_encoded
 
-    # Find rows with complete covariate data
-    valid_mask = X.notna().all(axis=1)
+    # Find rows with complete covariate and target data
+    valid_mask = X_cov.notna().all(axis=1) & target.notna()
 
     if valid_mask.sum() == 0:
-        print("Warning: No samples with complete covariate data. Returning original data.")
+        print("Warning: No samples with complete data. Returning original data.")
         return adjusted_data
 
-    X_valid = X.loc[valid_mask].values
+    X_cov_valid = X_cov.loc[valid_mask]
+    target_valid = target.loc[valid_mask]
 
-    # Adjust each protein column
-    for col in data.columns:
-        protein_vals = data[col].values
+    # Get protein data for valid samples, fill NaNs with column means for fitting
+    proteins_valid = data.loc[valid_mask].fillna(data.mean())
 
-        # Find samples with both valid covariates and non-NaN protein values
-        protein_valid_mask = valid_mask & (~pd.isna(protein_vals))
+    # Build full design matrix: [all_proteins, covariates]
+    X_full = np.hstack([proteins_valid.values, X_cov_valid.values])
 
-        if protein_valid_mask.sum() < 2:
-            print(f"Warning: Insufficient data for {col}, skipping adjustment.")
-            continue
+    # Fit: target ~ all_proteins + covariates
+    model = LinearRegression()
+    model.fit(X_full, target_valid.values)
 
-        X_fit = X.loc[protein_valid_mask].values
-        y_fit = protein_vals[protein_valid_mask]
+    # Extract covariate coefficients (skip protein coefficients)
+    n_proteins = proteins_valid.shape[1]
+    covariate_coefs = model.coef_[n_proteins:]
 
-        # Fit linear model
-        model = LinearRegression()
-        model.fit(X_fit, y_fit)
+    # Calculate mean covariate values for centering
+    X_cov_mean = X_cov_valid.values.mean(axis=0)
 
-        # Predict for all samples with valid covariates
-        y_pred = model.predict(X_valid)
+    # Calculate covariate effects
+    cov_effect_at_mean = np.dot(X_cov_mean, covariate_coefs)
+    cov_effect_all = np.dot(X_cov_valid.values, covariate_coefs)
 
-        # Compute adjusted values: residual + original mean
-        # This removes covariate effects while preserving scale
-        original_mean = np.nanmean(y_fit)
-        adjusted_vals = protein_vals.copy()
-        adjusted_vals[valid_mask] = protein_vals[valid_mask] - y_pred + original_mean
-
-        adjusted_data[col] = adjusted_vals
+    # Adjust all proteins at once: remove (covariate_effect - covariate_effect_at_mean)
+    adjustment = cov_effect_all - cov_effect_at_mean
+    adjusted_data.loc[valid_mask] = data.loc[valid_mask] - adjustment[:, np.newaxis]
 
     print(f"Adjusted for covariates: {covariate_names}")
     print(f"  Valid samples for adjustment: {valid_mask.sum()} / {len(data)}")
@@ -159,34 +161,29 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
         "ffm": [c for c in proteomics_df.columns if "fat-free" in c.lower() or "ffm" in c.lower()],
     }
 
-    cov = (
-        pd.DataFrame(
-            {
-                "age": pd.to_numeric(proteomics_df[cov_cols["age"][0]], errors="coerce")
-                if cov_cols["age"]
-                else np.nan,
-                "sex": proteomics_df[cov_cols["sex"][0]] if cov_cols["sex"] else np.nan,
-                "bmi": pd.to_numeric(proteomics_df[cov_cols["bmi"][0]], errors="coerce")
-                if cov_cols["bmi"]
-                else np.nan,
-                "race": proteomics_df[cov_cols["race"][0]] if cov_cols["race"] else np.nan,
-                "body_fat_pct": pd.to_numeric(
-                    proteomics_df[cov_cols["body_fat_pct"][0]], errors="coerce"
-                )
-                if cov_cols["body_fat_pct"]
-                else np.nan,
-                "ffm": pd.to_numeric(proteomics_df[cov_cols["ffm"][0]], errors="coerce")
-                if cov_cols["ffm"]
-                else np.nan,
-                "vo2_baseline": vo2_base,
-                "vo2_post": vo2_post,
-                "delta_vo2_abs": delta_abs,
-                "delta_vo2_rel": delta_rel,
-            }
-        )
-        .loc[mask]
-        .reset_index(drop=True)
-    )
+    # Build covariates dataframe (use .loc[mask] for proteomics_df columns only)
+    cov = pd.DataFrame(
+        {
+            "age": pd.to_numeric(proteomics_df.loc[mask, cov_cols["age"][0]], errors="coerce")
+            if cov_cols["age"]
+            else np.nan,
+            "sex": proteomics_df.loc[mask, cov_cols["sex"][0]].values
+            if cov_cols["sex"]
+            else np.nan,
+            "bmi": pd.to_numeric(proteomics_df.loc[mask, cov_cols["bmi"][0]], errors="coerce")
+            if cov_cols["bmi"]
+            else np.nan,
+            "race": proteomics_df.loc[mask, cov_cols["race"][0]].values
+            if cov_cols["race"]
+            else np.nan,
+            "body_fat_pct": pd.to_numeric(
+                proteomics_df.loc[mask, cov_cols["body_fat_pct"][0]], errors="coerce"
+            )
+            if cov_cols["body_fat_pct"]
+            else np.nan,
+            "vo2_baseline": vo2_base.values,  # Already filtered by mask
+        }
+    ).reset_index(drop=True)
 
     # 4) Batch / plate effects handling
     plate_col = next(
@@ -210,7 +207,8 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     if "batch" in cov.columns:
         covariates_to_adjust.append("batch")
 
-    raw_data = adjust_for_covariates(raw_data, cov, covariates_to_adjust)
+    delta_rel_series = delta_rel.reset_index(drop=True)
+    raw_data = adjust_for_covariates(raw_data, delta_rel_series, cov, covariates_to_adjust)
 
     # 7) Emit multiple targets (regression + classification)
     out = os.path.join(output_dir, "motrpac")
@@ -258,6 +256,7 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     data_files = {
         "data": os.path.join(out, "motrpac_data.parquet"),
         "targets_vo2_rel": os.path.join(out, "motrpac_targets_vo2_rel.parquet"),
+        "targets_responder15": os.path.join(out, "motrpac_targets_responder15.parquet"),
     }
 
     upload_to_huggingface("motrpac", data_files, metadata)
