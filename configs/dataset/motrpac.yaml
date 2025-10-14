@@ -54,7 +54,6 @@ baselines:
           class_weight: balanced
           max_iter: 5000
           random_state: ${seed}
-        cv: 2
         method: sigmoid
     param_grid:
       feature_selection__k: [50, 100, 500]

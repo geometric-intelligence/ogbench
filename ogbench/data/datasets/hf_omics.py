@@ -16,29 +16,7 @@ from huggingface_hub import hf_hub_download
 from sklearn.impute import SimpleImputer
 from tqdm import tqdm
 
-# Avoid circular import for baseline runner
-try:
-    from ogbench.data.utils import MeanStdNormalizer
-except (ImportError, ModuleNotFoundError):
-    # Inline definition for standalone use
-    class MeanStdNormalizer:
-        """Normalize features using mean and standard deviation."""
-
-        def __init__(self, mean: np.ndarray | None = None, std: np.ndarray | None = None) -> None:
-            self.mean = mean
-            self.std = std
-
-        def fit(self, data: np.ndarray) -> None:
-            """Compute mean and standard deviation from data."""
-            self.mean = np.mean(data, axis=0)
-            self.std = np.std(data, axis=0)
-
-        def transform(self, x: np.ndarray) -> np.ndarray:
-            """Normalize input array."""
-            if self.mean is None or self.std is None:
-                raise ValueError("Normalizer must be fitted before use")
-            return (x - self.mean) / self.std
-
+from ogbench.data.utils import MeanStdNormalizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

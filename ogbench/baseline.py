@@ -416,7 +416,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     # Create summary
     logger.info("\nBASELINE RESULTS SUMMARY")
 
-    monitor_metric = cfg.dataset.parameters.get("monitor_metric", "f1_weighted")
+    monitor_metric = cfg.dataset.parameters.get("metrics", "f1_weighted")
 
     # Sort baselines by monitor metric
     sorted_baselines = sorted(
