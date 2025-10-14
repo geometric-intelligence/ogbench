@@ -137,7 +137,7 @@ def load_and_prepare_data(
         logger.info("Downloading from HuggingFace...")
 
         hf_repo_id = "geometric-intelligence/bgbench"
-        revision = "e1631e8"
+        revision = cfg.dataset.loader.parameters.get("revision", "e1631e8")
 
         data_file = hf_hub_download(  # nosec
             repo_id=hf_repo_id,
@@ -228,7 +228,7 @@ def evaluate_and_log_metrics(
     # Compute metrics
     val_metrics = compute_classification_metrics(y_val, y_val_pred, y_val_proba)
 
-    logger.info("\nValidation Metrics:")
+    logger.info("Validation Metrics:")
     for metric_name, metric_value in val_metrics.items():
         logger.info(f"  {metric_name}: {metric_value:.4f}")
 
@@ -320,7 +320,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         raise ValueError("No baselines defined in dataset config")
 
     for baseline_name, baseline_config in cfg.dataset.baselines.items():
-        logger.info(f"\nRunning baseline: {baseline_name}")
+        logger.info(f"Running baseline: {baseline_name}")
 
         # Initialize wandb run for this baseline
         run_name = f"baseline_{baseline_name}_{cfg.dataset.loader.parameters.data_name}"
@@ -411,12 +411,12 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         # Finish wandb run for this baseline
         wandb.finish()
 
-        logger.info(f"Completed baseline: {baseline_name}\n")
+        logger.info(f"Completed baseline: {baseline_name}")
 
     # Create summary
-    logger.info("\nBASELINE RESULTS SUMMARY")
+    logger.info("BASELINE RESULTS SUMMARY")
 
-    monitor_metric = cfg.dataset.parameters.get("metrics", "f1_weighted")
+    monitor_metric = cfg.dataset.parameters.get("monitor_metric", "f1_weighted")
 
     # Sort baselines by monitor metric
     sorted_baselines = sorted(
@@ -425,14 +425,14 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         reverse=True,
     )
 
-    logger.info(f"\nRanking by {monitor_metric}:")
+    logger.info(f"Ranking by {monitor_metric}:")
     for rank, (name, results) in enumerate(sorted_baselines, 1):
         metric_val = results["val_metrics"].get(monitor_metric, 0)
         logger.info(f"{rank}. {name:30s} {metric_val:.4f}")
 
     # Return best baseline results
     best_baseline_name, best_results = sorted_baselines[0]
-    logger.info(f"\nBest baseline: {best_baseline_name}")
+    logger.info(f"Best baseline: {best_baseline_name}")
 
     metric_dict = {f"val/{k}": v for k, v in best_results["val_metrics"].items()}
     object_dict = {
