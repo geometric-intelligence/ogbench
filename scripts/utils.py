@@ -33,6 +33,7 @@ def create_dataset_metadata(
     num_samples: int,
     num_features: int,
     target_stats: Dict[str, float],
+    preprocessing_notes: str | None = None,
 ) -> Dict[str, Any]:
     """Create metadata dictionary for a dataset.
 
@@ -42,11 +43,12 @@ def create_dataset_metadata(
         num_samples: Number of samples in the dataset
         num_features: Number of features in the dataset
         target_stats: Statistics about the target variable
+        preprocessing_notes: Optional description of preprocessing steps applied
 
     Returns:
         Metadata dictionary
     """
-    return {
+    metadata = {
         "dataset_name": dataset_name,
         "download_urls": download_urls,
         "download_timestamp": datetime.now().isoformat(),
@@ -56,6 +58,11 @@ def create_dataset_metadata(
             "target_stats": target_stats,
         },
     }
+
+    if preprocessing_notes:
+        metadata["preprocessing_notes"] = preprocessing_notes
+
+    return metadata
 
 
 def upload_to_huggingface(
