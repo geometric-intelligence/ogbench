@@ -16,7 +16,29 @@ from huggingface_hub import hf_hub_download
 from sklearn.impute import SimpleImputer
 from tqdm import tqdm
 
-from ogbench.data.utils import MeanStdNormalizer
+# Avoid circular import for baseline runner
+try:
+    from ogbench.data.utils import MeanStdNormalizer
+except (ImportError, ModuleNotFoundError):
+    # Inline definition for standalone use
+    class MeanStdNormalizer:
+        """Normalize features using mean and standard deviation."""
+
+        def __init__(self, mean: np.ndarray | None = None, std: np.ndarray | None = None) -> None:
+            self.mean = mean
+            self.std = std
+
+        def fit(self, data: np.ndarray) -> None:
+            """Compute mean and standard deviation from data."""
+            self.mean = np.mean(data, axis=0)
+            self.std = np.std(data, axis=0)
+
+        def transform(self, x: np.ndarray) -> np.ndarray:
+            """Normalize input array."""
+            if self.mean is None or self.std is None:
+                raise ValueError("Normalizer must be fitted before use")
+            return (x - self.mean) / self.std
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,7 +78,7 @@ class AddEdgeIndex(T.BaseTransform):
 class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
-    revision: Final[str] = "20caac3"
+    revision: Final[str] = "e1631e8"
     classification_datasets: Final[list[str]] = [
         "covidaki",
         "addneuromed",
@@ -371,6 +393,51 @@ class HFOmicsDataset(InMemoryDataset):
             (self._data.to_dict(), self.slices, {}, self._data.__class__, self.edge_index),
             self.processed_paths[0],
         )
+
+    def load_raw_data_for_baselines(
+        self,
+    ) -> tuple[pd.DataFrame, np.ndarray, dict[str, int]]:
+        """Load and preprocess raw data for sklearn baselines.
+
+        Returns data, targets, and split indices following the same preprocessing
+        as used for graph data (imputation, same shuffling, same splits).
+
+        Returns
+        -------
+        tuple[pd.DataFrame, np.ndarray, dict[str, int]]
+            - Raw feature data (after selection but before normalization)
+            - Target values
+            - Dictionary with 'train_idx' and 'val_idx' split indices
+        """
+        import json
+
+        from sklearn.utils import shuffle
+
+        # Load raw data
+        logger.info("Loading raw data for baseline...")
+        selected_data = pd.read_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
+        targets = np.load(osp.join(self.raw_dir, "targets.npy"))
+
+        # Apply same shuffling as in process()
+        selected_data, targets = shuffle(selected_data, targets, random_state=42)
+
+        # Calculate split indices (same as in process())
+        train_idx = int(len(selected_data) * self.train_val_test_split[0])
+        val_idx = int(
+            len(selected_data) * (self.train_val_test_split[0] + self.train_val_test_split[1])
+        )
+
+        split_indices = {
+            "train_idx": train_idx,
+            "val_idx": val_idx,
+        }
+
+        logger.info(f"Loaded {len(selected_data)} samples with {selected_data.shape[1]} features")
+        logger.info(
+            f"Train samples: {train_idx}, Val samples: {val_idx - train_idx}, Test samples: {len(selected_data) - val_idx}"
+        )
+
+        return selected_data, targets, split_indices
 
     def __repr__(self) -> str:
         return (

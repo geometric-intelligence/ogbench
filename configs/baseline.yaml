@@ -1,0 +1,18 @@
+# @package _global_
+
+# Configuration for sklearn baseline runner
+defaults:
+  - _self_
+  - dataset: motrpac
+  - logger: wandb
+  - paths: default
+  - hydra: default
+
+# task name
+task_name: "baseline"
+
+# tags to help identify experiments
+tags: ["baseline", "sklearn"]
+
+# seed for random number generators
+seed: 42

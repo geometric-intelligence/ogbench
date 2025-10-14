@@ -36,3 +36,28 @@ dataloader_params:
   num_workers: 0
   pin_memory: False
   persistent_workers: False
+
+baselines:
+  svm:
+    pipeline:
+      - name: feature_selection
+        _target_: sklearn.feature_selection.SelectKBest
+        score_func:
+          _target_: sklearn.feature_selection.f_classif
+        k: 100
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: calibrated_svm
+        _target_: sklearn.calibration.CalibratedClassifierCV
+        estimator:
+          _target_: sklearn.svm.LinearSVC
+          class_weight: balanced
+          max_iter: 5000
+          random_state: ${seed}
+        cv: 2
+        method: sigmoid
+    param_grid:
+      feature_selection__k: [50, 100, 500]
+      calibrated_svm__estimator__C: [1e-3, 1e-2, 1e-1]
+    scoring: f1_weighted
+    n_jobs: -1
