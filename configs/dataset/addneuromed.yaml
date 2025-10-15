@@ -10,7 +10,7 @@ loader:
     method: variance
     imputation_method: mean
     train_val_test_split: [0.7, 0.2, 0.1]
-    revision: aec8cbb
+    revision: 9f052d330ce130408a2c7c347b2ed197154da7c8
 
 parameters:
   num_features: 1

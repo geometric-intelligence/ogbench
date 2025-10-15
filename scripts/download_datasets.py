@@ -7,7 +7,6 @@ import shutil
 import typer
 
 from scripts.processors.addneuromed import process_addneuromed
-from scripts.processors.covidaki import process_covidaki
 from scripts.processors.motrpac import process_motrpac
 from scripts.processors.parkinsons import process_parkinsons
 
@@ -42,21 +41,6 @@ def addneuromed(
     typer.echo('Processing AddNeuroMed dataset...')
     process_addneuromed(output_dir)
     typer.echo('✅ AddNeuroMed dataset processed and uploaded successfully!')
-
-
-@app.command()
-def covidaki(
-    output_dir: str = typer.Option(
-        'temp_data',
-        '--output-dir',
-        '-o',
-        help='Output directory for temporary files',
-    ),
-) -> None:
-    """Download and upload CovidAKI dataset to HuggingFace."""
-    typer.echo('Processing CovidAKI dataset...')
-    process_covidaki(output_dir)
-    typer.echo('✅ CovidAKI dataset processed and uploaded successfully!')
 
 
 @app.command()
@@ -98,9 +82,6 @@ def all(
 
         typer.echo('\n📊 Processing AddNeuroMed...')
         process_addneuromed(output_dir)
-
-        typer.echo('\n📊 Processing CovidAKI...')
-        process_covidaki(output_dir)
 
         typer.echo('\n📊 Processing Parkinsons...')
         process_parkinsons(output_dir)

@@ -54,15 +54,17 @@ class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
     classification_datasets: Final[list[str]] = [
-        'covidaki',
         'addneuromed',
+        'parkinsons',
+        'motrpac',
+        'covidaki',
     ]
 
     def __init__(
         self,
         root: str,
         data_name: str,
-        method: str = 'variance',
+        method: str = 'correlation',
         imputation_method: str = 'mean',
         adjacency_threshold: float = 0.3,
         node_sample_ratio: float | str = 1.0,
@@ -93,7 +95,6 @@ class HFOmicsDataset(InMemoryDataset):
         self.revision = revision
         self.imputer = SimpleImputer(strategy=imputation_method)
         self.feature_normalizer = MeanStdNormalizer()
-        self.target_normalizer = MeanStdNormalizer()
 
         self.name = osp.join(
             f'{self.data_name}',
@@ -102,7 +103,6 @@ class HFOmicsDataset(InMemoryDataset):
             f'p_{self.node_sample_ratio}',
             f'train_split_{self.train_val_test_split[0]}',
         )
-        self.normalize_targets = False if data_name in self.classification_datasets else True
 
         super().__init__(root)
         data, self.slices, self.sizes, data_cls, self.edge_index = fs.torch_load(
@@ -294,12 +294,7 @@ class HFOmicsDataset(InMemoryDataset):
         ).to(torch.float32)
 
         y_tensor = np.array([subject_target])
-        if self.normalize_targets:
-            y_normalized = torch.from_numpy(self.target_normalizer.transform(y_tensor)).to(
-                torch.float32
-            )
-        else:
-            y_normalized = torch.from_numpy(y_tensor)
+        y_normalized = torch.from_numpy(y_tensor)
 
         graph = torch_geometric.data.Data(x=node_features_normalized.unsqueeze(1), y=y_normalized)
         return graph
@@ -322,11 +317,8 @@ class HFOmicsDataset(InMemoryDataset):
         # Fit normalizers on training data
         train_idx = int(len(selected_data) * self.train_val_test_split[0])
         train_data = selected_data.iloc[:train_idx]
-        train_targets = targets[:train_idx]
         logger.info('Fitting normalizers')
         self.feature_normalizer.fit(train_data.values)
-        if self.normalize_targets:
-            self.target_normalizer.fit(train_targets)
         # Save normalizer statistics to JSON
         import json
 
@@ -338,10 +330,6 @@ class HFOmicsDataset(InMemoryDataset):
             'feature_normalizer': {
                 'mean': list(self.feature_normalizer.mean),
                 'std': list(self.feature_normalizer.std),
-            },
-            'target_normalizer': {
-                'mean': self.target_normalizer.mean,
-                'std': self.target_normalizer.std,
             },
         }
         normalizers_stats_path = os.path.join(self.processed_dir, 'processing_stats.json')
@@ -421,6 +409,5 @@ class HFOmicsDataset(InMemoryDataset):
             f'adjacency_threshold={self.adjacency_threshold}, '
             f'node_sample_ratio={self.node_sample_ratio}, '
             f'method={self.method}, '
-            f'train_val_test_split={self.train_val_test_split}, '
-            f'normalize_targets={self.normalize_targets})'
+            f'train_val_test_split={self.train_val_test_split})'
         )

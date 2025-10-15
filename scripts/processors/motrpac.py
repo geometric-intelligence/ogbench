@@ -228,9 +228,6 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
 
     # 8) Create metadata
     target_stats = {
-        'class_mapping': {'Non-responder': 0, 'Responder': 1},
-        'num_classes': 2,
-        'class_names': ['Non-responder', 'Responder'],
         'responder15': {
             'pos': int((responder15 == 1).sum()),
             'neg': int((responder15 == 0).sum()),
