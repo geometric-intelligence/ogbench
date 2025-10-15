@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import rootutils
 import seaborn as sns
-import wandb
 from huggingface_hub import hf_hub_download
 from omegaconf import DictConfig, OmegaConf
 from sklearn.decomposition import PCA
@@ -33,6 +32,8 @@ from sklearn.metrics import (
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.utils import shuffle
+
+import wandb
 
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 
