@@ -7,6 +7,7 @@ import os
 import numpy as np
 import pandas as pd
 import requests
+from combat.pycombat import pycombat
 from tqdm import tqdm
 
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
@@ -158,6 +159,7 @@ def process_addneuromed(output_dir: str = 'temp_data') -> None:
     raw_data: pd.DataFrame = pd.DataFrame()
     frames: list[pd.DataFrame] = []
     statuses: list[str] = []
+    batches: list[str] = []
 
     for dataset, url in urls.items():
         gz_path: str = os.path.join(output_dir, f'{dataset}.txt.gz')
@@ -175,13 +177,19 @@ def process_addneuromed(output_dir: str = 'temp_data') -> None:
             data = pd.read_csv(f, sep='\t', comment='!', index_col='ID_REF').transpose()
 
         # Extract statuses from the data
+        dataset_statuses: list[str] = []
         with gzip.open(gz_path, 'rt') as f:
             for line in f:
                 if line.startswith('!Sample_characteristics_ch1') and 'status:' in line:
-                    statuses.extend(
+                    dataset_statuses.extend(
                         [x.split(': ')[1].strip().strip('"') for x in line.split('\t')[1:]]
                     )
                     break
+
+        # Track batch labels for this dataset
+        dataset_batches = [dataset] * len(data.index)
+        batches.extend(dataset_batches)
+        statuses.extend(dataset_statuses)
 
         # Convert probe-level data to gene-level data
         print(f'Converting {dataset} from probe-level to gene-level data...')
@@ -211,6 +219,7 @@ def process_addneuromed(output_dir: str = 'temp_data') -> None:
     # Combine datasets
     raw_data = pd.concat(frames, axis=0)
     targets = np.array(statuses)
+    batch_labels = np.array(batches)
 
     # Define classes to remove
     classes_to_remove = {'CTL to AD', 'MCI to CTL', 'OTHER', 'borderline MCI'}
@@ -223,6 +232,35 @@ def process_addneuromed(output_dir: str = 'temp_data') -> None:
     )
     raw_data = raw_data[mask]
     targets = targets[mask]
+    batch_labels = batch_labels[mask]
+
+    # Apply ComBat batch correction
+    print('Applying ComBat batch correction...')
+
+    # Create design matrix for status to preserve biological signal
+    unique_statuses = np.unique(targets)
+    design_matrix = pd.DataFrame(index=raw_data.index)
+    for status in unique_statuses:
+        design_matrix[f'status_{status}'] = (targets == status).astype(int)
+
+    # Apply ComBat correction
+    # pycombat expects genes x samples, so we transpose raw_data
+    raw_data_transposed = raw_data.T  # Transpose to genes x samples
+
+    # Convert batch labels to numeric indices for pycombat
+    unique_batches = np.unique(batch_labels)
+    batch_to_idx = {batch: i for i, batch in enumerate(unique_batches)}
+    batch_indices = np.array([batch_to_idx[batch] for batch in batch_labels])
+
+    # Apply ComBat correction without covariates for now
+    # This will correct batch effects while preserving overall biological signal
+    corrected_data = pycombat(
+        raw_data_transposed,  # Pass DataFrame, not numpy array
+        batch_indices,
+    )
+
+    # Convert back to DataFrame (transpose back to samples x genes)
+    raw_data = corrected_data.T  # Transpose back to samples x features
 
     # Raise if raw data or targets have nan values
     assert not raw_data.isna().any().any(), 'Raw data has nan values'

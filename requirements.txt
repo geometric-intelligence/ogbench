@@ -36,6 +36,7 @@ rootutils
 pre-commit
 rich
 pytest
+pycombat
 
 topomodelx@ git+https://github.com/pyt-team/TopoModelX.git
 toponetx@ git+https://github.com/pyt-team/TopoNetX.git
