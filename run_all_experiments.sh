@@ -80,7 +80,6 @@ models=(
 # Datasets to test
 datasets=(
     "addneuromed"
-    "covidaki"
     "motrpac"
     "parkinsons"
 )
