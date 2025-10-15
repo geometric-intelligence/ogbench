@@ -1,7 +1,5 @@
 """Loaders for Omics datasets."""
 
-import os.path as osp
-from pathlib import Path
 
 import numpy as np
 from omegaconf import DictConfig
@@ -59,13 +57,13 @@ class OmicsDatasetLoader(AbstractLoader):
         Dict[str, np.ndarray]
             A dictionary mapping split names to index arrays.
         """
-        split_sizes = [int(x * dataset_length) for x in self.parameters["train_val_test_split"]]
-        split_idx = {"train": np.arange(split_sizes[0])}
-        split_idx["valid"] = np.arange(
+        split_sizes = [int(x * dataset_length) for x in self.parameters['train_val_test_split']]
+        split_idx = {'train': np.arange(split_sizes[0])}
+        split_idx['valid'] = np.arange(
             split_sizes[0],
             split_sizes[0] + split_sizes[1],
         )
-        split_idx["test"] = np.arange(
+        split_idx['test'] = np.arange(
             split_sizes[0] + split_sizes[1],
             dataset_length,
         )

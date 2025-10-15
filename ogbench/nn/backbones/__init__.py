@@ -25,8 +25,8 @@ class ModelExportsManager:
         """
         return (
             inspect.isclass(obj)
-            and obj.__module__ == "__main__"
-            and not obj.__name__.startswith("_")
+            and obj.__module__ == '__main__'
+            and not obj.__name__.startswith('_')
         )
 
     @classmethod
@@ -47,12 +47,12 @@ class ModelExportsManager:
         package_dir = Path(package_path).parent
 
         for subpackage in package_dir.iterdir():
-            if subpackage.is_dir() and (subpackage / "__init__.py").exists():
-                for file_path in subpackage.glob("*.py"):
-                    if file_path.stem == "__init__":
+            if subpackage.is_dir() and (subpackage / '__init__.py').exists():
+                for file_path in subpackage.glob('*.py'):
+                    if file_path.stem == '__init__':
                         continue
 
-                    module_name = f"{subpackage.stem}.{file_path.stem}"
+                    module_name = f'{subpackage.stem}.{file_path.stem}'
                     spec = util.spec_from_file_location(module_name, file_path)
                     if spec and spec.loader:
                         module = util.module_from_spec(spec)
@@ -63,7 +63,7 @@ class ModelExportsManager:
                             for name, obj in inspect.getmembers(module)
                             if inspect.isclass(obj)
                             and obj.__module__ == module.__name__
-                            and not name.startswith("_")
+                            and not name.startswith('_')
                         }
                         models.update(new_models)
         return models
@@ -76,7 +76,7 @@ manager = ModelExportsManager()
 MODEL_CLASSES = manager.discover_models(__file__)
 
 # Automatically generate __all__
-__all__ = [*MODEL_CLASSES.keys(), "MODEL_CLASSES"]
+__all__ = [*MODEL_CLASSES.keys(), 'MODEL_CLASSES']
 
 # For backwards compatibility, also create individual imports
 locals().update(MODEL_CLASSES)

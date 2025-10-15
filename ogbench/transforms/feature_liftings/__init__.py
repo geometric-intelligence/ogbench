@@ -28,8 +28,8 @@ class ModuleExportsManager:
         """
         return (
             inspect.isclass(obj)
-            and obj.__module__ == "__main__"
-            and not obj.__name__.startswith("_")
+            and obj.__module__ == '__main__'
+            and not obj.__name__.startswith('_')
         )
 
     @classmethod
@@ -58,12 +58,12 @@ class ModuleExportsManager:
         package_dir = Path(package_path).parent
 
         # Iterate through all .py files in the directory
-        for file_path in package_dir.glob("*.py"):
-            if file_path.stem == "__init__":
+        for file_path in package_dir.glob('*.py'):
+            if file_path.stem == '__init__':
                 continue
 
             # Import the module
-            module_name = f"{Path(package_path).stem}.{file_path.stem}"
+            module_name = f'{Path(package_path).stem}.{file_path.stem}'
             spec = util.spec_from_file_location(module_name, file_path)
             if spec and spec.loader:
                 module = util.module_from_spec(spec)
@@ -76,7 +76,7 @@ class ModuleExportsManager:
                     if (
                         inspect.isclass(obj)
                         and obj.__module__ == module.__name__
-                        and not name.startswith("_")
+                        and not name.startswith('_')
                     )
                 }
                 liftings.update(new_liftings)
@@ -94,7 +94,7 @@ manager = ModuleExportsManager()
 FEATURE_LIFTINGS = manager.discover_liftings(__file__, special_cases={None: Identity})
 
 # Automatically generate __all__ (excluding None key)
-__all__ = [name for name in FEATURE_LIFTINGS if isinstance(name, str)] + ["FEATURE_LIFTINGS"]
+__all__ = [name for name in FEATURE_LIFTINGS if isinstance(name, str)] + ['FEATURE_LIFTINGS']
 
 # For backwards compatibility, create individual imports (excluding None key)
 locals().update({k: v for k, v in FEATURE_LIFTINGS.items() if isinstance(k, str)})

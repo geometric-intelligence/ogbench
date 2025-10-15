@@ -31,7 +31,7 @@ class AbstractZeroCellReadOut(torch.nn.Module):
         hidden_dim: int,
         out_channels: int,
         task_level: str,
-        pooling_type: str = "mean",
+        pooling_type: str = 'mean',
         logits_linear_layer: bool = False,
         **kwargs,
     ):
@@ -42,15 +42,15 @@ class AbstractZeroCellReadOut(torch.nn.Module):
             if hidden_dim != out_channels or logits_linear_layer
             else torch.nn.Identity()
         )
-        assert task_level in ["graph", "node"], "Invalid task_level"
+        assert task_level in ['graph', 'node'], 'Invalid task_level'
         self.task_level = task_level
         self.logits_linear_layer = logits_linear_layer
 
-        assert pooling_type in ["max", "sum", "mean"], "Invalid pooling_type"
+        assert pooling_type in ['max', 'sum', 'mean'], 'Invalid pooling_type'
         self.pooling_type = pooling_type
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(task_level={self.task_level}, pooling_type={self.pooling_type})"
+        return f'{self.__class__.__name__}(task_level={self.task_level}, pooling_type={self.pooling_type})'
 
     def __call__(self, model_out: dict, batch: torch_geometric.data.Data) -> dict:
         """Readout logic based on model_output.
@@ -69,8 +69,8 @@ class AbstractZeroCellReadOut(torch.nn.Module):
         """
         model_out = self.forward(model_out, batch)
 
-        if model_out.get("logits", None) is None:
-            model_out["logits"] = self.compute_logits(model_out["x_0"], batch["batch_0"])
+        if model_out.get('logits', None) is None:
+            model_out['logits'] = self.compute_logits(model_out['x_0'], batch['batch_0'])
 
         return model_out
 
@@ -89,7 +89,7 @@ class AbstractZeroCellReadOut(torch.nn.Module):
         torch.Tensor
             Logits tensor.
         """
-        if self.task_level == "graph":
+        if self.task_level == 'graph':
             x = scatter(x, batch, dim=0, reduce=self.pooling_type)
 
         return self.linear(x)

@@ -13,35 +13,35 @@ class DatasetManager:
 
     # Static dataset definitions
     PLANETOID_DATASETS: ClassVar[list[str]] = [
-        "Cora",
-        "citeseer",
-        "PubMed",
+        'Cora',
+        'citeseer',
+        'PubMed',
     ]
 
     TU_DATASETS: ClassVar[list[str]] = [
-        "MUTAG",
-        "ENZYMES",
-        "PROTEINS",
-        "COLLAB",
-        "IMDB-BINARY",
-        "IMDB-MULTI",
-        "REDDIT-BINARY",
-        "NCI1",
-        "NCI109",
+        'MUTAG',
+        'ENZYMES',
+        'PROTEINS',
+        'COLLAB',
+        'IMDB-BINARY',
+        'IMDB-MULTI',
+        'REDDIT-BINARY',
+        'NCI1',
+        'NCI109',
     ]
 
-    FIXED_SPLITS_DATASETS: ClassVar[list[str]] = ["ZINC", "AQSOL"]
+    FIXED_SPLITS_DATASETS: ClassVar[list[str]] = ['ZINC', 'AQSOL']
 
     HETEROPHILIC_DATASETS: ClassVar[list[str]] = [
-        "amazon_ratings",
-        "questions",
-        "minesweeper",
-        "roman_empire",
-        "tolokers",
+        'amazon_ratings',
+        'questions',
+        'minesweeper',
+        'roman_empire',
+        'tolokers',
     ]
 
     OMICS_DATASETS: ClassVar[list[str]] = [
-        "HFOmicsDataset",
+        'HFOmicsDataset',
     ]
 
     @classmethod
@@ -64,12 +64,12 @@ class DatasetManager:
         package_dir = Path(package_path).parent
 
         # Iterate through all .py files in the directory
-        for file_path in package_dir.glob("*.py"):
-            if file_path.stem == "__init__":
+        for file_path in package_dir.glob('*.py'):
+            if file_path.stem == '__init__':
                 continue
 
             # Import the module
-            module_name = f"{Path(package_path).stem}.{file_path.stem}"
+            module_name = f'{Path(package_path).stem}.{file_path.stem}'
             spec = util.spec_from_file_location(module_name, file_path)
             if spec and spec.loader:
                 module = util.module_from_spec(spec)
@@ -82,7 +82,7 @@ class DatasetManager:
                     if (
                         inspect.isclass(obj)
                         and obj.__module__ == module.__name__
-                        and not name.startswith("_")
+                        and not name.startswith('_')
                         and issubclass(obj, InMemoryDataset)
                         and obj != InMemoryDataset
                     )
@@ -124,13 +124,13 @@ OMICS_DATASETS = manager.OMICS_DATASETS
 # Automatically generate __all__
 __all__ = [
     # Dataset collections
-    "PYG_DATASETS",
-    "PLANETOID_DATASETS",
-    "TU_DATASETS",
-    "FIXED_SPLITS_DATASETS",
-    "HETEROPHILIC_DATASETS",
-    "OMICS_DATASETS",
-    "MANUAL_DATASETS",
+    'PYG_DATASETS',
+    'PLANETOID_DATASETS',
+    'TU_DATASETS',
+    'FIXED_SPLITS_DATASETS',
+    'HETEROPHILIC_DATASETS',
+    'OMICS_DATASETS',
+    'MANUAL_DATASETS',
     # Discovered dataset classes
     *MANUAL_DATASETS.keys(),
 ]

@@ -31,13 +31,13 @@ class HypergraphKNNLifting(Graph2HypergraphLifting):
 
         # Validate k_value
         if not isinstance(k_value, int):
-            raise TypeError("k_value must be an integer")
+            raise TypeError('k_value must be an integer')
         if k_value < 1:
-            raise ValueError("k_value must be greater than or equal to 1")
+            raise ValueError('k_value must be greater than or equal to 1')
 
         # Validate loop
         if not isinstance(loop, bool):
-            raise TypeError("loop must be a boolean")
+            raise TypeError('loop must be a boolean')
 
         self.k = k_value
         self.loop = loop
@@ -90,7 +90,7 @@ class HypergraphKNNLifting(Graph2HypergraphLifting):
         incidence_1[data_lifted.edge_index[1], data_lifted.edge_index[0]] = 1
         incidence_1 = torch.Tensor(incidence_1).to_sparse_coo()
         return {
-            "incidence_hyperedges": incidence_1,
-            "num_hyperedges": num_hyperedges,
-            "x_0": data.x,
+            'incidence_hyperedges': incidence_1,
+            'num_hyperedges': num_hyperedges,
+            'x_0': data.x,
         }

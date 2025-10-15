@@ -39,21 +39,21 @@ class ExampleRegressionMetric(Metric):
         super().__init__(**kwargs)
 
         if not isinstance(squared, bool):
-            raise ValueError(f"Expected argument `squared` to be a boolean but got {squared}")
+            raise ValueError(f'Expected argument `squared` to be a boolean but got {squared}')
         self.squared = squared
 
         if not (isinstance(num_outputs, int) and num_outputs > 0):
             raise ValueError(
-                f"Expected num_outputs to be a positive integer but got {num_outputs}"
+                f'Expected num_outputs to be a positive integer but got {num_outputs}'
             )
         self.num_outputs = num_outputs
 
         self.add_state(
-            "sum_squared_error",
+            'sum_squared_error',
             default=torch.zeros(num_outputs),
-            dist_reduce_fx="sum",
+            dist_reduce_fx='sum',
         )
-        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state('total', default=torch.tensor(0), dist_reduce_fx='sum')
 
     def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
         """Update state with predictions and targets.

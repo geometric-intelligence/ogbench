@@ -90,6 +90,11 @@ repository="https://github.com/geometric-intelligence/bgbench"
 [tool.ruff]
 line-length = 99
 target-version = "py312"
+exclude = [
+    "*.ipynb",
+    "notebooks/*",
+    "tutorials/*",
+]
 
 [tool.ruff.lint]
 select = [

@@ -30,8 +30,8 @@ class GraphLoaderManager:
         """
         return (
             inspect.isclass(obj)
-            and not obj.__name__.startswith("_")
-            and "DatasetLoader" in obj.__name__
+            and not obj.__name__.startswith('_')
+            and 'DatasetLoader' in obj.__name__
         )
 
     @classmethod
@@ -54,12 +54,12 @@ class GraphLoaderManager:
         package_dir = Path(package_path).parent
 
         # Iterate through all .py files in the directory
-        for file_path in package_dir.glob("*.py"):
-            if file_path.stem == "__init__":
+        for file_path in package_dir.glob('*.py'):
+            if file_path.stem == '__init__':
                 continue
 
             # Import the module
-            module_name = f"{Path(package_path).stem}.{file_path.stem}"
+            module_name = f'{Path(package_path).stem}.{file_path.stem}'
             spec = util.spec_from_file_location(module_name, file_path)
             if spec and spec.loader:
                 module = util.module_from_spec(spec)
@@ -85,8 +85,8 @@ GRAPH_LOADERS_list = list(GRAPH_LOADERS.keys())
 # Automatically generate __all__
 __all__ = [
     # Loader collections
-    "GRAPH_LOADERS",
-    "GRAPH_LOADERS_list",
+    'GRAPH_LOADERS',
+    'GRAPH_LOADERS_list',
     # Individual loader classes
     *GRAPH_LOADERS_list,
 ]

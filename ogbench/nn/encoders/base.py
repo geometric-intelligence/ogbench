@@ -13,7 +13,7 @@ class AbstractFeatureEncoder(torch.nn.Module):
         super().__init__()
 
     def __repr__(self):
-        return f"{self.__class__.__name__}()"
+        return f'{self.__class__.__name__}()'
 
     @abstractmethod
     def forward(self, data: torch_geometric.data.Data) -> torch_geometric.data.Data:

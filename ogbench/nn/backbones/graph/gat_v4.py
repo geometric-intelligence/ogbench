@@ -1,14 +1,10 @@
-import gc
-from typing import Optional, Tuple, Union
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import LayerNorm, Parameter
+from torch.nn import LayerNorm
 from torch_geometric.data import Batch
 from torch_geometric.nn import GATv2Conv
-from torch_geometric.nn.dense.linear import Linear
 from torch_geometric.utils import to_dense_batch
 
 
@@ -16,15 +12,15 @@ from torch_geometric.utils import to_dense_batch
 class CustomGATConv(GATv2Conv):
     def __init__(
         self,
-        in_channels: Union[int, Tuple[int, int]],
+        in_channels: int | tuple[int, int],
         out_channels: int,
         heads: int = 1,
         concat: bool = True,
         negative_slope: float = 0.2,
         dropout: float = 0.0,
         add_self_loops: bool = True,
-        edge_dim: Optional[int] = None,
-        fill_value: Union[float, Tensor, str] = "mean",
+        edge_dim: int | None = None,
+        fill_value: float | Tensor | str = 'mean',
         bias: bool = True,
         share_weights: bool = False,
         residual: bool = False,
@@ -83,18 +79,18 @@ class CustomGATConv(GATv2Conv):
 
 class GATv4(nn.Module):
     ACT_MAP = {
-        "relu": nn.ReLU(),
-        "tanh": nn.Tanh(),
-        "sigmoid": nn.Sigmoid(),
-        "leaky_relu": nn.LeakyReLU(),
-        "elu": nn.ELU(),
+        'relu': nn.ReLU(),
+        'tanh': nn.Tanh(),
+        'sigmoid': nn.Sigmoid(),
+        'leaky_relu': nn.LeakyReLU(),
+        'elu': nn.ELU(),
     }
     INIT_MAP = {
-        "uniform": nn.init.uniform_,
-        "xavier": nn.init.xavier_uniform_,
-        "kaiming": nn.init.kaiming_uniform_,
-        "orthogonal": nn.init.orthogonal_,
-        "truncated_normal": torch.nn.init.trunc_normal_,
+        'uniform': nn.init.uniform_,
+        'xavier': nn.init.xavier_uniform_,
+        'kaiming': nn.init.kaiming_uniform_,
+        'orthogonal': nn.init.orthogonal_,
+        'truncated_normal': torch.nn.init.trunc_normal_,
     }
 
     def __init__(
@@ -139,7 +135,7 @@ class GATv4(nn.Module):
 
     def build_gat_layers(self):
         input_dim = self.in_channels
-        for hidden_dim, num_heads in zip(self.hidden_channels, self.heads):
+        for hidden_dim, num_heads in zip(self.hidden_channels, self.heads, strict=True):
             self.convs.append(
                 GATv2Conv(
                     in_channels=input_dim,
@@ -152,7 +148,7 @@ class GATv4(nn.Module):
             input_dim = hidden_dim * num_heads
 
     def build_pooling_layers(self):
-        for hidden_dim, num_heads in zip(self.hidden_channels, self.heads):
+        for hidden_dim, num_heads in zip(self.hidden_channels, self.heads, strict=True):
             self.pools.append(nn.Linear(hidden_dim * num_heads, 1))
 
     def reset_parameters(self):
@@ -178,7 +174,6 @@ class GATv4(nn.Module):
         x0, _ = to_dense_batch(torch.mean(x, dim=-1), batch=batch)
 
         # Apply first GAT layer and pooling
-        att = None
         if return_attention_weights:
             x, att1 = self.convs[0](x, edge_index, return_attention_weights=True)
         else:
@@ -213,7 +208,7 @@ class GATv4(nn.Module):
             x2 = self.layer_norm(x2)  # [bs, nodes]
 
         # Concatenate multiscale features - results in [bs, 3*nodes]
-        multiscale_features = {"layer1": x0, "layer2": x1, "layer3": x2}
+        multiscale_features = {'layer1': x0, 'layer2': x1, 'layer3': x2}
         multiscale_features = torch.cat(
             [multiscale_features[layer] for layer in self.which_layer],
             dim=1,

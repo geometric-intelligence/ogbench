@@ -20,7 +20,7 @@ class TestNoReadOut:
         dict
             The base parameters for the NoReadOut layer.
         """
-        return {"hidden_dim": 64, "out_channels": 32, "task_level": "graph"}
+        return {'hidden_dim': 64, 'out_channels': 32, 'task_level': 'graph'}
 
     @pytest.fixture
     def readout_layer(self, base_kwargs):
@@ -48,9 +48,9 @@ class TestNoReadOut:
             A sample model output dictionary.
         """
         return {
-            "x_0": torch.randn(10, 64),  # Required key for model output
-            "edge_indices": torch.randint(0, 10, (2, 15)),
-            "other_data": torch.randn(10, 32),
+            'x_0': torch.randn(10, 64),  # Required key for model output
+            'edge_indices': torch.randint(0, 10, (2, 15)),
+            'other_data': torch.randn(10, 32),
         }
 
     @pytest.fixture
@@ -101,7 +101,7 @@ class TestNoReadOut:
         for key in original_output:
             assert key in output
             assert torch.equal(output[key], original_output[key])
-        assert "logits" in output
+        assert 'logits' in output
 
     def test_invalid_task_level(self, base_kwargs):
         """Test that initialization fails with invalid task_level.
@@ -112,8 +112,8 @@ class TestNoReadOut:
             A fixture providing the required base parameters.
         """
         invalid_kwargs = base_kwargs.copy()
-        invalid_kwargs["task_level"] = "invalid_level"
-        with pytest.raises(AssertionError, match="Invalid task_level"):
+        invalid_kwargs['task_level'] = 'invalid_level'
+        with pytest.raises(AssertionError, match='Invalid task_level'):
             NoReadOut(**invalid_kwargs)
 
     def test_repr(self, readout_layer):
@@ -124,8 +124,8 @@ class TestNoReadOut:
         readout_layer : NoReadOut
             A fixture to create a NoReadOut instance for testing.
         """
-        assert str(readout_layer) == "NoReadOut()"
-        assert repr(readout_layer) == "NoReadOut()"
+        assert str(readout_layer) == 'NoReadOut()'
+        assert repr(readout_layer) == 'NoReadOut()'
 
     def test_forward_pass_with_different_batch_sizes(self, readout_layer):
         """Test that forward pass works with different batch sizes.
@@ -142,11 +142,11 @@ class TestNoReadOut:
             batch_0=torch.zeros(5, dtype=torch.long),
         )
         single_output = {
-            "x_0": torch.randn(5, 64),
-            "embeddings": torch.randn(5, 64),
+            'x_0': torch.randn(5, 64),
+            'embeddings': torch.randn(5, 64),
         }
         result = readout_layer(single_output, single_batch)
-        assert "logits" in result
+        assert 'logits' in result
 
         # Test with multiple graphs
         multi_batch = tg_data.Data(
@@ -155,11 +155,11 @@ class TestNoReadOut:
             batch_0=torch.cat([torch.zeros(5), torch.ones(5), torch.ones(5) * 2]).long(),
         )
         multi_output = {
-            "x_0": torch.randn(15, 64),
-            "embeddings": torch.randn(15, 64),
+            'x_0': torch.randn(15, 64),
+            'embeddings': torch.randn(15, 64),
         }
         result = readout_layer(multi_output, multi_batch)
-        assert "logits" in result
+        assert 'logits' in result
 
     def test_kwargs_handling(self, base_kwargs):
         """Test that the layer correctly handles both required and additional keyword arguments.
@@ -170,9 +170,9 @@ class TestNoReadOut:
             A fixture providing the required base parameters.
         """
         additional_kwargs = {
-            "random_param": 42,
-            "another_param": "test",
-            "pooling_type": "mean",  # Valid additional parameter
+            'random_param': 42,
+            'another_param': 'test',
+            'pooling_type': 'mean',  # Valid additional parameter
         }
         kwargs = {**base_kwargs, **additional_kwargs}
         readout = NoReadOut(**kwargs)

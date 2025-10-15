@@ -20,12 +20,12 @@ class KHopPrecompute(torch_geometric.transforms.BaseTransform):
         self.parameters = kwargs
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(parameters={self.parameters})"
+        return f'{self.__class__.__name__}(parameters={self.parameters})'
 
     def forward(self, data: torch_geometric.data.Data):
         # SIGN adds x1..xK to `data` (and updates x if needed)
-        num_layers = self.parameters["num_layers"]
+        num_layers = self.parameters['num_layers']
         data = SIGN(num_layers)(data)
         # Collect as a convenient list like your PrecomputingBase
-        data.xs = [data.x] + [data[f"x{i}"] for i in range(1, num_layers + 1)]
+        data.xs = [data.x] + [data[f'x{i}'] for i in range(1, num_layers + 1)]
         return data

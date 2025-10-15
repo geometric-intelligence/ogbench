@@ -43,7 +43,7 @@ def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio, fu
         Number of nodes.
     """
     n_training_samples = int(num_samples * train_val_test_split[0])
-    if node_sample_ratio == "full":
+    if node_sample_ratio == 'full':
         return full_num_nodes
     n_nodes = int(n_training_samples / node_sample_ratio)
     if n_nodes > full_num_nodes:
@@ -86,12 +86,12 @@ def get_non_relational_out_channels(num_nodes, channels, task_level):
     int
         Output dimension.
     """
-    if task_level == "node":  # node-level task
+    if task_level == 'node':  # node-level task
         return num_nodes * channels
-    elif task_level == "graph":  # graph-level task
+    elif task_level == 'graph':  # graph-level task
         return channels
     else:
-        raise ValueError(f"Invalid task level {task_level}")
+        raise ValueError(f'Invalid task level {task_level}')
 
 
 def get_default_trainer():
@@ -102,7 +102,7 @@ def get_default_trainer():
     str
         Default trainer configuration file name.
     """
-    return "gpu" if torch.cuda.is_available() else "cpu"
+    return 'gpu' if torch.cuda.is_available() else 'cpu'
 
 
 def get_default_transform(dataset, model):
@@ -127,16 +127,16 @@ def get_default_transform(dataset, model):
     # # Check if there is a default transform for the dataset at ./configs/transforms/dataset_defaults/
     # # If not, use the default lifting transform for the dataset to be compatible with the model
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    model_configs_dir = os.path.join(base_dir, "configs", "transforms", "model_defaults")
-    dataset_configs_dir = os.path.join(base_dir, "configs", "transforms", "dataset_defaults")
-    datasets_with_defaults = [f.split(".")[0] for f in os.listdir(dataset_configs_dir)]
-    model_with_defaults = [f.split(".")[0] for f in os.listdir(model_configs_dir)]
+    model_configs_dir = os.path.join(base_dir, 'configs', 'transforms', 'model_defaults')
+    dataset_configs_dir = os.path.join(base_dir, 'configs', 'transforms', 'dataset_defaults')
+    datasets_with_defaults = [f.split('.')[0] for f in os.listdir(dataset_configs_dir)]
+    model_with_defaults = [f.split('.')[0] for f in os.listdir(model_configs_dir)]
     if dataset in datasets_with_defaults:
-        return f"dataset_defaults/{dataset}"
+        return f'dataset_defaults/{dataset}'
     elif model in model_with_defaults:
-        return f"model_defaults/{model}"
+        return f'model_defaults/{model}'
     else:
-        return "no_transform"
+        return 'no_transform'
 
 
 def get_required_lifting(data_domain, model):
@@ -155,11 +155,11 @@ def get_required_lifting(data_domain, model):
         Required transform.
     """
     data_domain = data_domain
-    model_domain = model.split("/")[0]
+    model_domain = model.split('/')[0]
     if data_domain == model_domain:
-        return "no_lifting"
+        return 'no_lifting'
     else:
-        return f"{data_domain}2{model_domain}_default"
+        return f'{data_domain}2{model_domain}_default'
 
 
 def get_monitor_metric(task, metric):
@@ -182,10 +182,10 @@ def get_monitor_metric(task, metric):
     ValueError
         If the task is invalid.
     """
-    if task == "classification" or task == "regression" or task == "multilabel classification":
-        return f"val/{metric}"
+    if task == 'classification' or task == 'regression' or task == 'multilabel classification':
+        return f'val/{metric}'
     else:
-        raise ValueError(f"Invalid task {task}")
+        raise ValueError(f'Invalid task {task}')
 
 
 def get_monitor_mode(task):
@@ -206,14 +206,14 @@ def get_monitor_mode(task):
     ValueError
         If the task is invalid.
     """
-    if task == "classification" or task == "multilabel classification":
-        return "max"
+    if task == 'classification' or task == 'multilabel classification':
+        return 'max'
 
-    elif task == "regression":
-        return "min"
+    elif task == 'regression':
+        return 'min'
 
     else:
-        raise ValueError(f"Invalid task {task}")
+        raise ValueError(f'Invalid task {task}')
 
 
 def infer_in_channels(dataset, transforms):
@@ -233,7 +233,7 @@ def infer_in_channels(dataset, transforms):
     """
 
     # Make it possible to pass lifting configuration as file path
-    if transforms is not None and transforms.keys() == {"liftings"}:
+    if transforms is not None and transforms.keys() == {'liftings'}:
         transforms = transforms.liftings
 
     def find_complex_lifting(transforms):
@@ -256,27 +256,27 @@ def infer_in_channels(dataset, transforms):
             return False, None
         complex_transforms = [
             # Default liftig configurations
-            "graph2cell_lifting",
-            "graph2simplicial_lifting",
-            "graph2combinatorial_lifting",
-            "graph2hypergraph_lifting",
-            "pointcloud2graph_lifting",
-            "pointcloud2simplicial_lifting",
-            "pointcloud2combinatorial_lifting",
-            "pointcloud2hypergraph_lifting",
-            "pointcloud2cell_lifting",
-            "hypergraph2combinatorial_lifting",
+            'graph2cell_lifting',
+            'graph2simplicial_lifting',
+            'graph2combinatorial_lifting',
+            'graph2hypergraph_lifting',
+            'pointcloud2graph_lifting',
+            'pointcloud2simplicial_lifting',
+            'pointcloud2combinatorial_lifting',
+            'pointcloud2hypergraph_lifting',
+            'pointcloud2cell_lifting',
+            'hypergraph2combinatorial_lifting',
             # Make it possible to run directly from the folder
-            "graph2cell",
-            "graph2simplicial",
-            "graph2combinatorial",
-            "graph2hypergraph",
-            "pointcloud2graph",
-            "pointcloud2simplicial",
-            "pointcloud2combinatorial",
-            "pointcloud2hypergraph",
-            "pointcloud2cell",
-            "hypergraph2combinatorial",
+            'graph2cell',
+            'graph2simplicial',
+            'graph2combinatorial',
+            'graph2hypergraph',
+            'pointcloud2graph',
+            'pointcloud2simplicial',
+            'pointcloud2combinatorial',
+            'pointcloud2hypergraph',
+            'pointcloud2cell',
+            'hypergraph2combinatorial',
         ]
         for t in complex_transforms:
             if t in transforms:
@@ -299,10 +299,10 @@ def infer_in_channels(dataset, transforms):
             Type of feature lifting.
         """
         lifting_params_keys = transforms[lifting].keys()
-        if "feature_lifting" in lifting_params_keys:
-            feature_lifting = transforms[lifting]["feature_lifting"]
+        if 'feature_lifting' in lifting_params_keys:
+            feature_lifting = transforms[lifting]['feature_lifting']
         else:
-            feature_lifting = "ProjectionSum"
+            feature_lifting = 'ProjectionSum'
 
         return feature_lifting
 
@@ -314,7 +314,7 @@ def infer_in_channels(dataset, transforms):
         # Check if the dataset.parameters.num_features defines a single value or a list
         if isinstance(dataset.parameters.num_features, int):
             # Case when the dataset has no edge attributes
-            if feature_lifting == "Concatenation":
+            if feature_lifting == 'Concatenation':
                 return_value = [dataset.parameters.num_features]
                 for i in range(2, transforms[lifting].complex_dim + 1):
                     return_value += [int(return_value[-1]) * i]
@@ -328,10 +328,10 @@ def infer_in_channels(dataset, transforms):
         else:
             assert (
                 type(dataset.parameters.num_features) is omegaconf.listconfig.ListConfig
-            ), f"num_features should be a list of integers, not {type(dataset.parameters.num_features)}"
+            ), f'num_features should be a list of integers, not {type(dataset.parameters.num_features)}'
             # If preserve_edge_attr == False
             if not transforms[lifting].preserve_edge_attr:
-                if feature_lifting == "Concatenation":
+                if feature_lifting == 'Concatenation':
                     return_value = [dataset.parameters.num_features[0]]
                     for i in range(2, transforms[lifting].complex_dim + 1):
                         return_value += [int(return_value[-1]) * i]
@@ -354,12 +354,12 @@ def infer_in_channels(dataset, transforms):
         # TODO: Does this if statement ever execute? model_domain == data_domain and data_domain in ["simplicial", "cell", "combinatorial", "hypergraph"]
         # BUT get_default_transform() returns "no_transform" when model_domain == data_domain
         if dataset.loader.parameters.get(
-            "model_domain", "graph"
+            'model_domain', 'graph'
         ) == dataset.loader.parameters.data_domain and dataset.loader.parameters.data_domain in [
-            "simplicial",
-            "cell",
-            "combinatorial",
-            "hypergraph",
+            'simplicial',
+            'cell',
+            'combinatorial',
+            'hypergraph',
         ]:
             if isinstance(
                 dataset.parameters.num_features,
@@ -368,7 +368,7 @@ def infer_in_channels(dataset, transforms):
                 return list(dataset.parameters.num_features)
             else:
                 raise ValueError(
-                    "The dataset and model are from the same domain but the data_domain is not higher-order."
+                    'The dataset and model are from the same domain but the data_domain is not higher-order.'
                 )
 
         elif isinstance(dataset.parameters.num_features, int):
@@ -380,7 +380,7 @@ def infer_in_channels(dataset, transforms):
     # This else is never executed
     else:
         raise ValueError(
-            "There is a problem with the complex lifting. Please check the configuration file."
+            'There is a problem with the complex lifting. Please check the configuration file.'
         )
 
 
@@ -428,12 +428,12 @@ def get_default_metrics(task, metrics=None):
     if metrics is not None:
         return metrics
     else:
-        if "classification" in task:
-            return ["accuracy", "precision", "recall", "auroc"]
-        elif "regression" in task:
-            return ["mse", "mae"]
+        if 'classification' in task:
+            return ['accuracy', 'precision', 'recall', 'auroc']
+        elif 'regression' in task:
+            return ['mse', 'mae']
         else:
-            raise ValueError(f"Invalid task {task}")
+            raise ValueError(f'Invalid task {task}')
 
 
 def get_target_normalizer_stats(
@@ -465,21 +465,21 @@ def get_target_normalizer_stats(
     stats_path = os.path.join(
         data_dir,
         data_name,
-        f"adj_thresh_{adjacency_threshold}",
+        f'adj_thresh_{adjacency_threshold}',
         method,
-        f"p_{node_sample_ratio}",
-        f"train_split_{train_val_test_split[0]}",
-        "processed",
-        "processing_stats.json",
+        f'p_{node_sample_ratio}',
+        f'train_split_{train_val_test_split[0]}',
+        'processed',
+        'processing_stats.json',
     )
 
     try:
         with open(stats_path) as f:
             stats = json.load(f)
 
-        target_stats = stats["target_normalizer"]
-        return target_stats["mean"], target_stats["std"]
+        target_stats = stats['target_normalizer']
+        return target_stats['mean'], target_stats['std']
     except (FileNotFoundError, KeyError) as e:
         # Return default values if file not found or key missing
-        print(f"Warning: Could not load target normalizer stats from {stats_path}: {e}")
+        print(f'Warning: Could not load target normalizer stats from {stats_path}: {e}')
         return 0.0, 1.0

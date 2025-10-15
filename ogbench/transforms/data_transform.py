@@ -19,7 +19,7 @@ class DataTransform(torch_geometric.transforms.BaseTransform):
     def __init__(self, transform_name, **kwargs):
         super().__init__()
 
-        kwargs["transform_name"] = transform_name
+        kwargs['transform_name'] = transform_name
         self.parameters = kwargs
 
         self.transform = (

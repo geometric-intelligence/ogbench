@@ -17,11 +17,11 @@ class InfereKNNConnectivity(torch_geometric.transforms.BaseTransform):
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.type = "infer_knn_connectivity"
+        self.type = 'infer_knn_connectivity'
         self.parameters = kwargs
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})"
+        return f'{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.
@@ -36,7 +36,7 @@ class InfereKNNConnectivity(torch_geometric.transforms.BaseTransform):
         torch_geometric.data.Data
             The transformed data.
         """
-        edge_index = knn_graph(data.x, **self.parameters["args"])
+        edge_index = knn_graph(data.x, **self.parameters['args'])
 
         # Remove duplicates
         data.edge_index = edge_index

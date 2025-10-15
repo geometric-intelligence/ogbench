@@ -28,8 +28,8 @@ class ModuleExportsManager:
         """
         return (
             inspect.isclass(obj)
-            and obj.__module__ == "__main__"
-            and not obj.__name__.startswith("_")
+            and obj.__module__ == '__main__'
+            and not obj.__name__.startswith('_')
             and issubclass(obj, Graph2HypergraphLifting)
             and obj != Graph2HypergraphLifting
         )
@@ -54,12 +54,12 @@ class ModuleExportsManager:
         package_dir = Path(package_path).parent
 
         # Iterate through all .py files in the directory
-        for file_path in package_dir.glob("*.py"):
-            if file_path.stem == "__init__":
+        for file_path in package_dir.glob('*.py'):
+            if file_path.stem == '__init__':
                 continue
 
             # Import the module
-            module_name = f"{Path(package_path).stem}.{file_path.stem}"
+            module_name = f'{Path(package_path).stem}.{file_path.stem}'
             spec = util.spec_from_file_location(module_name, file_path)
             if spec and spec.loader:
                 module = util.module_from_spec(spec)
@@ -72,7 +72,7 @@ class ModuleExportsManager:
                     if (
                         inspect.isclass(obj)
                         and obj.__module__ == module.__name__
-                        and not name.startswith("_")
+                        and not name.startswith('_')
                         and issubclass(obj, Graph2HypergraphLifting)
                         and obj != Graph2HypergraphLifting
                     )
@@ -90,8 +90,8 @@ GRAPH2HYPERGRAPH_LIFTINGS = manager.discover_liftings(__file__)
 # Automatically generate __all__
 __all__ = [
     *GRAPH2HYPERGRAPH_LIFTINGS.keys(),
-    "Graph2HypergraphLifting",
-    "GRAPH2HYPERGRAPH_LIFTINGS",
+    'Graph2HypergraphLifting',
+    'GRAPH2HYPERGRAPH_LIFTINGS',
 ]
 
 # For backwards compatibility, create individual imports

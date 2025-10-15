@@ -3,5 +3,5 @@
 from .model import TBModel
 
 __all__ = [
-    "TBModel",
+    'TBModel',
 ]

@@ -1,6 +1,5 @@
 """Test KeepOnlyConnectedComponent transform."""
 
-import pytest
 import torch
 from torch_geometric.data import Data
 
@@ -17,12 +16,12 @@ class TestKeepOnlyConnectedComponent:
 
     def test_initialization(self):
         """Test initialization of the transform."""
-        assert self.transform.type == "keep_connected_component"
-        assert self.transform.parameters["num_components"] == self.num_components
+        assert self.transform.type == 'keep_connected_component'
+        assert self.transform.parameters['num_components'] == self.num_components
 
         # Test default initialization
         transform = KeepOnlyConnectedComponent()
-        assert transform.type == "keep_connected_component"
+        assert transform.type == 'keep_connected_component'
         assert isinstance(transform.parameters, dict)
 
     def test_single_component(self):
@@ -81,9 +80,9 @@ class TestKeepOnlyConnectedComponent:
     def test_repr(self):
         """Test string representation of the transform."""
         repr_str = repr(self.transform)
-        assert "KeepOnlyConnectedComponent" in repr_str
-        assert "keep_connected_component" in repr_str
-        assert "num_components" in repr_str
+        assert 'KeepOnlyConnectedComponent' in repr_str
+        assert 'keep_connected_component' in repr_str
+        assert 'num_components' in repr_str
         assert str(self.num_components) in repr_str
 
     def test_disconnected_nodes(self):
@@ -107,10 +106,10 @@ class TestKeepOnlyConnectedComponent:
             edge_index=edge_index,
             num_nodes=2,
             edge_attr=torch.tensor([[1.0], [1.0]]),
-            test_attr="test",
+            test_attr='test',
         )
 
         transformed = self.transform(data.clone())
-        assert hasattr(transformed, "edge_attr")
-        assert hasattr(transformed, "test_attr")
-        assert transformed.test_attr == "test"
+        assert hasattr(transformed, 'edge_attr')
+        assert hasattr(transformed, 'test_attr')
+        assert transformed.test_attr == 'test'

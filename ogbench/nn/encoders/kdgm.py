@@ -77,12 +77,12 @@ class DGM_d(nn.Module):
         Defaults to True.
     """
 
-    def __init__(self, base_enc, embed_f, k=5, distance="euclidean", sparse=True):
+    def __init__(self, base_enc, embed_f, k=5, distance='euclidean', sparse=True):
         super().__init__()
 
         self.sparse = sparse
         self.temperature = nn.Parameter(
-            torch.tensor(1.0 if distance == "hyperbolic" else 4.0).float()
+            torch.tensor(1.0 if distance == 'hyperbolic' else 4.0).float()
         )
         self.base_enc = base_enc
         self.embed_f = embed_f
@@ -91,7 +91,7 @@ class DGM_d(nn.Module):
         self.k = k
 
         self.debug = False
-        if distance == "euclidean":
+        if distance == 'euclidean':
             self.distance = pairwise_euclidean_distances
         else:
             self.distance = pairwise_poincare_distances

@@ -8,7 +8,7 @@ import lightning as L
 import numpy as np
 import rootutils
 import torch
-from lightning import Callback, LightningDataModule, LightningModule, Trainer
+from lightning import Callback, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -39,7 +39,7 @@ from ogbench.utils.config_resolvers import (
     infer_num_cell_dimensions,
 )
 
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
+rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
 # - adding project root dir to PYTHONPATH
@@ -61,35 +61,35 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # Register custom resolvers before Hydra initialization
 def register_resolvers():
     """Register all custom OmegaConf resolvers."""
-    OmegaConf.register_new_resolver("calculate_num_nodes", calculate_num_nodes, replace=True)
-    OmegaConf.register_new_resolver("get_default_metrics", get_default_metrics, replace=True)
-    OmegaConf.register_new_resolver("get_default_trainer", get_default_trainer, replace=True)
-    OmegaConf.register_new_resolver("get_default_transform", get_default_transform, replace=True)
+    OmegaConf.register_new_resolver('calculate_num_nodes', calculate_num_nodes, replace=True)
+    OmegaConf.register_new_resolver('get_default_metrics', get_default_metrics, replace=True)
+    OmegaConf.register_new_resolver('get_default_trainer', get_default_trainer, replace=True)
+    OmegaConf.register_new_resolver('get_default_transform', get_default_transform, replace=True)
     OmegaConf.register_new_resolver(
-        "get_flattened_channels",
+        'get_flattened_channels',
         get_flattened_channels,
         replace=True,
     )
-    OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, replace=True)
-    OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
-    OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
-    OmegaConf.register_new_resolver("get_gatv4_output_dim", get_gatv4_output_dim, replace=True)
-    OmegaConf.register_new_resolver("get_required_lifting", get_required_lifting, replace=True)
-    OmegaConf.register_new_resolver("get_monitor_metric", get_monitor_metric, replace=True)
-    OmegaConf.register_new_resolver("get_monitor_mode", get_monitor_mode, replace=True)
+    OmegaConf.register_new_resolver('get_required_lifting', get_required_lifting, replace=True)
+    OmegaConf.register_new_resolver('get_monitor_metric', get_monitor_metric, replace=True)
+    OmegaConf.register_new_resolver('get_monitor_mode', get_monitor_mode, replace=True)
+    OmegaConf.register_new_resolver('get_gatv4_output_dim', get_gatv4_output_dim, replace=True)
+    OmegaConf.register_new_resolver('get_required_lifting', get_required_lifting, replace=True)
+    OmegaConf.register_new_resolver('get_monitor_metric', get_monitor_metric, replace=True)
+    OmegaConf.register_new_resolver('get_monitor_mode', get_monitor_mode, replace=True)
     OmegaConf.register_new_resolver(
-        "get_non_relational_out_channels", get_non_relational_out_channels, replace=True
+        'get_non_relational_out_channels', get_non_relational_out_channels, replace=True
     )
-    OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
-    OmegaConf.register_new_resolver("infer_in_channels", infer_in_channels, replace=True)
+    OmegaConf.register_new_resolver('infer_in_channels', infer_in_channels, replace=True)
+    OmegaConf.register_new_resolver('infer_in_channels', infer_in_channels, replace=True)
     OmegaConf.register_new_resolver(
-        "infer_num_cell_dimensions", infer_num_cell_dimensions, replace=True
-    )
-    OmegaConf.register_new_resolver(
-        "parameter_multiplication", lambda x, y: int(int(x) * int(y)), replace=True
+        'infer_num_cell_dimensions', infer_num_cell_dimensions, replace=True
     )
     OmegaConf.register_new_resolver(
-        "get_target_normalizer_stats", get_target_normalizer_stats, replace=True
+        'parameter_multiplication', lambda x, y: int(int(x) * int(y)), replace=True
+    )
+    OmegaConf.register_new_resolver(
+        'get_target_normalizer_stats', get_target_normalizer_stats, replace=True
     )
 
 
@@ -105,8 +105,8 @@ def initialize_hydra() -> DictConfig:
     DictConfig
         A DictConfig object containing the config tree.
     """
-    hydra.initialize(version_base="1.3", config_path="../configs", job_name="train")
-    cfg = hydra.compose(config_name="train.yaml")
+    hydra.initialize(version_base='1.3', config_path='../configs', job_name='train')
+    cfg = hydra.compose(config_name='train.yaml')
     return cfg
 
 
@@ -145,30 +145,30 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     random.seed(cfg.seed)
 
     # Instantiate and load dataset
-    log.info(f"Instantiating loader <{cfg.dataset.loader._target_}>")
+    log.info(f'Instantiating loader <{cfg.dataset.loader._target_}>')
     dataset_loader = hydra.utils.instantiate(cfg.dataset.loader)
     dataset, dataset_dir = dataset_loader.load()
     # Preprocess dataset and load the splits
-    log.info("Instantiating preprocessor...")
-    transform_config = cfg.get("transforms", None)
+    log.info('Instantiating preprocessor...')
+    transform_config = cfg.get('transforms', None)
     preprocessor = PreProcessor(dataset, dataset_dir, transform_config)
     dataset_train, dataset_val, dataset_test = preprocessor.load_dataset_splits(
         cfg.dataset.split_params
     )
     # Prepare datamodule
-    log.info("Instantiating datamodule...")
-    if cfg.dataset.parameters.task_level in ["node", "graph"]:
+    log.info('Instantiating datamodule...')
+    if cfg.dataset.parameters.task_level in ['node', 'graph']:
         datamodule = TBDataloader(
             dataset_train=dataset_train,
             dataset_val=dataset_val,
             dataset_test=dataset_test,
-            **cfg.dataset.get("dataloader_params", {}),
+            **cfg.dataset.get('dataloader_params', {}),
         )
     else:
-        raise ValueError("Invalid task_level")
+        raise ValueError('Invalid task_level')
 
     # Model for us is Network + logic: inputs backbone, readout, losses
-    log.info(f"Instantiating model <{cfg.model._target_}>")
+    log.info(f'Instantiating model <{cfg.model._target_}>')
 
     model: LightningModule = hydra.utils.instantiate(
         cfg.model,
@@ -177,13 +177,13 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         loss=cfg.loss,
     )
 
-    log.info("Instantiating callbacks...")
-    callbacks: list[Callback] = instantiate_callbacks(cfg.get("callbacks"))
+    log.info('Instantiating callbacks...')
+    callbacks: list[Callback] = instantiate_callbacks(cfg.get('callbacks'))
 
-    log.info("Instantiating loggers...")
-    logger: list[Logger] = instantiate_loggers(cfg.get("logger"))
+    log.info('Instantiating loggers...')
+    logger: list[Logger] = instantiate_loggers(cfg.get('logger'))
 
-    log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
+    log.info(f'Instantiating trainer <{cfg.trainer._target_}>')
     trainer: Trainer = hydra.utils.instantiate(
         cfg.trainer,
         callbacks=callbacks,
@@ -192,50 +192,50 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     )
 
     object_dict = {
-        "cfg": cfg,
-        "datamodule": datamodule,
-        "model": model,
-        "callbacks": callbacks,
-        "logger": logger,
-        "trainer": trainer,
+        'cfg': cfg,
+        'datamodule': datamodule,
+        'model': model,
+        'callbacks': callbacks,
+        'logger': logger,
+        'trainer': trainer,
     }
 
     if logger:
-        log.info("Logging hyperparameters!")
+        log.info('Logging hyperparameters!')
         log_hyperparameters(object_dict)
 
-    if cfg.get("train"):
-        log.info("Starting training!")
-        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+    if cfg.get('train'):
+        log.info('Starting training!')
+        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get('ckpt_path'))
         # Log the best model checkpoint path into wandb
         for logger_elem in logger:
             if isinstance(logger_elem, L.pytorch.loggers.wandb.WandbLogger) and hasattr(
-                logger_elem, "experiment"
+                logger_elem, 'experiment'
             ):
                 logger_elem.experiment.log(
-                    {"checkpoint": trainer.checkpoint_callback.best_model_path}
+                    {'checkpoint': trainer.checkpoint_callback.best_model_path}
                 )
 
     train_metrics = trainer.callback_metrics
 
-    if cfg.get("test"):
-        log.info("Starting testing!")
+    if cfg.get('test'):
+        log.info('Starting testing!')
         test_best_model_path = True
-        if cfg.get("ckpt_path"):
+        if cfg.get('ckpt_path'):
             ckpt_path = cfg.ckpt_path
-            log.info(f"Attempting to load weights from the provided ckpt_path: {ckpt_path}")
+            log.info(f'Attempting to load weights from the provided ckpt_path: {ckpt_path}')
             try:
                 trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
                 test_best_model_path = (
                     False  # do not test "best model" if a valid ckpt_path is provided
                 )
             except FileNotFoundError:
-                log.warning(f"No checkpoint file found at the provided ckpt_path: {ckpt_path}.")
-                log.info("Trying with best model instead...")
+                log.warning(f'No checkpoint file found at the provided ckpt_path: {ckpt_path}.')
+                log.info('Trying with best model instead...')
         if test_best_model_path:
             ckpt_path = trainer.checkpoint_callback.best_model_path
-            if ckpt_path == "":
-                log.warning("Best ckpt not found! Using current weights for testing...")
+            if ckpt_path == '':
+                log.warning('Best ckpt not found! Using current weights for testing...')
                 ckpt_path = None
             trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
 
@@ -272,11 +272,11 @@ def count_number_of_parameters(model: torch.nn.Module, only_trainable: bool = Tr
         num_params: int = sum(p.numel() for p in model.parameters() if p.requires_grad)
     else:  # counts trainable and none-traibale
         num_params: int = sum(p.numel() for p in model.parameters() if p)
-    assert num_params > 0, f"Err: {num_params=}"
+    assert num_params > 0, f'Err: {num_params=}'
     return int(num_params)
 
 
-@hydra.main(version_base="1.3", config_path="../configs", config_name="train.yaml")
+@hydra.main(version_base='1.3', config_path='../configs', config_name='train.yaml')
 def main(cfg: DictConfig) -> float | None:
     """Main entry point for training.
 
@@ -299,12 +299,12 @@ def main(cfg: DictConfig) -> float | None:
 
     # safely retrieve metric value for hydra-based hyperparameter optimization
     metric_value = get_metric_value(
-        metric_dict=metric_dict, metric_name=cfg.get("optimized_metric")
+        metric_dict=metric_dict, metric_name=cfg.get('optimized_metric')
     )
 
     # return optimized metric
     return metric_value
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

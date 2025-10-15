@@ -1,10 +1,10 @@
 """HuggingFace datamodule for omics datasets."""
 
 
-import abc
 import logging
 import os
-from typing import Any, Dict, Final, Optional, Tuple, Union
+import os.path as osp
+from typing import Any, Final
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,10 @@ import torch
 import torch_geometric.data
 import torch_geometric.transforms as T
 from huggingface_hub import hf_hub_download
+from omegaconf import OmegaConf
 from sklearn.impute import SimpleImputer
+from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.io import fs
 from tqdm import tqdm
 
 from ogbench.data.utils import MeanStdNormalizer
@@ -21,12 +24,6 @@ from ogbench.data.utils import MeanStdNormalizer
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-import os.path as osp
-
-from omegaconf import DictConfig, OmegaConf
-from torch_geometric.data import Data, InMemoryDataset
-from torch_geometric.io import fs
 
 
 class AddEdgeIndex(T.BaseTransform):
@@ -57,21 +54,21 @@ class HFOmicsDataset(InMemoryDataset):
     """`InMemoryDataset` for omics datasets loaded from HuggingFace."""
 
     classification_datasets: Final[list[str]] = [
-        "covidaki",
-        "addneuromed",
+        'covidaki',
+        'addneuromed',
     ]
 
     def __init__(
         self,
         root: str,
         data_name: str,
-        method: str = "variance",
-        imputation_method: str = "mean",
+        method: str = 'variance',
+        imputation_method: str = 'mean',
         adjacency_threshold: float = 0.3,
-        node_sample_ratio: Union[float, str] = 1.0,
-        train_val_test_split: list[float] = [0.7, 0.15, 0.15],
-        hf_repo_id: str = "geometric-intelligence/bgbench",
-        revision: str = "e1631e8",
+        node_sample_ratio: float | str = 1.0,
+        train_val_test_split: list[float] | None = None,
+        hf_repo_id: str = 'geometric-intelligence/bgbench',
+        revision: str = 'e1631e8',
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
@@ -91,7 +88,7 @@ class HFOmicsDataset(InMemoryDataset):
         self.adjacency_threshold = adjacency_threshold
         self.node_sample_ratio = node_sample_ratio
         self.method = method
-        self.train_val_test_split = train_val_test_split
+        self.train_val_test_split = train_val_test_split or [0.7, 0.15, 0.15]
         self.hf_repo_id = hf_repo_id
         self.revision = revision
         self.imputer = SimpleImputer(strategy=imputation_method)
@@ -99,11 +96,11 @@ class HFOmicsDataset(InMemoryDataset):
         self.target_normalizer = MeanStdNormalizer()
 
         self.name = osp.join(
-            f"{self.data_name}",
-            f"adj_thresh_{self.adjacency_threshold}",
-            f"{self.method}",
-            f"p_{self.node_sample_ratio}",
-            f"train_split_{self.train_val_test_split[0]}",
+            f'{self.data_name}',
+            f'adj_thresh_{self.adjacency_threshold}',
+            f'{self.method}',
+            f'p_{self.node_sample_ratio}',
+            f'train_split_{self.train_val_test_split[0]}',
         )
         self.normalize_targets = False if data_name in self.classification_datasets else True
 
@@ -127,7 +124,7 @@ class HFOmicsDataset(InMemoryDataset):
         return osp.join(
             self.root,
             self.name,
-            "raw",
+            'raw',
         )
 
     @property
@@ -142,7 +139,7 @@ class HFOmicsDataset(InMemoryDataset):
         self.processed_root = osp.join(
             self.root,
             self.name,
-            "processed",
+            'processed',
         )
         return self.processed_root
 
@@ -155,7 +152,7 @@ class HFOmicsDataset(InMemoryDataset):
         list[str]
             List of raw file names.
         """
-        return ["selected_data.parquet", "targets.npy", "adj_matrix.npy"]
+        return ['selected_data.parquet', 'targets.npy', 'adj_matrix.npy']
 
     @property
     def processed_file_names(self) -> str:
@@ -166,7 +163,7 @@ class HFOmicsDataset(InMemoryDataset):
         str
             Processed file name.
         """
-        return "data.pt"
+        return 'data.pt'
 
     def get_data_dir(self) -> str:
         """Return the path to the data directory.
@@ -180,20 +177,20 @@ class HFOmicsDataset(InMemoryDataset):
 
     def download(self) -> None:
         r"""Download the dataset from HuggingFace and saves it to the raw directory."""
-        logger.info(f"Downloading raw data for {self.data_name} from HuggingFace...")
+        logger.info(f'Downloading raw data for {self.data_name} from HuggingFace...')
 
         # Download parquet files directly from HuggingFace
         data_file = hf_hub_download(  # nosec
             repo_id=self.hf_repo_id,
-            repo_type="dataset",
+            repo_type='dataset',
             revision=self.revision,
-            filename=f"{self.data_name}_data.parquet",
+            filename=f'{self.data_name}_data.parquet',
         )
         targets_file = hf_hub_download(  # nosec
             repo_id=self.hf_repo_id,
-            repo_type="dataset",
+            repo_type='dataset',
             revision=self.revision,
-            filename=f"{self.data_name}_targets.parquet",
+            filename=f'{self.data_name}_targets.parquet',
         )
 
         # Load data and targets using pandas
@@ -201,68 +198,68 @@ class HFOmicsDataset(InMemoryDataset):
         targets_df = pd.read_parquet(targets_file)
 
         # Convert to proper format - data should be features only
-        if "target" in raw_data.columns:
-            raw_data = raw_data.drop("target", axis=1)
+        if 'target' in raw_data.columns:
+            raw_data = raw_data.drop('target', axis=1)
 
-        targets = targets_df["target"].values
+        targets = targets_df['target'].values
 
-        logger.info(f"Downloaded {len(targets)} samples with {raw_data.shape[1]} features")
-        np.save(os.path.join(self.raw_dir, "targets.npy"), targets)
+        logger.info(f'Downloaded {len(targets)} samples with {raw_data.shape[1]} features')
+        np.save(os.path.join(self.raw_dir, 'targets.npy'), targets)
 
         # Calculate number of nodes to select
         n_training_samples = int(raw_data.shape[0] * self.train_val_test_split[0])
-        if self.node_sample_ratio == "full":
-            print("Using full node sample ratio")
+        if self.node_sample_ratio == 'full':
+            print('Using full node sample ratio')
             n_nodes = raw_data.shape[1]
         elif isinstance(self.node_sample_ratio, float):
             n_nodes = int(n_training_samples / self.node_sample_ratio)
             if n_nodes > raw_data.shape[1]:
                 n_nodes = raw_data.shape[1]
         logger.info(
-            f"Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}"
+            f'Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}'
         )
 
         # Select nodes
-        logger.info("Selecting nodes...")
+        logger.info('Selecting nodes...')
         selected_nodes = self.select_nodes(
             raw_data.values, targets, n_selected=n_nodes, method=self.method
         )
         selected_data = raw_data.iloc[:, selected_nodes]
-        selected_data.to_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
+        selected_data.to_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
 
         # Calculate adjacency matrix
-        logger.info("Calculating adjacency matrix...")
+        logger.info('Calculating adjacency matrix...')
         adj_matrix = self.calculate_adjacency_matrix(selected_data)
-        np.save(osp.join(self.raw_dir, "adj_matrix.npy"), adj_matrix)
+        np.save(osp.join(self.raw_dir, 'adj_matrix.npy'), adj_matrix)
 
         # Log statistics
         node_degrees = np.sum(adj_matrix, axis=1)
-        logger.info("Node degrees statistics:")
-        logger.info(f"Mean degree: {np.mean(node_degrees):.2f}")
-        logger.info(f"Median degree: {np.median(node_degrees):.2f}")
-        logger.info(f"Min degree: {np.min(node_degrees):.2f}")
-        logger.info(f"Max degree: {np.max(node_degrees):.2f}")
-        logger.info(f"Total edges: {np.sum(node_degrees)/2:.0f}")
+        logger.info('Node degrees statistics:')
+        logger.info(f'Mean degree: {np.mean(node_degrees):.2f}')
+        logger.info(f'Median degree: {np.median(node_degrees):.2f}')
+        logger.info(f'Min degree: {np.min(node_degrees):.2f}')
+        logger.info(f'Max degree: {np.max(node_degrees):.2f}')
+        logger.info(f'Total edges: {np.sum(node_degrees)/2:.0f}')
 
     def select_nodes(
-        self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = "variance"
+        self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = 'variance'
     ) -> np.ndarray:
         """Select nodes based on feature importance or randomly."""
-        if method == "variance":
+        if method == 'variance':
             # Variance-based filtering
             variances = np.std(data, axis=0)
             ranked_nodes = np.argsort(variances)[::-1]
-        elif method == "correlation":
+        elif method == 'correlation':
             # Correlation-based filtering
             correlations = np.abs(
                 np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
             )
             ranked_nodes = np.argsort(correlations)[::-1]
-        elif method == "random":
+        elif method == 'random':
             # Random selection
             ranked_nodes = np.random.permutation(data.shape[1])
         else:
-            raise ValueError(f"Invalid method: {method}")
+            raise ValueError(f'Invalid method: {method}')
 
         return ranked_nodes[:n_selected]
 
@@ -276,7 +273,7 @@ class HFOmicsDataset(InMemoryDataset):
         adjacency = PyWGCNA.WGCNA.adjacency(
             node_features,
             power=power,
-            adjacencyType="signed hybrid",
+            adjacencyType='signed hybrid',
         )
 
         # Binarize adjacency matrix
@@ -284,7 +281,7 @@ class HFOmicsDataset(InMemoryDataset):
         adj_matrix = np.where(adjacency > self.adjacency_threshold, 1, 0)
         np.fill_diagonal(adj_matrix, 1)
 
-        assert not np.isnan(adj_matrix).any(), "Adjacency matrix has nan values"
+        assert not np.isnan(adj_matrix).any(), 'Adjacency matrix has nan values'
         return adj_matrix
 
     def create_graph_data(
@@ -311,10 +308,10 @@ class HFOmicsDataset(InMemoryDataset):
 
     def process(self) -> None:
         r"""Handle the data for the dataset."""
-        logger.info("Loading data...")
-        selected_data = pd.read_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
-        targets = np.load(osp.join(self.raw_dir, "targets.npy"))
-        adj_matrix = np.load(osp.join(self.raw_dir, "adj_matrix.npy"))
+        logger.info('Loading data...')
+        selected_data = pd.read_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
+        targets = np.load(osp.join(self.raw_dir, 'targets.npy'))
+        adj_matrix = np.load(osp.join(self.raw_dir, 'adj_matrix.npy'))
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
         # Shuffle selected_data and targets in unison
@@ -326,7 +323,7 @@ class HFOmicsDataset(InMemoryDataset):
         train_idx = int(len(selected_data) * self.train_val_test_split[0])
         train_data = selected_data.iloc[:train_idx]
         train_targets = targets[:train_idx]
-        logger.info("Fitting normalizers")
+        logger.info('Fitting normalizers')
         self.feature_normalizer.fit(train_data.values)
         if self.normalize_targets:
             self.target_normalizer.fit(train_targets)
@@ -336,33 +333,33 @@ class HFOmicsDataset(InMemoryDataset):
         # Convert train_val_test_split to list if it's a ListConfig
         train_val_test_split = OmegaConf.to_object(self.train_val_test_split)
         normalizer_stats = {
-            "train_val_test_split": train_val_test_split,
-            "train_idx": train_idx,
-            "feature_normalizer": {
-                "mean": list(self.feature_normalizer.mean),
-                "std": list(self.feature_normalizer.std),
+            'train_val_test_split': train_val_test_split,
+            'train_idx': train_idx,
+            'feature_normalizer': {
+                'mean': list(self.feature_normalizer.mean),
+                'std': list(self.feature_normalizer.std),
             },
-            "target_normalizer": {
-                "mean": self.target_normalizer.mean,
-                "std": self.target_normalizer.std,
+            'target_normalizer': {
+                'mean': self.target_normalizer.mean,
+                'std': self.target_normalizer.std,
             },
         }
-        normalizers_stats_path = os.path.join(self.processed_dir, "processing_stats.json")
-        with open(normalizers_stats_path, "w") as f:
+        normalizers_stats_path = os.path.join(self.processed_dir, 'processing_stats.json')
+        with open(normalizers_stats_path, 'w') as f:
             json.dump(normalizer_stats, f, indent=4)
-        logger.info(f"Saved processing and normalizer stats to {normalizers_stats_path}")
-        logger.info("Creating graph data...")
+        logger.info(f'Saved processing and normalizer stats to {normalizers_stats_path}')
+        logger.info('Creating graph data...')
 
         graph_data_list = []
         for (_, subject_data), subject_target in tqdm(
-            zip(selected_data.iterrows(), targets),
+            zip(selected_data.iterrows(), targets, strict=True),
             total=len(selected_data),
-            desc="Creating graphs",
+            desc='Creating graphs',
         ):
             graph_data_list.append(
                 self.create_graph_data(subject_data.values, subject_target, adj_matrix)
             )
-        logger.info(f"Graph data list length: {len(graph_data_list)}")
+        logger.info(f'Graph data list length: {len(graph_data_list)}')
         self.n_graphs = len(graph_data_list)
 
         self.data, self.slices = self.collate(graph_data_list)
@@ -389,14 +386,13 @@ class HFOmicsDataset(InMemoryDataset):
             - Target values
             - Dictionary with 'train_idx' and 'val_idx' split indices
         """
-        import json
 
         from sklearn.utils import shuffle
 
         # Load raw data
-        logger.info("Loading raw data for baseline...")
-        selected_data = pd.read_parquet(osp.join(self.raw_dir, "selected_data.parquet"))
-        targets = np.load(osp.join(self.raw_dir, "targets.npy"))
+        logger.info('Loading raw data for baseline...')
+        selected_data = pd.read_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
+        targets = np.load(osp.join(self.raw_dir, 'targets.npy'))
 
         # Apply same shuffling as in process()
         selected_data, targets = shuffle(selected_data, targets, random_state=42)
@@ -408,23 +404,23 @@ class HFOmicsDataset(InMemoryDataset):
         )
 
         split_indices = {
-            "train_idx": train_idx,
-            "val_idx": val_idx,
+            'train_idx': train_idx,
+            'val_idx': val_idx,
         }
 
-        logger.info(f"Loaded {len(selected_data)} samples with {selected_data.shape[1]} features")
+        logger.info(f'Loaded {len(selected_data)} samples with {selected_data.shape[1]} features')
         logger.info(
-            f"Train samples: {train_idx}, Val samples: {val_idx - train_idx}, Test samples: {len(selected_data) - val_idx}"
+            f'Train samples: {train_idx}, Val samples: {val_idx - train_idx}, Test samples: {len(selected_data) - val_idx}'
         )
 
         return selected_data, targets, split_indices
 
     def __repr__(self) -> str:
         return (
-            f"HFOmicsDataset(data_name={self.data_name}, "
-            f"adjacency_threshold={self.adjacency_threshold}, "
-            f"node_sample_ratio={self.node_sample_ratio}, "
-            f"method={self.method}, "
-            f"train_val_test_split={self.train_val_test_split}, "
-            f"normalize_targets={self.normalize_targets})"
+            f'HFOmicsDataset(data_name={self.data_name}, '
+            f'adjacency_threshold={self.adjacency_threshold}, '
+            f'node_sample_ratio={self.node_sample_ratio}, '
+            f'method={self.method}, '
+            f'train_val_test_split={self.train_val_test_split}, '
+            f'normalize_targets={self.normalize_targets})'
         )

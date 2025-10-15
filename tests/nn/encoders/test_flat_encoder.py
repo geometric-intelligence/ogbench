@@ -1,7 +1,6 @@
 """Test FlatEncoder."""
 
 import torch
-import torch_geometric
 from torch_geometric.data import Data
 
 from ogbench.nn.encoders.flat_encoder import FlatEncoder
@@ -19,13 +18,13 @@ def test_flat_encoder_forward():
     data.batch_size = batch_size
     encoder = FlatEncoder(in_channels=in_channels, out_channels=out_channels)
     out_data = encoder.forward(data)
-    assert hasattr(out_data, "x_0")
-    assert hasattr(out_data, "labels")
+    assert hasattr(out_data, 'x_0')
+    assert hasattr(out_data, 'labels')
     assert out_data.x_0.shape[0] == batch_size
     assert out_data.x_0.ndim == 2
     assert torch.equal(out_data.labels, y)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     test_flat_encoder_forward()
-    print("FlatEncoder test passed.")
+    print('FlatEncoder test passed.')

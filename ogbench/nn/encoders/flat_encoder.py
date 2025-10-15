@@ -36,7 +36,7 @@ class FlatEncoder(AbstractFeatureEncoder):
         torch_geometric.data.Data
             Output data object with flattened features.
         """
-        if not hasattr(data, "x_0"):
+        if not hasattr(data, 'x_0'):
             data.x_0 = data.x
         data.labels = data.y
         data.x_0 = data.x_0.view(data.batch_size, -1)

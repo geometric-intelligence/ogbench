@@ -26,8 +26,8 @@ class ModuleExportsManager:
         """
         return (
             inspect.isclass(obj)
-            and obj.__module__ == "__main__"
-            and not obj.__name__.startswith("_")
+            and obj.__module__ == '__main__'
+            and not obj.__name__.startswith('_')
         )
 
     @classmethod
@@ -50,12 +50,12 @@ class ModuleExportsManager:
         package_dir = Path(package_path).parent
 
         # Iterate through all .py files in the directory
-        for file_path in package_dir.glob("*.py"):
-            if file_path.stem == "__init__":
+        for file_path in package_dir.glob('*.py'):
+            if file_path.stem == '__init__':
                 continue
 
             # Import the module
-            module_name = f"{Path(package_path).stem}.{file_path.stem}"
+            module_name = f'{Path(package_path).stem}.{file_path.stem}'
             spec = util.spec_from_file_location(module_name, file_path)
             if spec and spec.loader:
                 module = util.module_from_spec(spec)
@@ -67,7 +67,7 @@ class ModuleExportsManager:
                     for name, obj in inspect.getmembers(module)
                     if inspect.isclass(obj)
                     and obj.__module__ == module.__name__
-                    and not name.startswith("_")
+                    and not name.startswith('_')
                 }
                 manipulations.update(new_manipulations)
         return manipulations
@@ -80,7 +80,7 @@ manager = ModuleExportsManager()
 DATA_MANIPULATIONS = manager.discover_manipulations(__file__)
 
 # Automatically generate __all__
-__all__ = [*DATA_MANIPULATIONS.keys(), "DATA_MANIPULATIONS"]
+__all__ = [*DATA_MANIPULATIONS.keys(), 'DATA_MANIPULATIONS']
 
 # For backwards compatibility, also create individual imports
 locals().update(DATA_MANIPULATIONS)

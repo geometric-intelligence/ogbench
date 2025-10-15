@@ -27,7 +27,7 @@ class TBLoss(AbstractLoss):
         self.losses.extend([loss for loss in modules_losses.values() if loss is not None])
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(losses={self.losses})"
+        return f'{self.__class__.__name__}(losses={self.losses})'
 
     def forward(self, model_out: dict, batch: torch_geometric.data.Data):
         r"""Forward pass of the loss function.
@@ -46,6 +46,6 @@ class TBLoss(AbstractLoss):
         """
         losses = [loss(model_out, batch) for loss in self.losses]
 
-        model_out["loss"] = torch.stack(losses).sum()
+        model_out['loss'] = torch.stack(losses).sum()
 
         return model_out

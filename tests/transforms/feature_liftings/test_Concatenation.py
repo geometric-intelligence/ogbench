@@ -11,7 +11,7 @@ class TestConcatention:
     def setup_method(self):
         """Set up the test."""
         # Initialize a lifting class
-        self.lifting = SimplicialCliqueLifting(feature_lifting="Concatenation", complex_dim=3)
+        self.lifting = SimplicialCliqueLifting(feature_lifting='Concatenation', complex_dim=3)
 
     def test_lift_features(self, simple_graph_0, simple_graph_1):
         """Test the lift_features method.
@@ -95,10 +95,10 @@ class TestConcatention:
 
         assert (
             expected_x1 == lifted_data.x_1
-        ).all(), "Something is wrong with the lifted features x_1."
+        ).all(), 'Something is wrong with the lifted features x_1.'
         assert (
             expected_x2 == lifted_data.x_2
-        ).all(), "Something is wrong with the lifted features x_2."
+        ).all(), 'Something is wrong with the lifted features x_2.'
         assert (
             expected_x3 == lifted_data.x_3
-        ).all(), "Something is wrong with the lifted features x_3."
+        ).all(), 'Something is wrong with the lifted features x_3.'

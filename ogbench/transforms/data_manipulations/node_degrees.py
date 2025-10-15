@@ -14,11 +14,11 @@ class NodeDegrees(torch_geometric.transforms.BaseTransform):
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.type = "node_degrees"
+        self.type = 'node_degrees'
         self.parameters = kwargs
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})"
+        return f'{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.
@@ -36,8 +36,8 @@ class NodeDegrees(torch_geometric.transforms.BaseTransform):
         field_to_process = [
             key
             for key in data.to_dict()
-            for field_substring in self.parameters["selected_fields"]
-            if field_substring in key and key != "incidence_0"
+            for field_substring in self.parameters['selected_fields']
+            if field_substring in key and key != 'incidence_0'
         ]
         for field in field_to_process:
             data = self.calculate_node_degrees(data, field)
@@ -65,14 +65,14 @@ class NodeDegrees(torch_geometric.transforms.BaseTransform):
             degrees = abs(data[field].to_dense()).sum(1)
         else:
             assert (
-                field == "edge_index"
-            ), "Following logic of finding degrees is only implemented for edge_index"
+                field == 'edge_index'
+            ), 'Following logic of finding degrees is only implemented for edge_index'
 
             # Get number of nodes
-            if data.get("num_nodes", None):
-                max_num_nodes = data["num_nodes"]
+            if data.get('num_nodes', None):
+                max_num_nodes = data['num_nodes']
             else:
-                max_num_nodes = data["x"].shape[0]
+                max_num_nodes = data['x'].shape[0]
             degrees = (
                 torch_geometric.utils.to_dense_adj(
                     data[field],
@@ -82,10 +82,10 @@ class NodeDegrees(torch_geometric.transforms.BaseTransform):
                 .sum(1)
             )
 
-        if "incidence" in field:
-            field_name = str(int(field.split("_")[1]) - 1) + "_cell" + "_degrees"
+        if 'incidence' in field:
+            field_name = str(int(field.split('_')[1]) - 1) + '_cell' + '_degrees'
         else:
-            field_name = "node_degrees"
+            field_name = 'node_degrees'
 
         data[field_name] = degrees.unsqueeze(1)
         return data

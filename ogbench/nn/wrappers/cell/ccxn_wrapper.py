@@ -30,8 +30,8 @@ class CCXNWrapper(AbstractWrapper):
             incidence_2_t=batch.incidence_2.T,
         )
 
-        model_out = {"labels": batch.y, "batch_0": batch.batch_0}
-        model_out["x_0"] = x_0
-        model_out["x_1"] = x_1
-        model_out["x_2"] = x_2
+        model_out = {'labels': batch.y, 'batch_0': batch.batch_0}
+        model_out['x_0'] = x_0
+        model_out['x_1'] = x_1
+        model_out['x_2'] = x_2
         return model_out

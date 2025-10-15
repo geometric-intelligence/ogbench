@@ -25,8 +25,8 @@ class GraphMLPWrapper(AbstractWrapper):
         """
         x_0, x_dis = self.backbone(batch.x_0)
 
-        model_out = {"labels": batch.y, "batch_0": batch.batch_0}
-        model_out["x_0"] = x_0
-        model_out["x_dis"] = x_dis
+        model_out = {'labels': batch.y, 'batch_0': batch.batch_0}
+        model_out['x_0'] = x_0
+        model_out['x_dis'] = x_dis
 
         return model_out

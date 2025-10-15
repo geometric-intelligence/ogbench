@@ -12,12 +12,12 @@ class PipelineTimer(pl.Callback):
     def __init__(self):
         """Initialize dictionaries to store accumulated times and counts."""
         self.sums = {
-            "train_batch": [],
-            "train_epoch": [],
-            "val_batch": [],
-            "val_epoch": [],
-            "test_batch": [],
-            "test_epoch": [],
+            'train_batch': [],
+            'train_epoch': [],
+            'val_batch': [],
+            'val_epoch': [],
+            'test_batch': [],
+            'test_epoch': [],
         }
         self.counts = {key: 0 for key in self.sums}
         self.times = {}
@@ -57,16 +57,16 @@ class PipelineTimer(pl.Callback):
         avg_times = {}
         for stage in self.sums:
             if self.counts[stage] > 0:
-                if "test" not in stage:
-                    avg_times[f"AvgTime/{stage}_mean"] = np.mean(
+                if 'test' not in stage:
+                    avg_times[f'AvgTime/{stage}_mean'] = np.mean(
                         self.sums[stage][self.skip_first_n :]
                     )
-                    avg_times[f"AvgTime/{stage}_std"] = np.std(
+                    avg_times[f'AvgTime/{stage}_std'] = np.std(
                         self.sums[stage][self.skip_first_n :]
                     )
                 else:
-                    avg_times[f"AvgTime/{stage}_mean"] = np.mean(self.sums[stage])
-                    avg_times[f"AvgTime/{stage}_std"] = 0.0
+                    avg_times[f'AvgTime/{stage}_mean'] = np.mean(self.sums[stage])
+                    avg_times[f'AvgTime/{stage}_std'] = 0.0
 
         if trainer.logger:
             trainer.logger.log_metrics(avg_times)
@@ -80,7 +80,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._start_timer("train_batch")
+        self._start_timer('train_batch')
 
     def on_train_batch_end(self, *args):
         """End timing a training batch.
@@ -90,7 +90,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._end_timer("train_batch")
+        self._end_timer('train_batch')
 
     def on_train_epoch_start(self, *args):
         """Start timing a training epoch.
@@ -100,7 +100,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._start_timer("train_epoch")
+        self._start_timer('train_epoch')
 
     def on_train_epoch_end(self, *args):
         """End timing a training epoch.
@@ -110,7 +110,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._end_timer("train_epoch")
+        self._end_timer('train_epoch')
 
     # Validation Timing
     def on_validation_batch_start(self, *args):
@@ -121,7 +121,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._start_timer("val_batch")
+        self._start_timer('val_batch')
 
     def on_validation_batch_end(self, *args):
         """End timing a validation batch.
@@ -131,7 +131,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._end_timer("val_batch")
+        self._end_timer('val_batch')
 
     def on_validation_epoch_start(self, *args):
         """Start timing a validation epoch.
@@ -141,7 +141,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._start_timer("val_epoch")
+        self._start_timer('val_epoch')
 
     def on_validation_epoch_end(self, *args):
         """End timing a validation epoch.
@@ -151,7 +151,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._end_timer("val_epoch")
+        self._end_timer('val_epoch')
 
     # Testing Timing
     def on_test_batch_start(self, *args):
@@ -162,7 +162,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._start_timer("test_batch")
+        self._start_timer('test_batch')
 
     def on_test_batch_end(self, *args):
         """End timing a test batch.
@@ -172,7 +172,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._end_timer("test_batch")
+        self._end_timer('test_batch')
 
     def on_test_epoch_start(self, *args):
         """Start timing a test epoch.
@@ -182,7 +182,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._start_timer("test_epoch")
+        self._start_timer('test_epoch')
 
     def on_test_epoch_end(self, *args):
         """End timing a test epoch.
@@ -192,7 +192,7 @@ class PipelineTimer(pl.Callback):
         *args : tuple
             Additional arguments passed by the trainer.
         """
-        self._end_timer("test_epoch")
+        self._end_timer('test_epoch')
 
     def on_train_end(self, trainer, *args):
         """Log the average times at the end of training.

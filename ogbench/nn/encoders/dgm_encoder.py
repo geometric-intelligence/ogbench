@@ -64,12 +64,12 @@ class DGMStructureFeatureEncoder(AbstractFeatureEncoder):
 
             setattr(
                 self,
-                f"encoder_{i}",
+                f'encoder_{i}',
                 DGM_d(base_enc=base_enc, embed_f=embed_f),
             )
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(in_channels={self.in_channels}, out_channels={self.out_channels}, dimensions={self.dimensions})"
+        return f'{self.__class__.__name__}(in_channels={self.in_channels}, out_channels={self.out_channels}, dimensions={self.dimensions})'
 
     def forward(self, data: torch_geometric.data.Data) -> torch_geometric.data.Data:
         r"""Forward pass.
@@ -86,17 +86,17 @@ class DGMStructureFeatureEncoder(AbstractFeatureEncoder):
         torch_geometric.data.Data
             Output data object with updated x_{i} features.
         """
-        if not hasattr(data, "x_0"):
+        if not hasattr(data, 'x_0'):
             data.x_0 = data.x
 
         for i in self.dimensions:
-            if hasattr(data, f"x_{i}") and hasattr(self, f"encoder_{i}"):
-                batch = getattr(data, f"batch_{i}")
-                x_, x_aux, edges_dgm, logprobs = getattr(self, f"encoder_{i}")(
-                    data[f"x_{i}"], batch
+            if hasattr(data, f'x_{i}') and hasattr(self, f'encoder_{i}'):
+                batch = getattr(data, f'batch_{i}')
+                x_, x_aux, edges_dgm, logprobs = getattr(self, f'encoder_{i}')(
+                    data[f'x_{i}'], batch
                 )
-                data[f"x_{i}"] = x_
-                data[f"x_aux_{i}"] = x_aux
-                data["edges_index"] = edges_dgm
-                data[f"logprobs_{i}"] = logprobs
+                data[f'x_{i}'] = x_
+                data[f'x_aux_{i}'] = x_aux
+                data['edges_index'] = edges_dgm
+                data[f'logprobs_{i}'] = logprobs
         return data

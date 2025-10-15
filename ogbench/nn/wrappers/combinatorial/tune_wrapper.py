@@ -24,8 +24,8 @@ class TuneWrapper(AbstractWrapper):
         """
         x = self.backbone(batch)
 
-        model_out = {"labels": batch.y, "batch_0": batch.batch_0}
+        model_out = {'labels': batch.y, 'batch_0': batch.batch_0}
 
         for key, value in x.items():
-            model_out[f"x_{key}"] = value
+            model_out[f'x_{key}'] = value
         return model_out

@@ -1,16 +1,15 @@
 import torch.nn as nn
-from torch_geometric.nn.models import MLP
 
 from ogbench.nn.readouts.base import AbstractZeroCellReadOut
 
 
 class OmicsReadOut(AbstractZeroCellReadOut):
     ACT_MAP = {
-        "relu": nn.ReLU(),
-        "tanh": nn.Tanh(),
-        "sigmoid": nn.Sigmoid(),
-        "leaky_relu": nn.LeakyReLU(),
-        "elu": nn.ELU(),
+        'relu': nn.ReLU(),
+        'tanh': nn.Tanh(),
+        'sigmoid': nn.Sigmoid(),
+        'leaky_relu': nn.LeakyReLU(),
+        'elu': nn.ELU(),
     }
 
     def __init__(
@@ -59,9 +58,9 @@ class OmicsReadOut(AbstractZeroCellReadOut):
         return nn.Sequential(*layers)
 
     def forward(self, model_out, batch):
-        flattened_features = model_out["x_0"].view(batch.batch_size, -1)
+        flattened_features = model_out['x_0'].view(batch.batch_size, -1)
         # encoded_graph = self.graph_encoder(flattened_features)
-        model_out["x_0"] = self.readout_layers(flattened_features)
+        model_out['x_0'] = self.readout_layers(flattened_features)
         return model_out
 
     def __call__(self, model_out, batch) -> dict:
@@ -80,6 +79,6 @@ class OmicsReadOut(AbstractZeroCellReadOut):
             Dictionary containing the updated model output.
         """
         model_out = self.forward(model_out, batch)
-        model_out["logits"] = model_out["x_0"]
+        model_out['logits'] = model_out['x_0']
 
         return model_out

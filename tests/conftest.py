@@ -35,7 +35,7 @@ def simple_graph_0():
         A simple graph data object.
     """
     # Define the vertices (just 8 vertices)
-    vertices = [i for i in range(8)]
+    vertices = list(range(8))
     y = [0, 1, 1, 1, 0, 0, 0, 0]
     # Define the edges
     edges = [
@@ -82,7 +82,7 @@ def simple_graph_1():
         A simple graph data object.
     """
     # Define the vertices (just 8 vertices)
-    vertices = [i for i in range(8)]
+    vertices = list(range(8))
     y = [0, 1, 1, 1, 0, 0, 0, 0]
     # Define the edges
     edges = [
@@ -147,7 +147,7 @@ def sg1_clique_lifted(simple_graph_1):
     """
     lifting_signed = SimplicialCliqueLifting(complex_dim=3, signed=True)
     data = lifting_signed(simple_graph_1)
-    data.batch_0 = "null"
+    data.batch_0 = 'null'
     return data
 
 
@@ -167,7 +167,7 @@ def sg1_cell_lifted(simple_graph_1):
     """
     lifting = CellCycleLifting()
     data = lifting(simple_graph_1)
-    data.batch_0 = "null"
+    data.batch_0 = 'null'
     return data
 
 
@@ -181,7 +181,7 @@ def simple_graph_2():
         A simple graph data object.
     """
     # Define the vertices (just 9 vertices)
-    vertices = [i for i in range(9)]
+    vertices = list(range(9))
     y = [0, 1, 1, 1, 0, 0, 0, 0, 0]
     # Define the edges
     edges = [
@@ -251,7 +251,6 @@ def random_graph_input():
         A tensor with the edge index for the faces.
     """
     num_nodes = 8
-    d_feat = 12
     x = torch.randn(num_nodes, 12)
     edges_1 = torch.randint(0, num_nodes, (2, num_nodes * 2))
     edges_2 = torch.randint(0, num_nodes, (2, num_nodes * 2))

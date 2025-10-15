@@ -22,8 +22,10 @@ repos:
     rev: v0.1.8
     hooks:
       - id: ruff
+        types: [python]
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
+        types: [python]
         args: [--line-length=99]
 
   # python import sorting
@@ -133,12 +135,3 @@ repos:
     rev: 0.6.1
     hooks:
       - id: nbstripout
-
-  # jupyter notebook linting
-  - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.9.1
-    hooks:
-      - id: nbqa-ruff
-        args: ["--line-length=99"]
-      - id: nbqa-isort
-        args: ["--profile=black"]

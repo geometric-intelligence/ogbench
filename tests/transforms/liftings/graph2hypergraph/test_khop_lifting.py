@@ -45,10 +45,10 @@ class TestHypergraphKHopLifting:
 
         assert (
             expected_incidence_1 == lifted_data_k1.incidence_hyperedges.to_dense()
-        ).all(), "Something is wrong with incidence_hyperedges (k=1)."
+        ).all(), 'Something is wrong with incidence_hyperedges (k=1).'
         assert (
             expected_n_hyperedges == lifted_data_k1.num_hyperedges
-        ), "Something is wrong with the number of hyperedges (k=1)."
+        ), 'Something is wrong with the number of hyperedges (k=1).'
 
         lifted_data_k2 = self.lifting_k2.forward(self.data.clone())
 
@@ -70,16 +70,16 @@ class TestHypergraphKHopLifting:
 
         assert (
             expected_incidence_1 == lifted_data_k2.incidence_hyperedges.to_dense()
-        ).all(), "Something is wrong with incidence_hyperedges (k=2)."
+        ).all(), 'Something is wrong with incidence_hyperedges (k=2).'
         assert (
             expected_n_hyperedges == lifted_data_k2.num_hyperedges
-        ), "Something is wrong with the number of hyperedges (k=2)."
+        ), 'Something is wrong with the number of hyperedges (k=2).'
 
         self.data_edge_attr = simple_graph_2
         edge_attributes = torch.rand((self.data_edge_attr.edge_index.shape[1], 2))
         self.data_edge_attr.edge_attr = edge_attributes
         lifted_data_edge_attr = self.lifting_edge_attr.forward(self.data_edge_attr.clone())
-        assert lifted_data_edge_attr.edge_attr is not None, "Edge attributes are not preserved."
+        assert lifted_data_edge_attr.edge_attr is not None, 'Edge attributes are not preserved.'
         assert torch.all(
             edge_attributes == lifted_data_edge_attr.edge_attr
-        ), "Edge attributes are not preserved correctly."
+        ), 'Edge attributes are not preserved correctly.'

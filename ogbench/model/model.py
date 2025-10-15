@@ -46,7 +46,7 @@ class TBModel(LightningModule):
 
         # This line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
-        self.save_hyperparameters(logger=False, ignore=["backbone", "readout", "feature_encoder"])
+        self.save_hyperparameters(logger=False, ignore=['backbone', 'readout', 'feature_encoder'])
 
         self.feature_encoder = (
             feature_encoder if feature_encoder is not None else torch.nn.Identity()
@@ -75,7 +75,7 @@ class TBModel(LightningModule):
         self.metric_collector_test = []
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(backbone={self.backbone}, readout={self.readout}, loss={self.loss}, feature_encoder={self.feature_encoder})"
+        return f'{self.__class__.__name__}(backbone={self.backbone}, readout={self.readout}, loss={self.loss}, feature_encoder={self.feature_encoder})'
 
     def forward(self, batch: Data) -> dict:
         r"""Perform a forward pass through the model.
@@ -115,7 +115,7 @@ class TBModel(LightningModule):
             Dictionary containing the model output and the loss.
         """
         # Allow batch object to know the phase of the training
-        batch["model_state"] = self.state_str
+        batch['model_state'] = self.state_str
 
         # Forward pass
         model_out = self.forward(batch)
@@ -127,7 +127,7 @@ class TBModel(LightningModule):
         model_out = self.loss(model_out=model_out, batch=batch)
 
         # Add batch to model_out for evaluator access to target normalizer stats
-        model_out["batch"] = batch
+        model_out['batch'] = batch
 
         self.evaluator.update(model_out)
 
@@ -148,13 +148,13 @@ class TBModel(LightningModule):
         torch.Tensor
             A tensor of losses between model predictions and targets.
         """
-        self.state_str = "Training"
+        self.state_str = 'Training'
         model_out = self.model_step(batch)
 
         # Update and log metrics
-        loss_value = model_out["loss"].item()
+        loss_value = model_out['loss'].item()
         self.log(
-            "train/loss",
+            'train/loss',
             loss_value,
             on_step=False,
             on_epoch=True,
@@ -163,10 +163,10 @@ class TBModel(LightningModule):
         )
 
         # Track best train loss in evaluator
-        self.evaluator.update_best_loss(loss_value, "train")
+        self.evaluator.update_best_loss(loss_value, 'train')
 
         # Return loss for backpropagation step
-        return model_out["loss"]
+        return model_out['loss']
 
     def validation_step(self, batch: Data, batch_idx: int) -> None:
         r"""Perform a single validation step on a batch of data.
@@ -178,13 +178,13 @@ class TBModel(LightningModule):
         batch_idx : int
             The index of the current batch.
         """
-        self.state_str = "Validation"
+        self.state_str = 'Validation'
         model_out = self.model_step(batch)
 
         # Log Loss
-        loss_value = model_out["loss"].item()
+        loss_value = model_out['loss'].item()
         self.log(
-            "val/loss",
+            'val/loss',
             loss_value,
             on_step=False,
             on_epoch=True,
@@ -193,7 +193,7 @@ class TBModel(LightningModule):
         )
 
         # Track best validation loss in evaluator
-        self.evaluator.update_best_loss(loss_value, "val")
+        self.evaluator.update_best_loss(loss_value, 'val')
 
     def test_step(self, batch: Data, batch_idx: int) -> None:
         r"""Perform a single test step on a batch of data.
@@ -205,13 +205,13 @@ class TBModel(LightningModule):
         batch_idx : int
             The index of the current batch.
         """
-        self.state_str = "Test"
+        self.state_str = 'Test'
         model_out = self.model_step(batch)
 
         # Log loss
-        loss_value = model_out["loss"].item()
+        loss_value = model_out['loss'].item()
         self.log(
-            "test/loss",
+            'test/loss',
             loss_value,
             on_step=False,
             on_epoch=True,
@@ -220,7 +220,7 @@ class TBModel(LightningModule):
         )
 
         # Track best test loss in evaluator
-        self.evaluator.update_best_loss(loss_value, "test")
+        self.evaluator.update_best_loss(loss_value, 'test')
 
     def process_outputs(self, model_out: dict, batch: Data) -> dict:
         r"""Handle model outputs.
@@ -238,19 +238,19 @@ class TBModel(LightningModule):
             Dictionary containing the updated model output.
         """
         # Get the correct mask
-        if self.state_str == "Training":
+        if self.state_str == 'Training':
             mask = batch.train_mask
-        elif self.state_str == "Validation":
+        elif self.state_str == 'Validation':
             mask = batch.val_mask
-        elif self.state_str == "Test":
+        elif self.state_str == 'Test':
             mask = batch.test_mask
         else:
-            raise ValueError("Invalid state_str")
+            raise ValueError('Invalid state_str')
 
-        if self.task_level == "node":
+        if self.task_level == 'node':
             # Keep only train data points
             for key, val in model_out.items():
-                if key in ["logits", "labels"]:
+                if key in ['logits', 'labels']:
                     model_out[key] = val[mask]
 
         return model_out
@@ -271,7 +271,7 @@ class TBModel(LightningModule):
         # Log current metrics
         for key in metrics_dict:
             self.log(
-                f"{mode}/{key}",
+                f'{mode}/{key}',
                 metrics_dict[key],
                 prog_bar=True,
                 on_step=False,
@@ -280,9 +280,9 @@ class TBModel(LightningModule):
         # Log best metrics from evaluator
         best_metrics = self.evaluator.get_best_metrics()
         for metric_key, best_value in best_metrics.items():
-            if metric_key.startswith(f"{mode}/"):
+            if metric_key.startswith(f'{mode}/'):
                 self.log(
-                    f"best_{metric_key}",
+                    f'best_{metric_key}',
                     best_value,
                     prog_bar=False,
                     on_step=False,
@@ -303,7 +303,7 @@ class TBModel(LightningModule):
         before we reset the evaluator to start the validation loop.
         """
         # Log train metrics and reset evaluator
-        self.log_metrics(mode="train")
+        self.log_metrics(mode='train')
         self.train_metrics_logged = True
 
     def on_train_epoch_end(self) -> None:
@@ -313,7 +313,7 @@ class TBModel(LightningModule):
         """
         # Log train metrics and reset evaluator
         if not self.train_metrics_logged:
-            self.log_metrics(mode="train")
+            self.log_metrics(mode='train')
             self.train_metrics_logged = True
 
     def on_validation_epoch_end(self) -> None:
@@ -322,14 +322,14 @@ class TBModel(LightningModule):
         This hook is used to log the validation metrics.
         """
         # Log validation metrics and reset evaluator
-        self.log_metrics(mode="val")
+        self.log_metrics(mode='val')
 
     def on_test_epoch_end(self) -> None:
         r"""Lightning hook that is called when a test epoch ends.
 
         This hook is used to log the test metrics.
         """
-        self.log_metrics(mode="test")
+        self.log_metrics(mode='test')
         # Log best metrics summary at the end of testing
         self.evaluator.log_best_metrics_summary()
         print()
@@ -371,7 +371,7 @@ class TBModel(LightningModule):
         stage : str
             Either "fit", "validate", "test", or "predict".
         """
-        if self.hparams.compile and stage == "fit":
+        if self.hparams.compile and stage == 'fit':
             self.net = torch.compile(self.net)
 
     def configure_optimizers(self) -> dict[str, Any]:

@@ -49,8 +49,8 @@ class MoleculeDatasetLoader(AbstractLoader):
 
     def _load_splits(self) -> None:
         """Load the dataset splits for the specified dataset."""
-        for split in ["train", "val", "test"]:
-            if self.parameters.data_name == "ZINC":
+        for split in ['train', 'val', 'test']:
+            if self.parameters.data_name == 'ZINC':
                 self.datasets.append(
                     ZINC(
                         root=str(self.root_data_dir),
@@ -58,7 +58,7 @@ class MoleculeDatasetLoader(AbstractLoader):
                         split=split,
                     )
                 )
-            elif self.parameters.data_name == "AQSOL":
+            elif self.parameters.data_name == 'AQSOL':
                 self.datasets.append(
                     AQSOL(
                         root=str(self.root_data_dir),
@@ -74,12 +74,12 @@ class MoleculeDatasetLoader(AbstractLoader):
         Dict[str, np.ndarray]
             A dictionary mapping split names to index arrays.
         """
-        split_idx = {"train": np.arange(len(self.datasets[0]))}
-        split_idx["valid"] = np.arange(
+        split_idx = {'train': np.arange(len(self.datasets[0]))}
+        split_idx['valid'] = np.arange(
             len(self.datasets[0]),
             len(self.datasets[0]) + len(self.datasets[1]),
         )
-        split_idx["test"] = np.arange(
+        split_idx['test'] = np.arange(
             len(self.datasets[0]) + len(self.datasets[1]),
             len(self.datasets[0]) + len(self.datasets[1]) + len(self.datasets[2]),
         )
