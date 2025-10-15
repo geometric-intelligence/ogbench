@@ -375,7 +375,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
                 scoring=scoring,
                 n_jobs=baseline_config.get("n_jobs", -1),
                 verbose=1,
-                refit=True,
+                refit=False,
             )
 
             # Train with hyperparameter search
@@ -385,8 +385,17 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             logger.info(f"Best parameters: {search.best_params_}")
             logger.info(f"Best CV score: {search.best_score_:.4f}")
 
-            # Use best estimator
-            best_pipeline = search.best_estimator_
+            # Manually refit the best pipeline on training data only
+            logger.info("Refitting best pipeline on training data only...")
+            best_pipeline = build_pipeline(baseline_config, cfg.seed)
+
+            # Set the best parameters
+            for param_name, param_value in search.best_params_.items():
+                best_pipeline.set_params(**{param_name: param_value})
+
+            # Fit only on training data
+            best_pipeline.fit(X_train, y_train)
+
             best_params = search.best_params_
             best_score = search.best_score_
         else:

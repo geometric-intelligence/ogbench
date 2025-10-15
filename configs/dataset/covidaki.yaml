@@ -10,7 +10,7 @@ loader:
     method: variance
     imputation_method: mean
     train_val_test_split: [0.7, 0.15, 0.15]
-    revision: e1631e8
+    revision: d9d45d9
 
 parameters:
   num_features: 1
@@ -22,7 +22,7 @@ parameters:
   # Class 0: 103 samples (9%) Class 1: 1032 samples (91%) weight class: N_samples / (num_classes * n_samples_for_class)
   class_weights: [5.5, 0.55]
   loss_type: cross_entropy
-  monitor_metric: f1_weighted
+  monitor_metric: f1_macro
   task_level: graph
   metrics:
     ["accuracy", "precision", "recall", "auroc", "f1_weighted", "f1_macro"]
@@ -60,7 +60,7 @@ baselines:
     param_grid:
       feature_selection__k: [50, 100, 500]
       calibrated_svm__estimator__C: [1e-3, 1e-2, 1e-1]
-    scoring: f1_weighted
+    scoring: f1_macro
     n_jobs: -1
   elastic_net:
     pipeline:
@@ -82,5 +82,5 @@ baselines:
       feature_selection__k: [50, 100, 500]
       elastic_net__C: [1e-3, 1e-2, 1e-1, 1.0]
       elastic_net__l1_ratio: [0.0, 0.1, 0.3, 0.5, 0.7]
-    scoring: "f1_macro"
+    scoring: f1_macro
     n_jobs: -1
