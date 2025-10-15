@@ -1,6 +1,7 @@
 """Sklearn baseline runner for omics classification tasks."""
 
 import importlib
+import json
 import logging
 import os.path as osp
 from dataclasses import dataclass
@@ -71,6 +72,7 @@ class DatasetContainer:
     n_features: int
     n_samples: int
     class_distribution: dict
+    class_names: list[str] | None = None
 
     def get_features_at_stage(self, stage: str) -> tuple[np.ndarray, np.ndarray]:
         """Get features at a specific preprocessing stage.
@@ -146,6 +148,41 @@ def compute_classification_metrics(
     return metrics
 
 
+def load_metadata(data_name: str, cfg: DictConfig) -> dict[str, Any] | None:
+    """Load metadata from HuggingFace or local files.
+
+    :param data_name: Name of the dataset
+    :param cfg: Configuration containing revision info
+    :return: Metadata dictionary or None if not found
+    """
+    # Check for local metadata first
+    local_metadata_file = osp.join('temp_data', data_name, f'{data_name}_metadata.json')
+
+    if osp.exists(local_metadata_file):
+        logger.info('Loading metadata from local file...')
+        with open(local_metadata_file) as f:
+            return json.load(f)
+
+    # Download from HuggingFace
+    try:
+        logger.info('Downloading metadata from HuggingFace...')
+        hf_repo_id = 'geometric-intelligence/bgbench'
+        revision = cfg.dataset.loader.parameters.get('revision', 'e1631e8')
+
+        metadata_file = hf_hub_download(  # nosec
+            repo_id=hf_repo_id,
+            repo_type='dataset',
+            revision=revision,
+            filename=f'{data_name}_metadata.json',
+        )
+
+        with open(metadata_file) as f:
+            return json.load(f)
+    except Exception as e:
+        logger.warning(f'Could not load metadata: {e}')
+        return None
+
+
 def prepare_param_grid(baseline_config: DictConfig) -> dict[str, list]:
     """Prepare parameter grid from config.
 
@@ -182,6 +219,15 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
     :return: DatasetContainer with all data variants
     """
     data_name = cfg.dataset.loader.parameters.data_name
+
+    # Load metadata to get class names
+    metadata = load_metadata(data_name, cfg)
+    class_names = None
+    if metadata and 'statistics' in metadata and 'target_stats' in metadata['statistics']:
+        target_stats = metadata['statistics']['target_stats']
+        if 'class_names' in target_stats:
+            class_names = target_stats['class_names']
+            logger.info(f'Found class names: {class_names}')
 
     # Check for local temp_data first
     local_data_dir = 'temp_data'
@@ -279,6 +325,7 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         n_features=data.shape[1],
         n_samples=len(targets),
         class_distribution=class_distribution,
+        class_names=class_names,
     )
 
 
@@ -391,6 +438,7 @@ def generate_comprehensive_plots(
     dataset: DatasetContainer,
     baseline_name: str,
     output_dir: Path,
+    val_metrics: dict[str, float] | None = None,
 ) -> None:
     """Generate comprehensive evaluation plots in a single figure.
 
@@ -398,6 +446,7 @@ def generate_comprehensive_plots(
     :param dataset: DatasetContainer with all data variants
     :param baseline_name: Name of the baseline model
     :param output_dir: Directory to save plots
+    :param val_metrics: Validation metrics dictionary to include in title
     """
     logger.info(f'Generating comprehensive plots for best baseline: {baseline_name}')
 
@@ -461,7 +510,16 @@ def generate_comprehensive_plots(
     ax1.set_ylabel('Count')
     ax1.set_title('Class Distribution')
     ax1.set_xticks(x_pos)
-    ax1.set_xticklabels(unique_train)
+
+    # Use class names if available, otherwise use numeric labels
+    if dataset.class_names is not None and len(dataset.class_names) == len(unique_train):
+        # Map numeric labels to class names
+        label_mapping = {i: dataset.class_names[i] for i in unique_train}
+        labels = [label_mapping[i] for i in unique_train]
+    else:
+        labels = unique_train
+
+    ax1.set_xticklabels(labels)
     ax1.legend()
     ax1.grid(True, alpha=0.3, axis='y')
 
@@ -571,7 +629,13 @@ def generate_comprehensive_plots(
     ax5.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2%} var)')
     ax5.set_title(f'PCA - Train Set\n({X_train_after_selection.shape[1]} features)')
     ax5.grid(True, alpha=0.3)
-    plt.colorbar(scatter, ax=ax5, label='Class')
+
+    # Use class names for colorbar if available
+    colorbar_label = 'Class'
+    if dataset.class_names is not None:
+        colorbar_label = f'Class ({", ".join(dataset.class_names)})'
+
+    plt.colorbar(scatter, ax=ax5, label=colorbar_label)
 
     # 6. PCA Visualization Val (third row, left)
     ax6 = fig.add_subplot(gs[2, 0])
@@ -589,19 +653,35 @@ def generate_comprehensive_plots(
     ax6.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2%} var)')
     ax6.set_title(f'PCA - Val Set\n({X_val_after_selection.shape[1]} features)')
     ax6.grid(True, alpha=0.3)
-    plt.colorbar(scatter, ax=ax6, label='Class')
+    plt.colorbar(scatter, ax=ax6, label=colorbar_label)
 
     # 7. Confusion Matrix Train (third row, middle)
     ax7 = fig.add_subplot(gs[2, 1])
+
+    # Use class names for confusion matrix if available
+    display_labels = None
+    if dataset.class_names is not None:
+        display_labels = dataset.class_names
+
     ConfusionMatrixDisplay.from_predictions(
-        dataset.y_train, y_train_pred, ax=ax7, cmap='Blues', values_format='d'
+        dataset.y_train,
+        y_train_pred,
+        ax=ax7,
+        cmap='Blues',
+        values_format='d',
+        display_labels=display_labels,
     )
     ax7.set_title('Confusion Matrix - Train')
 
     # 8. Confusion Matrix Val (third row, right)
     ax8 = fig.add_subplot(gs[2, 2])
     ConfusionMatrixDisplay.from_predictions(
-        dataset.y_val, y_val_pred, ax=ax8, cmap='Blues', values_format='d'
+        dataset.y_val,
+        y_val_pred,
+        ax=ax8,
+        cmap='Blues',
+        values_format='d',
+        display_labels=display_labels,
     )
     ax8.set_title('Confusion Matrix - Val')
 
@@ -658,16 +738,20 @@ def generate_comprehensive_plots(
         ax9.set_title('Classification Type')
         ax9.axis('off')
 
-    # Add overall title with dataset name (much bigger)
+    # Add overall title with dataset name and F1 macro score (much bigger)
+    f1_macro_text = ''
+    if val_metrics and 'f1_macro' in val_metrics:
+        f1_macro_text = f" (F1 Macro: {val_metrics['f1_macro']:.3f})"
+
     fig.suptitle(
-        f'{dataset.dataset_name.upper()} Dataset - Comprehensive Evaluation Report - {baseline_name}',
+        f'{dataset.dataset_name.upper()} Dataset - Comprehensive Evaluation Report - {baseline_name}{f1_macro_text}',
         fontsize=24,
         y=0.98,
         fontweight='bold',
     )
 
     # Save the comprehensive plot
-    output_path = plot_dir / f'{baseline_name}_comprehensive_report.png'
+    output_path = plot_dir / f'{dataset.dataset_name}_{baseline_name}_comprehensive_report.png'
     fig.savefig(output_path, bbox_inches='tight', dpi=300)
     logger.info(f'Saved comprehensive report to {output_path}')
 
@@ -842,6 +926,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         dataset=dataset,
         baseline_name=best_baseline_name,
         output_dir=output_dir,
+        val_metrics=best_results['val_metrics'],
     )
 
     metric_dict = {f'val/{k}': v for k, v in best_results['val_metrics'].items()}

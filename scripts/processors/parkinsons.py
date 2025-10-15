@@ -116,6 +116,25 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
     assert not raw_data.isna().any().any(), 'Raw data contains NaNs'
     assert not np.isnan(targets).any(), 'Targets contain NaNs'
 
+    # Convert MoCA scores to classification labels based on clinical interpretation
+    # Dementia: <21, MCI/Normal: >=21
+    def moca_to_class(moca_score):
+        if moca_score >= 21:
+            return 0  # MCI/Normal
+        else:
+            return 1  # Dementia
+
+    targets_class = np.array([moca_to_class(score) for score in targets])
+
+    # Get class names and mapping
+    class_names = ['MCI/Normal', 'Dementia']
+    class_mapping = {name: i for i, name in enumerate(class_names)}
+
+    print('Classification distribution:')
+    unique_classes, counts = np.unique(targets_class, return_counts=True)
+    for class_id, count in zip(unique_classes, counts, strict=True):
+        print(f'  {class_names[class_id]}: {count} samples ({count/len(targets_class)*100:.1f}%)')
+
     # Save as parquet
     data_file = os.path.join(output_dir, 'parkinsons_data.parquet')
     targets_file = os.path.join(output_dir, 'parkinsons_targets.parquet')
@@ -123,14 +142,19 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
     # Reset index to make it a proper DataFrame
     raw_data = raw_data.reset_index(drop=True)
     raw_data.to_parquet(data_file)
-    pd.DataFrame({'target': targets}).to_parquet(targets_file)
+    pd.DataFrame({'target': targets_class}).to_parquet(targets_file)
 
     # Create metadata
     target_stats = {
-        'mean': float(np.mean(targets)),
-        'std': float(np.std(targets)),
-        'min': float(np.min(targets)),
-        'max': float(np.max(targets)),
+        'class_mapping': class_mapping,
+        'num_classes': len(class_names),
+        'class_names': class_names,
+        'original_moca_stats': {
+            'mean': float(np.mean(targets)),
+            'std': float(np.std(targets)),
+            'min': float(np.min(targets)),
+            'max': float(np.max(targets)),
+        },
     }
 
     metadata = create_dataset_metadata(
@@ -147,6 +171,7 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
     upload_to_huggingface('parkinsons', data_files, metadata)
 
     print('Successfully processed and uploaded Parkinsons dataset')
-    print(f'  Samples: {len(targets)}')
+    print(f'  Samples: {len(targets_class)}')
     print(f'  Features: {raw_data.shape[1]}')
+    print(f'  Classes: {len(class_names)} ({", ".join(class_names)})')
     print(f'  Target stats: {target_stats}')
