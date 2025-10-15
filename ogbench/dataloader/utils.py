@@ -28,7 +28,7 @@ class DomainData(torch_geometric.data.Data):
         bool
             Whether the string contains any of the valid names.
         """
-        valid_names = ["adj", "incidence", "laplacian"]
+        valid_names = ['adj', 'incidence', 'laplacian']
         return any(name in string for name in valid_names)
 
     def __cat_dim__(self, key: str, value: Any, *args, **kwargs) -> Any:
@@ -53,7 +53,7 @@ class DomainData(torch_geometric.data.Data):
         """
         if torch_geometric.utils.is_sparse(value) and self.is_valid(key):
             return (0, 1)
-        elif "index" in key or key == "face":
+        elif 'index' in key or key == 'face':
             return -1
         else:
             return 0
@@ -115,25 +115,25 @@ def collate_fn(batch):
             data[key] = value
 
         # Generate batch_slice values for x_1, x_2, x_3, ...
-        x_keys = [el for el in keys if ("x_" in el)]
+        x_keys = [el for el in keys if ('x_' in el)]
         for x_key in x_keys:
             # if x_key != "x_0":
-            if x_key != "x_hyperedges":
-                cell_dim = int(x_key.split("_")[1])
+            if x_key != 'x_hyperedges':
+                cell_dim = int(x_key.split('_')[1])
             else:
-                cell_dim = x_key.split("_")[1]
+                cell_dim = x_key.split('_')[1]
 
             current_number_of_cells = data[x_key].shape[0]
 
-            batch_idx_dict[f"batch_{cell_dim}"].append(
+            batch_idx_dict[f'batch_{cell_dim}'].append(
                 torch.tensor([[batch_idx] * current_number_of_cells])
             )
 
-            if running_idx.get(f"cell_running_idx_number_{cell_dim}") is None:
-                running_idx[f"cell_running_idx_number_{cell_dim}"] = current_number_of_cells
+            if running_idx.get(f'cell_running_idx_number_{cell_dim}') is None:
+                running_idx[f'cell_running_idx_number_{cell_dim}'] = current_number_of_cells
 
             else:
-                running_idx[f"cell_running_idx_number_{cell_dim}"] += current_number_of_cells
+                running_idx[f'cell_running_idx_number_{cell_dim}'] += current_number_of_cells
 
         data_list.append(data)
 
@@ -149,21 +149,21 @@ def collate_fn(batch):
         batch[key] = torch.cat(value, dim=1).squeeze(0).long()
 
     # Rename batch.batch to batch.batch_0 for consistency
-    if (batch.get("batch") is not None) and (batch.get("batch_0") is not None):
+    if (batch.get('batch') is not None) and (batch.get('batch_0') is not None):
         # Back compatiility check
         assert torch.all(
-            batch["batch_0"].cpu() == batch.pop("batch").cpu()
+            batch['batch_0'].cpu() == batch.pop('batch').cpu()
         ), "batch['batch_0'] and batch['batch'] should match in the number of nodes"
 
-    if (batch.get("batch") is not None) and (batch.get("batch_0") is None):
+    if (batch.get('batch') is not None) and (batch.get('batch_0') is None):
         # Back compatiility check
         # Instead of batch.batch as in the original code, we use batch.batch_0 always to refer to nodes
-        batch["batch_0"] = batch.pop("batch")
+        batch['batch_0'] = batch.pop('batch')
 
     # Ensure shape is torch.Tensor
     # "shape" describes the number of n_cells in each graph
-    if batch.get("shape") is not None:
-        cell_statistics = batch.pop("shape")
-        batch["cell_statistics"] = torch.Tensor(cell_statistics).long()
+    if batch.get('shape') is not None:
+        cell_statistics = batch.pop('shape')
+        batch['cell_statistics'] = torch.Tensor(cell_statistics).long()
 
     return batch

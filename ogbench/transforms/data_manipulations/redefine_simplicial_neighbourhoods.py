@@ -17,11 +17,11 @@ class RedefineSimplicialNeighbourhoods(torch_geometric.transforms.BaseTransform)
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.type = "RedefineSimplicialNeighbourhoods"
+        self.type = 'RedefineSimplicialNeighbourhoods'
         self.parameters = kwargs
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})"
+        return f'{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.
@@ -37,14 +37,14 @@ class RedefineSimplicialNeighbourhoods(torch_geometric.transforms.BaseTransform)
             The same data.
         """
 
-        keys_to_keep = ["x", "x_0", "x_1", "x_2", "y"]
+        keys_to_keep = ['x', 'x_0', 'x_1', 'x_2', 'y']
         simplicial_complex = data2simplicial(data)
 
         lifted_topology = get_complex_connectivity(
             simplicial_complex,
-            self.parameters["complex_dim"],
-            neighborhoods=self.parameters["neighborhoods"],
-            signed=self.parameters["signed"],
+            self.parameters['complex_dim'],
+            neighborhoods=self.parameters['neighborhoods'],
+            signed=self.parameters['signed'],
         )
 
         # Get rid of the old keys

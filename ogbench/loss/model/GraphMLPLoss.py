@@ -26,7 +26,7 @@ class GraphMLPLoss(AbstractLoss):
         self.loss_weight = loss_weight
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(r_adj_power={self.r_adj_power}, tau={self.tau}, loss_weight={self.loss_weight})"
+        return f'{self.__class__.__name__}(r_adj_power={self.r_adj_power}, tau={self.tau}, loss_weight={self.loss_weight})'
 
     def get_power_adj(self, edge_index):
         r"""Get the power of the adjacency matrix.
@@ -84,7 +84,7 @@ class GraphMLPLoss(AbstractLoss):
         dict
             Dictionary containing the model output with the loss.
         """
-        x_dis = model_out["x_dis"]
+        x_dis = model_out['x_dis']
         if x_dis is None:  # Validation and test
             return torch.tensor(0.0)
         adj_label = self.get_power_adj(batch.edge_index)

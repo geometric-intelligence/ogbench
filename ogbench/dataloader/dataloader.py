@@ -1,4 +1,4 @@
-"TBDataloader class."
+'TBDataloader class.'
 
 from typing import Any
 
@@ -54,7 +54,7 @@ class TBDataloader(LightningDataModule):
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(
             logger=False,
-            ignore=["dataset_train", "dataset_val", "dataset_test"],
+            ignore=['dataset_train', 'dataset_val', 'dataset_test'],
         )
         self.dataset_train = dataset_train
         self.batch_size = batch_size
@@ -63,16 +63,16 @@ class TBDataloader(LightningDataModule):
             # Transductive setting
             self.dataset_val = dataset_train
             self.dataset_test = dataset_train
-            assert self.batch_size == 1, "Batch size must be 1 for transductive setting."
+            assert self.batch_size == 1, 'Batch size must be 1 for transductive setting.'
         else:
             self.dataset_val = dataset_val
             self.dataset_test = dataset_test
         self.num_workers = num_workers
         self.pin_memory = pin_memory
-        self.persistent_workers = kwargs.get("persistent_workers", False)
+        self.persistent_workers = kwargs.get('persistent_workers', False)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(dataset_train={self.dataset_train}, dataset_val={self.dataset_val}, dataset_test={self.dataset_test}, batch_size={self.batch_size})"
+        return f'{self.__class__.__name__}(dataset_train={self.dataset_train}, dataset_val={self.dataset_val}, dataset_test={self.dataset_test}, batch_size={self.batch_size})'
 
     def train_dataloader(self) -> DataLoader:
         r"""Create and return the train dataloader.
@@ -119,7 +119,7 @@ class TBDataloader(LightningDataModule):
             The test dataloader.
         """
         if self.dataset_test is None:
-            raise ValueError("There is no test dataloader.")
+            raise ValueError('There is no test dataloader.')
         return DataLoader(
             dataset=self.dataset_test,
             batch_size=self.batch_size,

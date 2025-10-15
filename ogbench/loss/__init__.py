@@ -30,7 +30,7 @@ class LoadManager:
 
             return (
                 inspect.isclass(obj)
-                and not obj.__name__.startswith("_")
+                and not obj.__name__.startswith('_')
                 and issubclass(obj, AbstractLoss)
                 and obj is not AbstractLoss
             )
@@ -60,13 +60,13 @@ class LoadManager:
             sys.path.insert(0, parent_dir)
 
         # Iterate through all .py files in the directory
-        for file_path in package_dir.glob("*.py"):
-            if file_path.stem == "__init__":
+        for file_path in package_dir.glob('*.py'):
+            if file_path.stem == '__init__':
                 continue
 
             try:
                 # Use importlib to safely import the module
-                module_name = f"{package_dir.stem}.{file_path.stem}"
+                module_name = f'{package_dir.stem}.{file_path.stem}'
                 module = importlib.import_module(module_name)
 
                 # Find all loss classes in the module
@@ -77,7 +77,7 @@ class LoadManager:
                 }
                 losses.update(new_losses)
             except ImportError as e:
-                print(f"Could not import module {module_name}: {e}")
+                print(f'Could not import module {module_name}: {e}')
 
         return losses
 
@@ -92,8 +92,8 @@ all_encoders = {**LOSSES}
 
 # Generate __all__
 __all__ = [
-    "LOSSES",
-    "LOSSES_list",
+    'LOSSES',
+    'LOSSES_list',
     *list(all_encoders.keys()),
 ]
 

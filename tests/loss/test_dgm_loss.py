@@ -20,14 +20,14 @@ def mock_batch():
     """
     batch = MagicMock(spec=torch_geometric.data.Data)
     batch.keys.return_value = [
-        "logprobs_1",
-        "logprobs_2",
-        "model_state",
-        "train_mask",
-        "val_mask",
-        "test_mask",
+        'logprobs_1',
+        'logprobs_2',
+        'model_state',
+        'train_mask',
+        'val_mask',
+        'test_mask',
     ]
-    batch.model_state = "Training"
+    batch.model_state = 'Training'
     batch.train_mask = torch.tensor([True, False])
     batch.val_mask = torch.tensor([False, True])
     batch.test_mask = torch.tensor([False, True])
@@ -47,8 +47,8 @@ def mock_model_out():
         A dictionary containing mock logits and labels.
     """
     return {
-        "logits": torch.tensor([[0.1, 0.9], [0.8, 0.2], [0.4, 0.6]]),
-        "labels": torch.tensor([1, 0, 1]),
+        'logits': torch.tensor([[0.1, 0.9], [0.8, 0.2], [0.4, 0.6]]),
+        'labels': torch.tensor([1, 0, 1]),
     }
 
 
@@ -66,7 +66,7 @@ def test_dgm_loss_init():
 def test_dgm_loss_repr():
     """Test the string representation of the DGMLoss class."""
     loss_fn = DGMLoss()
-    assert repr(loss_fn) == "DGMLoss()"
+    assert repr(loss_fn) == 'DGMLoss()'
 
 
 def test_dgm_loss_forward(mock_batch, mock_model_out):
@@ -112,20 +112,20 @@ def test_dgm_loss_forward_with_different_masks(mock_batch, mock_model_out):
     loss_fn = DGMLoss()
 
     # Test with training mask
-    mock_batch.model_state = "Training"
+    mock_batch.model_state = 'Training'
     loss = loss_fn.forward(mock_model_out, mock_batch)
     assert isinstance(loss, torch.Tensor)
 
     # Test with validation mask
-    mock_batch.model_state = "Validation"
+    mock_batch.model_state = 'Validation'
     loss = loss_fn.forward(mock_model_out, mock_batch)
     assert isinstance(loss, torch.Tensor)
 
     # Test with test mask
-    mock_batch.model_state = "Test"
+    mock_batch.model_state = 'Test'
     loss = loss_fn.forward(mock_model_out, mock_batch)
     assert isinstance(loss, torch.Tensor)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main()

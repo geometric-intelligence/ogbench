@@ -30,11 +30,11 @@ class GroupCombinatorialHomophily(torch_geometric.transforms.BaseTransform):
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.type = "calcualte_group_combinatorial_homophily"
-        self.top_k = kwargs.get("top_k", 3)
+        self.type = 'calcualte_group_combinatorial_homophily'
+        self.top_k = kwargs.get('top_k', 3)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r})"
+        return f'{self.__class__.__name__}(type={self.type!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.
@@ -93,13 +93,13 @@ class GroupCombinatorialHomophily(torch_geometric.transforms.BaseTransform):
                     n_nodes,
                 )
 
-                out[f"he_card={max_k}"] = {
-                    "D": D,
-                    "Dt": Dt,
-                    "Bt": Bt,
-                    "num_hyperedges": num_he_size_k,
+                out[f'he_card={max_k}'] = {
+                    'D': D,
+                    'Dt': Dt,
+                    'Bt': Bt,
+                    'num_hyperedges': num_he_size_k,
                 }
-        data["group_combinatorial_homophily"] = out
+        data['group_combinatorial_homophily'] = out
         return data
 
     def calculate_affinity_score(self, n_nodes, X_mod, t, k):

@@ -30,7 +30,7 @@ class LoadManager:
 
             return (
                 inspect.isclass(obj)
-                and not obj.__name__.startswith("_")
+                and not obj.__name__.startswith('_')
                 and issubclass(obj, AbstractFeatureEncoder)
                 and obj is not AbstractFeatureEncoder
             )
@@ -60,13 +60,13 @@ class LoadManager:
             sys.path.insert(0, parent_dir)
 
         # Iterate through all .py files in the directory
-        for file_path in package_dir.glob("*.py"):
-            if file_path.stem == "__init__":
+        for file_path in package_dir.glob('*.py'):
+            if file_path.stem == '__init__':
                 continue
 
             try:
                 # Use importlib to safely import the module
-                module_name = f"{package_dir.stem}.{file_path.stem}"
+                module_name = f'{package_dir.stem}.{file_path.stem}'
                 module = importlib.import_module(module_name)
 
                 # Find all encoder classes in the module
@@ -77,7 +77,7 @@ class LoadManager:
                 }
                 encoders.update(new_encoders)
             except ImportError as e:
-                print(f"Could not import module {module_name}: {e}")
+                print(f'Could not import module {module_name}: {e}')
 
         return encoders
 
@@ -93,8 +93,8 @@ all_encoders = {**FEATURE_ENCODERS}
 
 # Generate __all__
 __all__ = [
-    "FEATURE_ENCODERS",
-    "FEATURE_ENCODERS_list",
+    'FEATURE_ENCODERS',
+    'FEATURE_ENCODERS_list',
     *list(all_encoders.keys()),
 ]
 

@@ -14,11 +14,11 @@ class KeepSelectedDataFields(torch_geometric.transforms.BaseTransform):
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.type = "keep_selected_data_fields"
+        self.type = 'keep_selected_data_fields'
         self.parameters = kwargs
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})"
+        return f'{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.
@@ -34,7 +34,7 @@ class KeepSelectedDataFields(torch_geometric.transforms.BaseTransform):
             The transformed data.
         """
         # Keeps all the fields
-        fields_to_keep = self.parameters["base_fields"] + self.parameters["preserved_fields"]
+        fields_to_keep = self.parameters['base_fields'] + self.parameters['preserved_fields']
 
         for key in data.to_dict():
             if key not in fields_to_keep:

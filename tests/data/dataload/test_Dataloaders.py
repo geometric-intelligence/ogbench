@@ -1,16 +1,12 @@
 """Test the Dataloader class."""
 
-import os
 
 import hydra
-import rootutils
 import torch
-from omegaconf import OmegaConf
 
 from ogbench.data.preprocessor import PreProcessor
 from ogbench.dataloader import TBDataloader
 from ogbench.dataloader.utils import to_data_list
-from ogbench.run import initialize_hydra
 
 # rootutils.setup_root("./", indicator=".project-root", pythonpath=True)
 
@@ -21,8 +17,8 @@ class TestCollateFunction:
     def setup_method(self):
         """Setup the test."""
 
-        hydra.initialize(version_base="1.3", config_path="../../../configs", job_name="run")
-        cfg = hydra.compose(config_name="train.yaml", overrides=["dataset=addneuromed"])
+        hydra.initialize(version_base='1.3', config_path='../../../configs', job_name='run')
+        cfg = hydra.compose(config_name='train.yaml', overrides=['dataset=addneuromed'])
 
         graph_loader = hydra.utils.instantiate(cfg.dataset.loader, _recursive_=False)
 
@@ -63,13 +59,13 @@ class TestCollateFunction:
             key : str
                 The key of the data to check.
             """
-            if "x_" in key or key == "x":  # or "edge_attr" in key:
+            if 'x_' in key or key == 'x':  # or "edge_attr" in key:
                 rows = 0
                 for i in range(len(elems)):
                     rows += elems[i][key].shape[0]
                 assert batch[key].shape[0] == rows
                 assert batch[key].shape[1] == elems[0][key].shape[1]
-            elif "edge_index" in key:
+            elif 'edge_index' in key:
                 cols = 0
                 for i in range(len(elems)):
                     cols += elems[i][key].shape[1]
@@ -124,18 +120,18 @@ class TestCollateFunction:
         elems = [self.val_dataset.data_lst[i] for i in range(self.batch_size)]
 
         # Check shape
-        for key, val in batch:
+        for key, _ in batch:
             check_shape(batch, elems, key)
 
         # Check that the batched data is separated correctly and the values are correct
-        for key, val in batch:
-            if "incidence_" in key:
-                i = int(key.split("_")[1])
+        for key, _ in batch:
+            if 'incidence_' in key:
+                i = int(key.split('_')[1])
                 if i == 0:
                     n0_row = 1
                 else:
-                    n0_row = torch.sum(batch[f"batch_{i-1}"] == 0)
-                n0_col = torch.sum(batch[f"batch_{i}"] == 0)
+                    n0_row = torch.sum(batch[f'batch_{i-1}'] == 0)
+                n0_col = torch.sum(batch[f'batch_{i}'] == 0)
                 check_separation(batch[key].to_dense(), n0_row, n0_col)
                 check_values(
                     batch[key].to_dense(),
@@ -163,7 +159,7 @@ class TestCollateFunction:
                         assert torch.allclose(batch_list[i][key], elems[i][key])
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     t = TestCollateFunction()
     t.setup_method()
     t.test_lift_features()

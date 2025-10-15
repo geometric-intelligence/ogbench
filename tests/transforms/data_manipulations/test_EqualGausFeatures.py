@@ -1,6 +1,5 @@
 """Test EqualGausFeatures transform."""
 
-import pytest
 import torch
 from torch_geometric.data import Data
 
@@ -24,7 +23,7 @@ class TestEqualGausFeatures:
         """Test initialization with different parameters."""
         # Test with config default parameters
         transform = EqualGausFeatures(mean=0.0, std=0.1, num_features=5)
-        assert transform.type == "generate_non_informative_features"
+        assert transform.type == 'generate_non_informative_features'
         assert transform.mean == 0.0
         assert transform.std == 0.1
         assert transform.feature_vector is not None
@@ -38,10 +37,10 @@ class TestEqualGausFeatures:
     def test_repr(self):
         """Test string representation of the transform."""
         repr_str = repr(self.transform)
-        assert "EqualGausFeatures" in repr_str
-        assert f"mean={self.mean}" in repr_str
-        assert f"std={self.std}" in repr_str
-        assert "feature_vector=" in repr_str
+        assert 'EqualGausFeatures' in repr_str
+        assert f'mean={self.mean}' in repr_str
+        assert f'std={self.std}' in repr_str
+        assert 'feature_vector=' in repr_str
 
     def test_forward_basic(self):
         """Test basic forward pass."""
@@ -116,14 +115,14 @@ class TestEqualGausFeatures:
         # Approximate distribution checks (should be loose enough)
         mean_diff = torch.abs(features.mean() - self.mean)
         std_diff = torch.abs(features.std() - self.std)
-        assert mean_diff < 0.5, f"Mean differs by {mean_diff}"
-        assert std_diff < 0.5, f"Std differs by {std_diff}"
+        assert mean_diff < 0.5, f'Mean differs by {mean_diff}'
+        assert std_diff < 0.5, f'Std differs by {std_diff}'
 
     def test_attribute_preservation(self):
         """Test preservation of additional attributes."""
         edge_index = torch.tensor([[0, 1], [1, 0]])
         edge_attr = torch.tensor([[1.0], [1.0]])
-        custom_attr = "test"
+        custom_attr = 'test'
 
         data = Data(
             x=torch.tensor([[1.0], [2.0]]),

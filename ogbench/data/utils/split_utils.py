@@ -32,17 +32,17 @@ def k_fold_split(labels, parameters):
     data_dir = parameters.data_split_dir
     k = parameters.k
     fold = parameters.data_seed
-    assert fold < k, "data_seed needs to be less than k"
+    assert fold < k, 'data_seed needs to be less than k'
 
     torch.manual_seed(0)
     np.random.seed(0)
 
-    split_dir = os.path.join(data_dir, f"{k}-fold")
+    split_dir = os.path.join(data_dir, f'{k}-fold')
 
     if not os.path.isdir(split_dir):
         os.makedirs(split_dir)
 
-    split_path = os.path.join(split_dir, f"{fold}.npz")
+    split_path = os.path.join(split_dir, f'{fold}.npz')
     if not os.path.isfile(split_path):
         n = labels.shape[0]
         x_idx = np.arange(n)
@@ -53,34 +53,34 @@ def k_fold_split(labels, parameters):
 
         for fold_n, (train_idx, valid_idx) in enumerate(skf.split(x_idx, labels)):
             split_idx = {
-                "train": train_idx,
-                "valid": valid_idx,
-                "test": valid_idx,
+                'train': train_idx,
+                'valid': valid_idx,
+                'test': valid_idx,
             }
 
             # Check that all nodes/graph have been assigned to some split
             assert np.all(
-                np.sort(np.array(split_idx["train"].tolist() + split_idx["valid"].tolist()))
+                np.sort(np.array(split_idx['train'].tolist() + split_idx['valid'].tolist()))
                 == np.sort(np.arange(len(labels)))
-            ), "Not every sample has been loaded."
-            split_path = os.path.join(split_dir, f"{fold_n}.npz")
+            ), 'Not every sample has been loaded.'
+            split_path = os.path.join(split_dir, f'{fold_n}.npz')
 
             np.savez(split_path, **split_idx)
 
-    split_path = os.path.join(split_dir, f"{fold}.npz")
+    split_path = os.path.join(split_dir, f'{fold}.npz')
     split_idx = np.load(split_path)
 
     # Check that all nodes/graph have been assigned to some split
     assert (
         np.unique(
             np.array(
-                split_idx["train"].tolist()
-                + split_idx["valid"].tolist()
-                + split_idx["test"].tolist()
+                split_idx['train'].tolist()
+                + split_idx['valid'].tolist()
+                + split_idx['test'].tolist()
             )
         ).shape[0]
         == labels.shape[0]
-    ), "Not all nodes within splits"
+    ), 'Not all nodes within splits'
 
     return split_idx
 
@@ -104,13 +104,13 @@ def random_splitting(labels, parameters, global_data_seed=42):
     dict:
         Dictionary containing the train, validation and test indices with keys "train", "valid", and "test".
     """
-    fold = parameters["data_seed"]
-    data_dir = parameters["data_split_dir"]
-    train_prop = parameters["train_prop"]
+    fold = parameters['data_seed']
+    data_dir = parameters['data_split_dir']
+    train_prop = parameters['train_prop']
     valid_prop = (1 - train_prop) / 2
 
     # Create split directory if it does not exist
-    split_dir = os.path.join(data_dir, f"train_prop={train_prop}_global_seed={global_data_seed}")
+    split_dir = os.path.join(data_dir, f'train_prop={train_prop}_global_seed={global_data_seed}')
     generate_splits = False
     if not os.path.isdir(split_dir):
         os.makedirs(split_dir)
@@ -135,30 +135,30 @@ def random_splitting(labels, parameters, global_data_seed=42):
             val_indices = perm[train_num : train_num + valid_num]
             test_indices = perm[train_num + valid_num :]
             split_idx = {
-                "train": train_indices,
-                "valid": val_indices,
-                "test": test_indices,
+                'train': train_indices,
+                'valid': val_indices,
+                'test': test_indices,
             }
 
             # Save generated split
-            split_path = os.path.join(split_dir, f"{fold_n}.npz")
+            split_path = os.path.join(split_dir, f'{fold_n}.npz')
             np.savez(split_path, **split_idx)
 
     # Load the split
-    split_path = os.path.join(split_dir, f"{fold}.npz")
+    split_path = os.path.join(split_dir, f'{fold}.npz')
     split_idx = np.load(split_path)
 
     # Check that all nodes/graph have been assigned to some split
     assert (
         np.unique(
             np.array(
-                split_idx["train"].tolist()
-                + split_idx["valid"].tolist()
-                + split_idx["test"].tolist()
+                split_idx['train'].tolist()
+                + split_idx['valid'].tolist()
+                + split_idx['test'].tolist()
             )
         ).shape[0]
         == labels.shape[0]
-    ), "Not all nodes within splits"
+    ), 'Not all nodes within splits'
 
     return split_idx
 
@@ -182,21 +182,21 @@ def assign_train_val_test_mask_to_graphs(dataset, split_idx):
     data_train_lst, data_val_lst, data_test_lst = [], [], []
 
     # Assign masks directly by iterating over pre-split indices
-    for i in split_idx["train"]:
+    for i in split_idx['train']:
         graph = dataset[i]
         graph.train_mask = torch.tensor([1], dtype=torch.long)
         graph.val_mask = torch.tensor([0], dtype=torch.long)
         graph.test_mask = torch.tensor([0], dtype=torch.long)
         data_train_lst.append(graph)
 
-    for i in split_idx["valid"]:
+    for i in split_idx['valid']:
         graph = dataset[i]
         graph.train_mask = torch.tensor([0], dtype=torch.long)
         graph.val_mask = torch.tensor([1], dtype=torch.long)
         graph.test_mask = torch.tensor([0], dtype=torch.long)
         data_val_lst.append(graph)
 
-    for i in split_idx["test"]:
+    for i in split_idx['test']:
         graph = dataset[i]
         graph.train_mask = torch.tensor([0], dtype=torch.long)
         graph.val_mask = torch.tensor([0], dtype=torch.long)
@@ -226,18 +226,18 @@ def load_transductive_splits(dataset, parameters):
         List containing the train, validation, and test splits.
     """
     # Extract labels from dataset object
-    assert len(dataset) == 1, "Dataset should have only one graph in a transductive setting."
+    assert len(dataset) == 1, 'Dataset should have only one graph in a transductive setting.'
 
     data = dataset.data_list[0]
     labels = data.y.numpy()
 
     # Ensure labels are one dimensional array
-    assert len(labels.shape) == 1, "Labels should be one dimensional array"
+    assert len(labels.shape) == 1, 'Labels should be one dimensional array'
 
-    if parameters.split_type == "random":
+    if parameters.split_type == 'random':
         splits = random_splitting(labels, parameters)
 
-    elif parameters.split_type == "k-fold":
+    elif parameters.split_type == 'k-fold':
         splits = k_fold_split(labels, parameters)
 
     else:
@@ -246,11 +246,11 @@ def load_transductive_splits(dataset, parameters):
         )
 
     # Assign train val test masks to the graph
-    data.train_mask = torch.from_numpy(splits["train"])
-    data.val_mask = torch.from_numpy(splits["valid"])
-    data.test_mask = torch.from_numpy(splits["test"])
+    data.train_mask = torch.from_numpy(splits['train'])
+    data.val_mask = torch.from_numpy(splits['valid'])
+    data.test_mask = torch.from_numpy(splits['test'])
 
-    if parameters.get("standardize", False):
+    if parameters.get('standardize', False):
         # Standardize the node features respecting train mask
         data.x = (data.x - data.x[data.train_mask].mean(0)) / data.x[data.train_mask].std(0)
         data.y = (data.y - data.y[data.train_mask].mean(0)) / data.y[data.train_mask].std(0)
@@ -274,16 +274,16 @@ def load_inductive_splits(dataset, parameters):
         List containing the train, validation, and test splits.
     """
     # Extract labels from dataset object
-    assert len(dataset) > 1, "Datasets should have more than one graph in an inductive setting."
+    assert len(dataset) > 1, 'Datasets should have more than one graph in an inductive setting.'
     labels = np.array([data.y.squeeze(0).numpy() for data in dataset.data_list])
 
-    if parameters.split_type == "random":
+    if parameters.split_type == 'random':
         split_idx = random_splitting(labels, parameters)
 
-    elif parameters.split_type == "k-fold":
+    elif parameters.split_type == 'k-fold':
         split_idx = k_fold_split(labels, parameters)
 
-    elif parameters.split_type == "fixed" and hasattr(dataset, "split_idx"):
+    elif parameters.split_type == 'fixed' and hasattr(dataset, 'split_idx'):
         split_idx = dataset.split_idx
 
     else:

@@ -4,6 +4,6 @@ from .base import AbstractLoader
 from .graph import __all__ as graph_all
 
 __all__ = [
-    "AbstractLoader",
+    'AbstractLoader',
     *graph_all,
 ]

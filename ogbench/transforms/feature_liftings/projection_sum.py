@@ -17,7 +17,7 @@ class ProjectionSum(torch_geometric.transforms.BaseTransform):
         super().__init__()
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}()"
+        return f'{self.__class__.__name__}()'
 
     def lift_features(
         self, data: torch_geometric.data.Data | dict
@@ -35,14 +35,14 @@ class ProjectionSum(torch_geometric.transforms.BaseTransform):
             The data with the lifted features.
         """
         keys = sorted(
-            [key.split("_")[1] for key in data if ("incidence" in key and "-" not in key)]
+            [key.split('_')[1] for key in data if ('incidence' in key and '-' not in key)]
         )
         for elem in keys:
-            if f"x_{elem}" not in data:
-                idx_to_project = 0 if elem == "hyperedges" else int(elem) - 1
-                data["x_" + elem] = torch.matmul(
-                    abs(data["incidence_" + elem].t()),
-                    data[f"x_{idx_to_project}"],
+            if f'x_{elem}' not in data:
+                idx_to_project = 0 if elem == 'hyperedges' else int(elem) - 1
+                data['x_' + elem] = torch.matmul(
+                    abs(data['incidence_' + elem].t()),
+                    data[f'x_{idx_to_project}'],
                 )
         return data
 

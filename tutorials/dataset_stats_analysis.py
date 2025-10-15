@@ -28,7 +28,7 @@ import csv
 import itertools
 import os
 import os.path as osp
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -40,8 +40,8 @@ from joblib import Parallel, delayed
 def load_dataset(
     dataset_name: str,
     adj_thresh: float = 0.5,
-    node_sample_ratio: str = "full",
-    method: str = "variance",
+    node_sample_ratio: str = 'full',
+    method: str = 'variance',
 ) -> Any:
     """Load the dataset with specified parameters.
 
@@ -59,7 +59,7 @@ def load_dataset(
     from ogbench.data.datasets.hf_omics import HFOmicsDataset
 
     # Convert node_sample_ratio to appropriate format
-    if node_sample_ratio == "full":
+    if node_sample_ratio == 'full':
         ratio_value = 1.0
     else:
         ratio_value = float(node_sample_ratio)
@@ -69,19 +69,19 @@ def load_dataset(
 
     # Create dataset directly without complex Hydra configuration
     dataset = HFOmicsDataset(
-        root="/home/johmathe/bgbench/run_data/omics",
+        root='/home/johmathe/bgbench/run_data/omics',
         data_name=dataset_name,
         method=method,
         adjacency_threshold=adj_thresh,
         node_sample_ratio=ratio_value,
         train_val_test_split=train_val_test_split,
-        imputation_method="mean",
+        imputation_method='mean',
     )
 
     return dataset
 
 
-def get_graph_stats(dataset: Any) -> Dict[str, float]:
+def get_graph_stats(dataset: Any) -> dict[str, float]:
     """Get statistics of the graph from the dataset.
 
     Args:
@@ -92,7 +92,7 @@ def get_graph_stats(dataset: Any) -> Dict[str, float]:
     """
     try:
         # First, try to access the processed data directly from the dataset
-        if hasattr(dataset, "data") and dataset.data is not None:
+        if hasattr(dataset, 'data') and dataset.data is not None:
             # Use the processed data from the dataset
             data = dataset[0]  # Get the first (and only) graph
             edge_index = data.edge_index
@@ -106,15 +106,15 @@ def get_graph_stats(dataset: Any) -> Dict[str, float]:
 
         else:
             # Fallback: try to load from the raw directory
-            root = "/home/johmathe/bgbench/run_data/omics/"
+            root = '/home/johmathe/bgbench/run_data/omics/'
             name = osp.join(
                 root,
-                f"{dataset.data_name}",
-                f"adj_thresh_{dataset.adjacency_threshold}",
-                f"{dataset.method}",
-                f"p_{dataset.node_sample_ratio}",
-                f"train_split_{dataset.train_val_test_split[0]}",
-                "raw/adj_matrix.npy",
+                f'{dataset.data_name}',
+                f'adj_thresh_{dataset.adjacency_threshold}',
+                f'{dataset.method}',
+                f'p_{dataset.node_sample_ratio}',
+                f'train_split_{dataset.train_val_test_split[0]}',
+                'raw/adj_matrix.npy',
             )
 
             try:
@@ -123,13 +123,13 @@ def get_graph_stats(dataset: Any) -> Dict[str, float]:
                 graph = nx.from_numpy_array(adj_matrix)
                 graph.remove_edges_from(nx.selfloop_edges(graph))
             except FileNotFoundError:
-                print(f"Warning: Adjacency matrix not found at {name}")
+                print(f'Warning: Adjacency matrix not found at {name}')
                 return {
-                    "num_nodes": 0,
-                    "num_edges": 0,
-                    "avg_degree": 0.0,
-                    "density": 0.0,
-                    "number_connected_components": 0,
+                    'num_nodes': 0,
+                    'num_edges': 0,
+                    'avg_degree': 0.0,
+                    'density': 0.0,
+                    'number_connected_components': 0,
                 }
 
         # Calculate statistics
@@ -140,25 +140,25 @@ def get_graph_stats(dataset: Any) -> Dict[str, float]:
         number_connected_components = nx.number_connected_components(graph)
 
         return {
-            "num_nodes": num_nodes,
-            "num_edges": num_edges,
-            "avg_degree": avg_degree,
-            "density": density,
-            "number_connected_components": number_connected_components,
+            'num_nodes': num_nodes,
+            'num_edges': num_edges,
+            'avg_degree': avg_degree,
+            'density': density,
+            'number_connected_components': number_connected_components,
         }
 
     except Exception as e:
-        print(f"Error getting graph stats: {e}")
+        print(f'Error getting graph stats: {e}')
         return {
-            "num_nodes": 0,
-            "num_edges": 0,
-            "avg_degree": 0.0,
-            "density": 0.0,
-            "number_connected_components": 0,
+            'num_nodes': 0,
+            'num_edges': 0,
+            'avg_degree': 0.0,
+            'density': 0.0,
+            'number_connected_components': 0,
         }
 
 
-def process_single_combination(args_tuple: Tuple[str, str, str, float]) -> Dict[str, Any]:
+def process_single_combination(args_tuple: tuple[str, str, str, float]) -> dict[str, Any]:
     """Process a single parameter combination. This function is designed to work with joblib's
     parallel processing.
 
@@ -175,10 +175,10 @@ def process_single_combination(args_tuple: Tuple[str, str, str, float]) -> Dict[
         dataset = load_dataset(dataset_name, adj_thresh, node_ratio, method)
 
         # Debug: print dataset info
-        print(f"Dataset loaded: {dataset}")
-        print(f"Dataset length: {len(dataset)}")
+        print(f'Dataset loaded: {dataset}')
+        print(f'Dataset length: {len(dataset)}')
         if len(dataset) > 0:
-            print(f"First data item: {dataset[0]}")
+            print(f'First data item: {dataset[0]}')
 
         # Get graph statistics
         stats = get_graph_stats(dataset)
@@ -186,10 +186,10 @@ def process_single_combination(args_tuple: Tuple[str, str, str, float]) -> Dict[
         # Add metadata
         stats.update(
             {
-                "dataset": dataset_name,
-                "adj_thresh": adj_thresh,
-                "node_sample_ratio": node_ratio,
-                "method": method,
+                'dataset': dataset_name,
+                'adj_thresh': adj_thresh,
+                'node_sample_ratio': node_ratio,
+                'method': method,
             }
         )
 
@@ -198,26 +198,26 @@ def process_single_combination(args_tuple: Tuple[str, str, str, float]) -> Dict[
     except Exception as e:
         # Return error entry
         return {
-            "dataset": dataset_name,
-            "adj_thresh": adj_thresh,
-            "node_sample_ratio": node_ratio,
-            "method": method,
-            "num_nodes": None,
-            "num_edges": None,
-            "avg_degree": None,
-            "density": None,
-            "number_connected_components": None,
-            "error": str(e),
+            'dataset': dataset_name,
+            'adj_thresh': adj_thresh,
+            'node_sample_ratio': node_ratio,
+            'method': method,
+            'num_nodes': None,
+            'num_edges': None,
+            'avg_degree': None,
+            'density': None,
+            'number_connected_components': None,
+            'error': str(e),
         }
 
 
 def compute_stats_for_combinations(
     dataset_name: str,
-    node_sample_ratios: List[str],
-    sampling_methods: List[str],
-    adj_thresholds: List[float],
+    node_sample_ratios: list[str],
+    sampling_methods: list[str],
+    adj_thresholds: list[float],
     n_jobs: int = -1,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Compute statistics for all combinations of parameters using parallel processing.
 
     Args:
@@ -238,7 +238,7 @@ def compute_stats_for_combinations(
         )
     ]
 
-    print(f"Processing {len(combinations)} combinations for {dataset_name} using {n_jobs} jobs")
+    print(f'Processing {len(combinations)} combinations for {dataset_name} using {n_jobs} jobs')
 
     # Process in parallel
     all_stats = Parallel(n_jobs=n_jobs, verbose=1)(
@@ -248,7 +248,7 @@ def compute_stats_for_combinations(
     return all_stats
 
 
-def save_stats_to_csv(all_stats: List[Dict[str, Any]], output_file: str) -> None:
+def save_stats_to_csv(all_stats: list[dict[str, Any]], output_file: str) -> None:
     """Save statistics to CSV file.
 
     Args:
@@ -258,27 +258,27 @@ def save_stats_to_csv(all_stats: List[Dict[str, Any]], output_file: str) -> None
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     fieldnames = [
-        "dataset",
-        "adj_thresh",
-        "node_sample_ratio",
-        "method",
-        "num_nodes",
-        "num_edges",
-        "avg_degree",
-        "density",
-        "number_connected_components",
+        'dataset',
+        'adj_thresh',
+        'node_sample_ratio',
+        'method',
+        'num_nodes',
+        'num_edges',
+        'avg_degree',
+        'density',
+        'number_connected_components',
     ]
 
     # Add error column if any errors exist
-    if any("error" in stats for stats in all_stats):
-        fieldnames.append("error")
+    if any('error' in stats for stats in all_stats):
+        fieldnames.append('error')
 
-    with open(output_file, "w", newline="") as f:
+    with open(output_file, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(all_stats)
 
-    print(f"Statistics saved to {output_file}")
+    print(f'Statistics saved to {output_file}')
 
 
 def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
@@ -291,20 +291,20 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
     try:
         df = pd.read_csv(csv_file)
         # Filter for this dataset
-        df = df[df["dataset"] == dataset_name]
+        df = df[df['dataset'] == dataset_name]
 
         if df.empty:
-            print(f"No data found for dataset {dataset_name}")
+            print(f'No data found for dataset {dataset_name}')
             return
 
         # Sort by adjacency threshold
-        df = df.sort_values(by="adj_thresh", ascending=True)
+        df = df.sort_values(by='adj_thresh', ascending=True)
 
         # Create plots for each combination of node_sample_ratio and method
-        combinations = df[["node_sample_ratio", "method"]].drop_duplicates()
+        combinations = df[['node_sample_ratio', 'method']].drop_duplicates()
 
         for _, (node_ratio, method) in combinations.iterrows():
-            subset_df = df[(df["node_sample_ratio"] == node_ratio) & (df["method"] == method)]
+            subset_df = df[(df['node_sample_ratio'] == node_ratio) & (df['method'] == method)]
 
             if subset_df.empty:
                 continue
@@ -312,86 +312,86 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
             # Create the plot
             plt.figure(figsize=(14, 10))
             plt.suptitle(
-                f"{dataset_name} - Node Ratio: {node_ratio}, Method: {method}", fontsize=16, y=1.02
+                f'{dataset_name} - Node Ratio: {node_ratio}, Method: {method}', fontsize=16, y=1.02
             )
 
             # Plot number of edges
             plt.subplot(3, 2, 1)
             plt.plot(
-                subset_df["adj_thresh"],
-                subset_df["num_edges"],
-                label="Number of Edges",
-                color="green",
+                subset_df['adj_thresh'],
+                subset_df['num_edges'],
+                label='Number of Edges',
+                color='green',
             )
-            plt.xlabel("Adjacency Threshold")
-            plt.ylabel("Number of Edges")
-            plt.title("Number of Edges vs. Adjacency Threshold")
+            plt.xlabel('Adjacency Threshold')
+            plt.ylabel('Number of Edges')
+            plt.title('Number of Edges vs. Adjacency Threshold')
             plt.grid(True)
 
             # Plot average degree
             plt.subplot(3, 2, 2)
             plt.plot(
-                subset_df["adj_thresh"],
-                subset_df["avg_degree"],
-                label="Average Degree",
-                color="orange",
+                subset_df['adj_thresh'],
+                subset_df['avg_degree'],
+                label='Average Degree',
+                color='orange',
             )
-            plt.xlabel("Adjacency Threshold")
-            plt.ylabel("Average Degree")
-            plt.title("Average Degree vs. Adjacency Threshold")
+            plt.xlabel('Adjacency Threshold')
+            plt.ylabel('Average Degree')
+            plt.title('Average Degree vs. Adjacency Threshold')
             plt.grid(True)
 
             # Plot density
             plt.subplot(3, 2, 3)
-            plt.plot(subset_df["adj_thresh"], subset_df["density"], label="Density", color="red")
-            plt.xlabel("Adjacency Threshold")
-            plt.ylabel("Density")
-            plt.title("Density vs. Adjacency Threshold")
+            plt.plot(subset_df['adj_thresh'], subset_df['density'], label='Density', color='red')
+            plt.xlabel('Adjacency Threshold')
+            plt.ylabel('Density')
+            plt.title('Density vs. Adjacency Threshold')
             plt.grid(True)
 
             # Plot number of connected components
             plt.subplot(3, 2, 4)
             plt.plot(
-                subset_df["adj_thresh"],
-                subset_df["number_connected_components"],
-                label="Connected Components",
-                color="purple",
+                subset_df['adj_thresh'],
+                subset_df['number_connected_components'],
+                label='Connected Components',
+                color='purple',
             )
-            plt.xlabel("Adjacency Threshold")
-            plt.ylabel("Number of Connected Components")
-            plt.title("Connected Components vs. Adjacency Threshold")
+            plt.xlabel('Adjacency Threshold')
+            plt.ylabel('Number of Connected Components')
+            plt.title('Connected Components vs. Adjacency Threshold')
             plt.grid(True)
 
             # Plot number of nodes
             plt.subplot(3, 2, 5)
             plt.plot(
-                subset_df["adj_thresh"],
-                subset_df["num_nodes"],
-                label="Number of Nodes",
-                color="blue",
+                subset_df['adj_thresh'],
+                subset_df['num_nodes'],
+                label='Number of Nodes',
+                color='blue',
             )
-            plt.xlabel("Adjacency Threshold")
-            plt.ylabel("Number of Nodes")
-            plt.title("Number of Nodes vs. Adjacency Threshold")
+            plt.xlabel('Adjacency Threshold')
+            plt.ylabel('Number of Nodes')
+            plt.title('Number of Nodes vs. Adjacency Threshold')
             plt.grid(True)
 
             # Adjust layout and save the plot
             plt.tight_layout()
 
             # Create output directory for plots
-            plot_dir = f"./plots/{dataset_name}"
+            plot_dir = f'./plots/{dataset_name}'
             os.makedirs(plot_dir, exist_ok=True)
 
             plot_filename = (
-                f"{plot_dir}/{dataset_name}_node_ratio_{node_ratio}_method_{method}.png"
+                f'{plot_dir}/{dataset_name}_node_ratio_{node_ratio}_method_{method}.png'
             )
-            plt.savefig(plot_filename, dpi=300, bbox_inches="tight")
+            plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
             plt.close()
 
-            print(f"Plot saved: {plot_filename}")
+            print(f'Plot saved: {plot_filename}')
 
     except Exception as e:
-        print(f"Error creating plots for {dataset_name}: {e}")
+        print(f'Error creating plots for {dataset_name}: {e}')
 
 
 def main():
@@ -400,40 +400,40 @@ def main():
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(
-        description="Analyze dataset statistics with parallel processing"
+        description='Analyze dataset statistics with parallel processing'
     )
     parser.add_argument(
-        "--n-jobs",
+        '--n-jobs',
         type=int,
         default=8,
-        help="Number of parallel jobs (-1 for all CPUs, default: -1)",
+        help='Number of parallel jobs (-1 for all CPUs, default: -1)',
     )
     parser.add_argument(
-        "--datasets",
-        nargs="+",
-        default=["addneuromed", "parkinsons", "covidaki", "motrpac"],
-        help="List of datasets to process",
+        '--datasets',
+        nargs='+',
+        default=['addneuromed', 'parkinsons', 'covidaki', 'motrpac'],
+        help='List of datasets to process',
     )
     parser.add_argument(
-        "--node-ratios",
-        nargs="+",
-        default=["1.0", "0.5", "0.2", "0.125", "full"],
-        help="List of node sample ratios",
+        '--node-ratios',
+        nargs='+',
+        default=['1.0', '0.5', '0.2', '0.125', 'full'],
+        help='List of node sample ratios',
     )
     parser.add_argument(
-        "--methods",
-        nargs="+",
-        default=["variance", "random", "correlation"],
-        help="List of sampling methods",
+        '--methods',
+        nargs='+',
+        default=['variance', 'random', 'correlation'],
+        help='List of sampling methods',
     )
     parser.add_argument(
-        "--adj-thresholds",
+        '--adj-thresholds',
         type=int,
         default=10,
-        help="Number of adjacency thresholds from 0.0 to 1.0 (default: 101)",
+        help='Number of adjacency thresholds from 0.0 to 1.0 (default: 101)',
     )
     parser.add_argument(
-        "--skip-plots", action="store_true", help="Skip plot generation (only compute statistics)"
+        '--skip-plots', action='store_true', help='Skip plot generation (only compute statistics)'
     )
 
     args = parser.parse_args()
@@ -446,19 +446,19 @@ def main():
     print(adj_thresholds)
     n_jobs = args.n_jobs
 
-    print(f"Processing {len(datasets)} datasets")
-    print(f"Node sample ratios: {node_sample_ratios}")
-    print(f"Sampling methods: {sampling_methods}")
-    print(f"Adjacency thresholds: {len(adj_thresholds)} values from 0.0 to 1.0")
-    print(f"Parallel jobs: {n_jobs}")
+    print(f'Processing {len(datasets)} datasets')
+    print(f'Node sample ratios: {node_sample_ratios}')
+    print(f'Sampling methods: {sampling_methods}')
+    print(f'Adjacency thresholds: {len(adj_thresholds)} values from 0.0 to 1.0')
+    print(f'Parallel jobs: {n_jobs}')
     print(
-        f"Total combinations: {len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds)}"
+        f'Total combinations: {len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds)}'
     )
 
     # Process each dataset
     for dataset_name in datasets:
         print(f"\n{'='*50}")
-        print(f"Processing dataset: {dataset_name}")
+        print(f'Processing dataset: {dataset_name}')
         print(f"{'='*50}")
 
         # Compute statistics for all combinations
@@ -467,47 +467,47 @@ def main():
         )
 
         # Save to CSV
-        output_file = f"./stats/{dataset_name}/graph_stats_comprehensive.csv"
+        output_file = f'./stats/{dataset_name}/graph_stats_comprehensive.csv'
         save_stats_to_csv(all_stats, output_file)
 
         # Create plots (unless skipped)
         if not args.skip_plots:
             create_plots_for_dataset(dataset_name, output_file)
 
-    print("\nAnalysis complete!")
-    print("Check the ./stats/ and ./plots/ directories for results.")
+    print('\nAnalysis complete!')
+    print('Check the ./stats/ and ./plots/ directories for results.')
 
     # Print summary statistics
     total_combinations = (
         len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds)
     )
-    print("\nSummary:")
-    print(f"- Total parameter combinations processed: {total_combinations}")
-    print(f"- Datasets: {len(datasets)}")
-    print(f"- Node sample ratios: {len(node_sample_ratios)}")
-    print(f"- Sampling methods: {len(sampling_methods)}")
-    print(f"- Adjacency thresholds: {len(adj_thresholds)}")
-    print(f"- Parallel jobs used: {n_jobs}")
+    print('\nSummary:')
+    print(f'- Total parameter combinations processed: {total_combinations}')
+    print(f'- Datasets: {len(datasets)}')
+    print(f'- Node sample ratios: {len(node_sample_ratios)}')
+    print(f'- Sampling methods: {len(sampling_methods)}')
+    print(f'- Adjacency thresholds: {len(adj_thresholds)}')
+    print(f'- Parallel jobs used: {n_jobs}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Quick test to see if dataset loading works
     try:
-        print("Testing dataset loading...")
-        dataset = load_dataset("addneuromed", 0.5, "0.2", "variance")
-        print(f"Dataset loaded successfully: {dataset}")
-        print(f"Dataset length: {len(dataset)}")
+        print('Testing dataset loading...')
+        dataset = load_dataset('addneuromed', 0.5, '0.2', 'variance')
+        print(f'Dataset loaded successfully: {dataset}')
+        print(f'Dataset length: {len(dataset)}')
         if len(dataset) > 0:
-            print(f"First data item: {dataset[0]}")
+            print(f'First data item: {dataset[0]}')
             stats = get_graph_stats(dataset)
-            print(f"Graph stats: {stats}")
+            print(f'Graph stats: {stats}')
     except Exception as e:
-        print(f"Error in test: {e}")
+        print(f'Error in test: {e}')
         import traceback
 
         traceback.print_exc()
 
-    print("\n" + "=" * 50)
-    print("Running main analysis...")
-    print("=" * 50)
+    print('\n' + '=' * 50)
+    print('Running main analysis...')
+    print('=' * 50)
     main()

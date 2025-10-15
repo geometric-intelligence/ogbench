@@ -14,10 +14,10 @@ class NodeFeaturesToFloat(torch_geometric.transforms.BaseTransform):
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.type = "map_node_features_to_float"
+        self.type = 'map_node_features_to_float'
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r})"
+        return f'{self.__class__.__name__}(type={self.type!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.

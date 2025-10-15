@@ -144,7 +144,7 @@ class MLP(nn.Module):
         """
         flattened_x = x.view(batch_size, -1)
         x = self.mlp_layers(flattened_x)
-        if self.num_nodes is not None and self.task_level == "node":
+        if self.num_nodes is not None and self.task_level == 'node':
             return (
                 x.view(batch_size, self.num_nodes, -1)
                 if batch_size > 1
@@ -166,7 +166,7 @@ class MLP(nn.Module):
         dict
             Dictionary containing the updated model output.
         """
-        model_out["x_0"] = self.forward(model_out["x_0"], model_out.batch_size)
-        model_out["logits"] = model_out["x_0"]
+        model_out['x_0'] = self.forward(model_out['x_0'], model_out.batch_size)
+        model_out['logits'] = model_out['x_0']
 
         return model_out

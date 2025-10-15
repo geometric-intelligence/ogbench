@@ -17,7 +17,7 @@ class DataloadDataset(torch_geometric.data.Dataset):
         self.data_lst = data_lst
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({len(self.data_lst)})"
+        return f'{self.__class__.__name__}({len(self.data_lst)})'
 
     def get(self, idx):
         """Get data object from data list.

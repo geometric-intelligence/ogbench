@@ -32,7 +32,7 @@ class RankedLogger(logging.LoggerAdapter):
         self.rank_zero_only = rank_zero_only
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.logger.name!r}, rank_zero_only={self.rank_zero_only!r}, extra={self.extra})"
+        return f'{self.__class__.__name__}(name={self.logger.name!r}, rank_zero_only={self.rank_zero_only!r}, extra={self.extra})'
 
     def log(self, level: int, msg: str, rank: int | None = None, *args, **kwargs) -> None:
         r"""Delegate a log call to the underlying logger.
@@ -54,9 +54,9 @@ class RankedLogger(logging.LoggerAdapter):
         """
         if self.isEnabledFor(level):
             msg, kwargs = self.process(msg, kwargs)
-            current_rank = getattr(rank_zero_only, "rank", None)
+            current_rank = getattr(rank_zero_only, 'rank', None)
             if current_rank is None:
-                raise RuntimeError("The `rank_zero_only.rank` needs to be set before use")
+                raise RuntimeError('The `rank_zero_only.rank` needs to be set before use')
             msg = rank_prefixed_message(msg, current_rank)
             if self.rank_zero_only:
                 if current_rank == 0:

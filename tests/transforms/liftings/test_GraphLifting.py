@@ -35,7 +35,7 @@ class TestGraphLifting:
         Creates an instance of ConcreteGraphLifting with default parameters.
         """
         self.lifting = ConcreteGraphLifting(
-            feature_lifting="ProjectionSum", preserve_edge_attr=False
+            feature_lifting='ProjectionSum', preserve_edge_attr=False
         )
 
     def test_data_has_edge_attr(self):
@@ -96,7 +96,7 @@ class TestGraphLifting:
         )
         assert self.lifting._data_has_edge_attr(data_multidim_attr) is True
 
-    @pytest.mark.parametrize("preserve_edge_attr", [True, False])
+    @pytest.mark.parametrize('preserve_edge_attr', [True, False])
     def test_init_preserve_edge_attr(self, preserve_edge_attr):
         """Test initialization with different preserve_edge_attr values.
 
@@ -106,7 +106,7 @@ class TestGraphLifting:
             Boolean value to test initialization with True and False values.
         """
         lifting = ConcreteGraphLifting(
-            feature_lifting="ProjectionSum",
+            feature_lifting='ProjectionSum',
             preserve_edge_attr=preserve_edge_attr,
         )
         assert lifting.preserve_edge_attr == preserve_edge_attr

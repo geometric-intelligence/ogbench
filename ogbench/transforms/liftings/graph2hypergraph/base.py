@@ -14,4 +14,4 @@ class Graph2HypergraphLifting(GraphLifting):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.type = "graph2hypergraph"
+        self.type = 'graph2hypergraph'

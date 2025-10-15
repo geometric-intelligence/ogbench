@@ -15,27 +15,27 @@ from .metrics.denormalized_rmse import DenormalizedRMSE
 
 # Define metrics
 METRICS = {
-    "accuracy": Accuracy,
-    "precision": Precision,
-    "recall": Recall,
-    "auroc": AUROC,
-    "f1": F1Score,
-    "f1_macro": F1Score,
-    "f1_weighted": F1Score,
-    "confusion_matrix": ConfusionMatrix,
-    "mae": MeanAbsoluteError,
-    "mse": MeanSquaredError,
-    "rmse": MeanSquaredError,  # We'll configure this with squared=False
-    "denormalized_rmse": DenormalizedRMSE,
-    "r2": R2Score,
-    "example": ExampleRegressionMetric,
+    'accuracy': Accuracy,
+    'precision': Precision,
+    'recall': Recall,
+    'auroc': AUROC,
+    'f1': F1Score,
+    'f1_macro': F1Score,
+    'f1_weighted': F1Score,
+    'confusion_matrix': ConfusionMatrix,
+    'mae': MeanAbsoluteError,
+    'mse': MeanSquaredError,
+    'rmse': MeanSquaredError,  # We'll configure this with squared=False
+    'denormalized_rmse': DenormalizedRMSE,
+    'r2': R2Score,
+    'example': ExampleRegressionMetric,
 }
 
 from .base import AbstractEvaluator  # noqa: E402
 from .evaluator import TBEvaluator  # noqa: E402
 
 __all__ = [
-    "METRICS",
-    "AbstractEvaluator",
-    "TBEvaluator",
+    'METRICS',
+    'AbstractEvaluator',
+    'TBEvaluator',
 ]

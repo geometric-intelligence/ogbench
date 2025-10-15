@@ -26,46 +26,46 @@ class TBEvaluator(AbstractEvaluator):
         self.task = task
 
         # Define the metrics depending on the task
-        if kwargs["num_classes"] > 1 and self.task == "classification":
+        if kwargs['num_classes'] > 1 and self.task == 'classification':
             # Note that even for binary classification, we use multiclass metrics
             # According to the torchmetrics documentation (https://lightning.ai/docs/torchmetrics/stable/classification/accuracy.html#torchmetrics.classification.MulticlassAccuracy)
             # This setup should work correctly
-            parameters = {"num_classes": kwargs["num_classes"]}
-            parameters["task"] = "multiclass"
-            metric_names = kwargs["metrics"]
+            parameters = {'num_classes': kwargs['num_classes']}
+            parameters['task'] = 'multiclass'
+            metric_names = kwargs['metrics']
 
-        elif self.task == "multilabel classification":
-            parameters = {"num_classes": kwargs["num_classes"]}
-            parameters["task"] = "multilabel"
-            parameters["num_labels"] = kwargs["num_classes"]
-            metric_names = kwargs["metrics"]
+        elif self.task == 'multilabel classification':
+            parameters = {'num_classes': kwargs['num_classes']}
+            parameters['task'] = 'multilabel'
+            parameters['num_labels'] = kwargs['num_classes']
+            metric_names = kwargs['metrics']
 
-        elif self.task == "regression":
+        elif self.task == 'regression':
             parameters = {}
-            metric_names = kwargs["metrics"]
+            metric_names = kwargs['metrics']
 
         else:
-            raise ValueError(f"Invalid task {task}")
+            raise ValueError(f'Invalid task {task}')
 
         metrics = {}
         for name in metric_names:
-            if name in ["recall", "precision", "auroc"]:
-                metrics[name] = METRICS[name](average="macro", **parameters)
-            elif name == "f1":
-                metrics[name] = METRICS[name](average="macro", **parameters)
-            elif name == "f1_macro":
-                metrics[name] = METRICS[name](average="macro", **parameters)
-            elif name == "f1_weighted":
-                metrics[name] = METRICS[name](average="weighted", **parameters)
-            elif name == "confusion_matrix":
+            if name in ['recall', 'precision', 'auroc']:
+                metrics[name] = METRICS[name](average='macro', **parameters)
+            elif name == 'f1':
+                metrics[name] = METRICS[name](average='macro', **parameters)
+            elif name == 'f1_macro':
+                metrics[name] = METRICS[name](average='macro', **parameters)
+            elif name == 'f1_weighted':
+                metrics[name] = METRICS[name](average='weighted', **parameters)
+            elif name == 'confusion_matrix':
                 metrics[name] = METRICS[name](**parameters)
-            elif name == "rmse":
+            elif name == 'rmse':
                 # RMSE is MSE with squared=False
                 metrics[name] = METRICS[name](squared=False, **parameters)
-            elif name == "denormalized_rmse":
+            elif name == 'denormalized_rmse':
                 # Denormalized RMSE - get stats from dataset config
-                target_mean = kwargs.get("target_mean", 0.0)
-                target_std = kwargs.get("target_std", 1.0)
+                target_mean = kwargs.get('target_mean', 0.0)
+                target_std = kwargs.get('target_std', 1.0)
                 metrics[name] = METRICS[name](
                     target_mean=target_mean, target_std=target_std, **parameters
                 )
@@ -79,24 +79,24 @@ class TBEvaluator(AbstractEvaluator):
         self.best_metrics = {}
         self.metric_optimization_direction = {
             # Metrics to maximize (higher is better)
-            "accuracy": "max",
-            "precision": "max",
-            "recall": "max",
-            "auroc": "max",
-            "f1": "max",
-            "f1_macro": "max",
-            "f1_weighted": "max",
-            "r2": "max",
+            'accuracy': 'max',
+            'precision': 'max',
+            'recall': 'max',
+            'auroc': 'max',
+            'f1': 'max',
+            'f1_macro': 'max',
+            'f1_weighted': 'max',
+            'r2': 'max',
             # Metrics to minimize (lower is better)
-            "mae": "min",
-            "mse": "min",
-            "rmse": "min",
-            "denormalized_rmse": "min",
-            "loss": "min",
+            'mae': 'min',
+            'mse': 'min',
+            'rmse': 'min',
+            'denormalized_rmse': 'min',
+            'loss': 'min',
         }
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(task={self.task}, metrics={self.metrics})"
+        return f'{self.__class__.__name__}(task={self.task}, metrics={self.metrics})'
 
     def update(self, model_out: dict):
         r"""Update the metrics with the model output.
@@ -117,24 +117,24 @@ class TBEvaluator(AbstractEvaluator):
         ValueError
             If the task is not valid.
         """
-        preds = model_out["logits"].cpu()
-        target = model_out["labels"].cpu()
+        preds = model_out['logits'].cpu()
+        target = model_out['labels'].cpu()
 
-        if self.task == "regression":
+        if self.task == 'regression':
             try:
                 self.metrics.update(preds, target.unsqueeze(1))
             except RuntimeError:
                 self.metrics.update(preds.unsqueeze(1), target.unsqueeze(1))
 
-        elif self.task == "classification":
+        elif self.task == 'classification':
             self.metrics.update(preds, target)
 
-        elif self.task == "multilabel classification":
+        elif self.task == 'multilabel classification':
             # Raise not supported error
-            raise NotImplementedError("Multilabel classification is not supported yet")
+            raise NotImplementedError('Multilabel classification is not supported yet')
 
         else:
-            raise ValueError(f"Invalid task {self.task}")
+            raise ValueError(f'Invalid task {self.task}')
 
     def compute(self):
         r"""Compute the metrics.
@@ -164,12 +164,12 @@ class TBEvaluator(AbstractEvaluator):
             The mode of the model, either "train", "val", or "test".
         """
         for key, value in metrics_dict.items():
-            metric_key = f"{mode}/{key}"
+            metric_key = f'{mode}/{key}'
 
             # Convert tensor to float if needed
-            if hasattr(value, "item"):
+            if hasattr(value, 'item'):
                 value = value.item()
-            elif hasattr(value, "cpu"):
+            elif hasattr(value, 'cpu'):
                 value = value.cpu().item()
 
             # Initialize best value if not exists
@@ -177,10 +177,10 @@ class TBEvaluator(AbstractEvaluator):
                 self.best_metrics[metric_key] = value
 
             # Determine optimization direction for this metric
-            optimization_direction = self.metric_optimization_direction.get(key, "max")
+            optimization_direction = self.metric_optimization_direction.get(key, 'max')
 
             # Update best value based on optimization direction
-            if optimization_direction == "max":
+            if optimization_direction == 'max':
                 if value > self.best_metrics[metric_key]:
                     self.best_metrics[metric_key] = value
             else:  # min
@@ -197,7 +197,7 @@ class TBEvaluator(AbstractEvaluator):
         mode : str
             The mode of the model, either "train", "val", or "test".
         """
-        metric_key = f"{mode}/loss"
+        metric_key = f'{mode}/loss'
 
         # Initialize best value if not exists
         if metric_key not in self.best_metrics:
@@ -220,26 +220,26 @@ class TBEvaluator(AbstractEvaluator):
     def log_best_metrics_summary(self) -> None:
         r"""Log a summary of all best metrics achieved during training."""
         if self.best_metrics:
-            print("\n" + "=" * 60)
-            print("BEST METRICS ACHIEVED DURING TRAINING")
-            print("=" * 60)
+            print('\n' + '=' * 60)
+            print('BEST METRICS ACHIEVED DURING TRAINING')
+            print('=' * 60)
 
             # Group metrics by mode
-            train_metrics = {k: v for k, v in self.best_metrics.items() if k.startswith("train/")}
-            val_metrics = {k: v for k, v in self.best_metrics.items() if k.startswith("val/")}
-            test_metrics = {k: v for k, v in self.best_metrics.items() if k.startswith("test/")}
+            train_metrics = {k: v for k, v in self.best_metrics.items() if k.startswith('train/')}
+            val_metrics = {k: v for k, v in self.best_metrics.items() if k.startswith('val/')}
+            test_metrics = {k: v for k, v in self.best_metrics.items() if k.startswith('test/')}
 
             for mode, metrics in [
-                ("TRAINING", train_metrics),
-                ("VALIDATION", val_metrics),
-                ("TEST", test_metrics),
+                ('TRAINING', train_metrics),
+                ('VALIDATION', val_metrics),
+                ('TEST', test_metrics),
             ]:
                 if metrics:
-                    print(f"\n{mode} METRICS:")
-                    print("-" * 40)
+                    print(f'\n{mode} METRICS:')
+                    print('-' * 40)
                     for metric_key, best_value in sorted(metrics.items()):
-                        metric_name = metric_key.split("/", 1)[1]
-                        optimization = self.metric_optimization_direction.get(metric_name, "max")
-                        print(f"  Best {metric_name}: {best_value:.6f} ({optimization})")
+                        metric_name = metric_key.split('/', 1)[1]
+                        optimization = self.metric_optimization_direction.get(metric_name, 'max')
+                        print(f'  Best {metric_name}: {best_value:.6f} ({optimization})')
 
-            print("=" * 60)
+            print('=' * 60)

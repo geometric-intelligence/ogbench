@@ -29,17 +29,17 @@ class TBOptimizer(AbstractOptimizer):
         optimizer_id = optimizer_id
         self.optimizer = functools.partial(TORCH_OPTIMIZERS[optimizer_id], **parameters)
         if scheduler is not None:
-            scheduler_id = scheduler.get("scheduler_id")
-            scheduler_params = scheduler.get("scheduler_params")
+            scheduler_id = scheduler.get('scheduler_id')
+            scheduler_params = scheduler.get('scheduler_params')
             self.scheduler = functools.partial(TORCH_SCHEDULERS[scheduler_id], **scheduler_params)
         else:
             self.scheduler = None
 
     def __repr__(self) -> str:
         if self.scheduler is not None:
-            return f"{self.__class__.__name__}(optimizer={self.optimizer.__name__}, scheduler={self.scheduler.__name__})"
+            return f'{self.__class__.__name__}(optimizer={self.optimizer.__name__}, scheduler={self.scheduler.__name__})'
         else:
-            return f"{self.__class__.__name__}(optimizer={self.optimizer.__name__})"
+            return f'{self.__class__.__name__}(optimizer={self.optimizer.__name__})'
 
     def configure_optimizer(self, model_parameters) -> dict[str:Any]:
         """Configure the optimizer and scheduler.
@@ -61,12 +61,12 @@ class TBOptimizer(AbstractOptimizer):
         if self.scheduler is not None:
             scheduler = self.scheduler(optimizer=optimizer)
             return {
-                "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "monitor": "val/loss",
-                    "interval": "epoch",
-                    "frequency": 1,
+                'optimizer': optimizer,
+                'lr_scheduler': {
+                    'scheduler': scheduler,
+                    'monitor': 'val/loss',
+                    'interval': 'epoch',
+                    'frequency': 1,
                 },
             }
-        return {"optimizer": optimizer}
+        return {'optimizer': optimizer}

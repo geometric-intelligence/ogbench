@@ -22,15 +22,15 @@ class TestDataFieldTransforms:
         self.data = Data(
             x=x,
             num_nodes=len(x),
-            field_1="some text",
+            field_1='some text',
             field_2=x.clone(),
             preserve_1=123,
             preserve_2=torch.tensor((1, 2, 3)),
         )
 
         self.keep_selected_fields = KeepSelectedDataFields(
-            base_fields=["x", "num_nodes"],
-            preserved_fields=["preserve_1", "preserve_2"],
+            base_fields=['x', 'num_nodes'],
+            preserved_fields=['preserve_1', 'preserve_2'],
         )
 
     def test_keep_selected_data_fields(self):
@@ -40,7 +40,7 @@ class TestDataFieldTransforms:
         """
         data = self.keep_selected_fields(self.data.clone())
         expected_fields = set(
-            self.keep_selected_fields.parameters["base_fields"]
-            + self.keep_selected_fields.parameters["preserved_fields"]
+            self.keep_selected_fields.parameters['base_fields']
+            + self.keep_selected_fields.parameters['preserved_fields']
         )
-        assert set(data.keys()) == expected_fields, "Some fields are not deleted"
+        assert set(data.keys()) == expected_fields, 'Some fields are not deleted'

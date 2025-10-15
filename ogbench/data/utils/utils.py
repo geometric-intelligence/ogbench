@@ -1,7 +1,6 @@
 """Data utilities."""
 
 import hashlib
-from typing import Optional
 
 import networkx as nx
 import numpy as np
@@ -18,8 +17,8 @@ class MeanStdNormalizer:
 
     def __init__(
         self,
-        mean: Optional[np.ndarray] = None,
-        std: Optional[np.ndarray] = None,
+        mean: np.ndarray | None = None,
+        std: np.ndarray | None = None,
     ) -> None:
         self.mean = mean
         self.std = std
@@ -32,20 +31,20 @@ class MeanStdNormalizer:
     def transform(self, x: np.ndarray) -> np.ndarray:
         """Normalize input array."""
         if self.mean is None or self.std is None:
-            raise ValueError("Normalizer must be fitted before use")
+            raise ValueError('Normalizer must be fitted before use')
         return (x - self.mean) / self.std
 
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         """Convert normalized data back to original scale."""
         if self.mean is None or self.std is None:
-            raise ValueError("Normalizer must be fitted before use")
+            raise ValueError('Normalizer must be fitted before use')
         return x * self.std + self.mean
 
 
 class MinMaxNormalizer:
     """Normalize target values using min-max scaling."""
 
-    def __init__(self, min_val: Optional[float] = None, max_val: Optional[float] = None) -> None:
+    def __init__(self, min_val: float | None = None, max_val: float | None = None) -> None:
         self.min_val = min_val
         self.max_val = max_val
 
@@ -57,13 +56,13 @@ class MinMaxNormalizer:
     def transform(self, x: np.ndarray) -> np.ndarray:
         """Normalize input array to [0, 1] range."""
         if self.min_val is None or self.max_val is None:
-            raise ValueError("Normalizer must be fitted before use")
+            raise ValueError('Normalizer must be fitted before use')
         return (x - self.min_val) / (self.max_val - self.min_val)
 
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         """Convert normalized data back to original scale."""
         if self.min_val is None or self.max_val is None:
-            raise ValueError("Normalizer must be fitted before use")
+            raise ValueError('Normalizer must be fitted before use')
         return x * (self.max_val - self.min_val) + self.min_val
 
 
@@ -84,10 +83,10 @@ def get_routes_from_neighborhoods(neighborhoods):
     """
     routes = []
     for neighborhood in neighborhoods:
-        split = neighborhood.split("-")
+        split = neighborhood.split('-')
         src_rank = int(split[-1])
         r = int(split[0]) if len(split) == 3 else 1
-        route = [src_rank, src_rank - r] if "down" in neighborhood else [src_rank, src_rank + r]
+        route = [src_rank, src_rank - r] if 'down' in neighborhood else [src_rank, src_rank + r]
         routes.append(route)
     return routes
 
@@ -115,36 +114,36 @@ def get_complex_connectivity(complex, max_rank, neighborhoods=None, signed=False
     connectivity = {}
     for rank_idx in range(max_rank + 1):
         for connectivity_info in [
-            "incidence",
-            "down_laplacian",
-            "up_laplacian",
-            "adjacency",
-            "coadjacency",
-            "hodge_laplacian",
+            'incidence',
+            'down_laplacian',
+            'up_laplacian',
+            'adjacency',
+            'coadjacency',
+            'hodge_laplacian',
         ]:
             # from_sparse doesn't have rank and signed
             try:
-                connectivity[f"{connectivity_info}_{rank_idx}"] = from_sparse(
-                    getattr(complex, f"{connectivity_info}_matrix")(rank=rank_idx, signed=signed)
+                connectivity[f'{connectivity_info}_{rank_idx}'] = from_sparse(
+                    getattr(complex, f'{connectivity_info}_matrix')(rank=rank_idx, signed=signed)
                 )
             except:  # noqa: E722
-                if connectivity_info == "incidence":
+                if connectivity_info == 'incidence':
                     connectivity[
-                        f"{connectivity_info}_{rank_idx}"
+                        f'{connectivity_info}_{rank_idx}'
                     ] = generate_zero_sparse_connectivity(
                         m=practical_shape[rank_idx - 1],
                         n=practical_shape[rank_idx],
                     )
                 else:
                     connectivity[
-                        f"{connectivity_info}_{rank_idx}"
+                        f'{connectivity_info}_{rank_idx}'
                     ] = generate_zero_sparse_connectivity(
                         m=practical_shape[rank_idx],
                         n=practical_shape[rank_idx],
                     )
     if neighborhoods is not None:
         connectivity = select_neighborhoods_of_interest(connectivity, neighborhoods)
-    connectivity["shape"] = practical_shape
+    connectivity['shape'] = practical_shape
     return connectivity
 
 
@@ -169,55 +168,55 @@ def get_combinatorial_complex_connectivity(complex, max_rank, neighborhoods=None
     connectivity = {}
     for rank_idx in range(max_rank + 1):
         for connectivity_info in [
-            "incidence",
-            "down_laplacian",
-            "up_laplacian",
-            "adjacency",
-            "coadjacency",
-            "hodge_laplacian",
+            'incidence',
+            'down_laplacian',
+            'up_laplacian',
+            'adjacency',
+            'coadjacency',
+            'hodge_laplacian',
         ]:
             try:
-                if connectivity_info == "adjacency":
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = from_sparse(
-                        getattr(complex, f"{connectivity_info}_matrix")(rank_idx, rank_idx + 1)
+                if connectivity_info == 'adjacency':
+                    connectivity[f'{connectivity_info}_{rank_idx}'] = from_sparse(
+                        getattr(complex, f'{connectivity_info}_matrix')(rank_idx, rank_idx + 1)
                     )
                 else:  # incidence
-                    connectivity[f"{connectivity_info}_{rank_idx}"] = from_sparse(
-                        getattr(complex, f"{connectivity_info}_matrix")(rank_idx - 1, rank_idx)
+                    connectivity[f'{connectivity_info}_{rank_idx}'] = from_sparse(
+                        getattr(complex, f'{connectivity_info}_matrix')(rank_idx - 1, rank_idx)
                     )
             except ValueError:
-                if connectivity_info == "incidence":
+                if connectivity_info == 'incidence':
                     connectivity[
-                        f"{connectivity_info}_{rank_idx}"
+                        f'{connectivity_info}_{rank_idx}'
                     ] = generate_zero_sparse_connectivity(
                         m=practical_shape[rank_idx - 1],
                         n=practical_shape[rank_idx],
                     )
                 else:
                     connectivity[
-                        f"{connectivity_info}_{rank_idx}"
+                        f'{connectivity_info}_{rank_idx}'
                     ] = generate_zero_sparse_connectivity(
                         m=practical_shape[rank_idx],
                         n=practical_shape[rank_idx],
                     )
             except AttributeError:
-                if connectivity_info == "incidence":
+                if connectivity_info == 'incidence':
                     connectivity[
-                        f"{connectivity_info}_{rank_idx}"
+                        f'{connectivity_info}_{rank_idx}'
                     ] = generate_zero_sparse_connectivity(
                         m=practical_shape[rank_idx - 1],
                         n=practical_shape[rank_idx],
                     )
                 else:
                     connectivity[
-                        f"{connectivity_info}_{rank_idx}"
+                        f'{connectivity_info}_{rank_idx}'
                     ] = generate_zero_sparse_connectivity(
                         m=practical_shape[rank_idx],
                         n=practical_shape[rank_idx],
                     )
     if neighborhoods is not None:
         connectivity = select_neighborhoods_of_interest(connectivity, neighborhoods)
-    connectivity["shape"] = practical_shape
+    connectivity['shape'] = practical_shape
     return connectivity
 
 
@@ -268,44 +267,44 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
 
     useful_connectivity = {}
     for neighborhood in neighborhoods:
-        src_rank = int(neighborhood.split("-")[-1])
+        src_rank = int(neighborhood.split('-')[-1])
         try:
-            if len(neighborhood.split("-")) == 2 or neighborhood.split("-")[0] == "1":
+            if len(neighborhood.split('-')) == 2 or neighborhood.split('-')[0] == '1':
                 r = 1
                 neighborhood_type = (
-                    neighborhood.split("-")[0]
-                    if neighborhood.split("-")[0] != "1"
-                    else neighborhood.split("-")[1]
+                    neighborhood.split('-')[0]
+                    if neighborhood.split('-')[0] != '1'
+                    else neighborhood.split('-')[1]
                 )
-                if "adjacency" in neighborhood_type:
+                if 'adjacency' in neighborhood_type:
                     useful_connectivity[neighborhood] = (
-                        connectivity[f"adjacency_{src_rank}"]
-                        if "up" in neighborhood_type
-                        else connectivity[f"coadjacency_{src_rank}"]
+                        connectivity[f'adjacency_{src_rank}']
+                        if 'up' in neighborhood_type
+                        else connectivity[f'coadjacency_{src_rank}']
                     )
-                elif "laplacian" in neighborhood_type:
+                elif 'laplacian' in neighborhood_type:
                     useful_connectivity[neighborhood] = connectivity[
-                        f"{neighborhood_type}_{src_rank}"
+                        f'{neighborhood_type}_{src_rank}'
                     ]
-                elif "incidence" in neighborhood_type:
+                elif 'incidence' in neighborhood_type:
                     useful_connectivity[neighborhood] = (
-                        connectivity[f"incidence_{src_rank + 1}"].T
-                        if "up" in neighborhood_type
-                        else connectivity[f"incidence_{src_rank}"]
+                        connectivity[f'incidence_{src_rank + 1}'].T
+                        if 'up' in neighborhood_type
+                        else connectivity[f'incidence_{src_rank}']
                     )
-            elif len(neighborhood.split("-")) == 3:
-                r = int(neighborhood.split("-")[0])
-                neighborhood_type = neighborhood.split("-")[1]
-                if "adjacency" in neighborhood_type or "laplacian" in neighborhood_type:
-                    direction, connectivity_type = neighborhood_type.split("_")
-                    if direction == "up":
+            elif len(neighborhood.split('-')) == 3:
+                r = int(neighborhood.split('-')[0])
+                neighborhood_type = neighborhood.split('-')[1]
+                if 'adjacency' in neighborhood_type or 'laplacian' in neighborhood_type:
+                    direction, connectivity_type = neighborhood_type.split('_')
+                    if direction == 'up':
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank + 1}"],
-                            connectivity[f"incidence_{src_rank + 2}"],
+                            connectivity[f'incidence_{src_rank + 1}'],
+                            connectivity[f'incidence_{src_rank + 2}'],
                         )
                         for idx in range(src_rank + 3, src_rank + r + 1):
-                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
+                            matrix = torch.sparse.mm(matrix, connectivity[f'incidence_{idx}'])
                         # Multiply the resulting matrix by its transpose to get the laplacian matrix
                         matrix = torch.sparse.mm(matrix, matrix.T)
                         # Turn all values to 1s
@@ -317,17 +316,17 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                         # Generate the adjacency matrix from the laplacian if needed
                         useful_connectivity[neighborhood] = (
                             generate_adjacency_from_laplacian(matrix)
-                            if "adjacency" in neighborhood_type
+                            if 'adjacency' in neighborhood_type
                             else matrix
                         )
-                    elif direction == "down":
+                    elif direction == 'down':
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank - r + 1}"],
-                            connectivity[f"incidence_{src_rank - r + 2}"],
+                            connectivity[f'incidence_{src_rank - r + 1}'],
+                            connectivity[f'incidence_{src_rank - r + 2}'],
                         )
                         for idx in range(src_rank - r + 3, src_rank + 1):
-                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
+                            matrix = torch.sparse.mm(matrix, connectivity[f'incidence_{idx}'])
                         # Multiply the resulting matrix by its transpose to get the laplacian matrix
                         matrix = torch.sparse.mm(matrix.T, matrix)
                         # Turn all values to 1s
@@ -339,33 +338,33 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                         # Generate the adjacency matrix from the laplacian if needed
                         useful_connectivity[neighborhood] = (
                             generate_adjacency_from_laplacian(matrix)
-                            if "adjacency" in neighborhood_type
+                            if 'adjacency' in neighborhood_type
                             else matrix
                         )
-                elif "incidence" in neighborhood_type:
-                    direction, connectivity_type = neighborhood_type.split("_")
-                    if direction == "up":
+                elif 'incidence' in neighborhood_type:
+                    direction, connectivity_type = neighborhood_type.split('_')
+                    if direction == 'up':
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank + 1}"],
-                            connectivity[f"incidence_{src_rank + 2}"],
+                            connectivity[f'incidence_{src_rank + 1}'],
+                            connectivity[f'incidence_{src_rank + 2}'],
                         )
                         for idx in range(src_rank + 3, src_rank + r + 1):
-                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
+                            matrix = torch.sparse.mm(matrix, connectivity[f'incidence_{idx}'])
                         # Turn all values to 1s and transpose the matrix
                         useful_connectivity[neighborhood] = torch.sparse_coo_tensor(
                             matrix.indices(),
                             matrix.values() / matrix.values(),
                             matrix.size(),
                         ).T
-                    elif direction == "down":
+                    elif direction == 'down':
                         # Multiply consecutive incidence matrices up to getting the desired rank
                         matrix = torch.sparse.mm(
-                            connectivity[f"incidence_{src_rank - r + 1}"],
-                            connectivity[f"incidence_{src_rank - r + 2}"],
+                            connectivity[f'incidence_{src_rank - r + 1}'],
+                            connectivity[f'incidence_{src_rank - r + 2}'],
                         )
                         for idx in range(src_rank - r + 3, src_rank + 1):
-                            matrix = torch.sparse.mm(matrix, connectivity[f"incidence_{idx}"])
+                            matrix = torch.sparse.mm(matrix, connectivity[f'incidence_{idx}'])
                         # Turn all values to 1s
                         useful_connectivity[neighborhood] = torch.sparse_coo_tensor(
                             matrix.indices(),
@@ -375,9 +374,9 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
             else:
                 useful_connectivity[neighborhood] = connectivity[neighborhood]
         except:  # noqa: E722
-            raise ValueError(f"Invalid neighborhood {neighborhood}")  # noqa: B904
+            raise ValueError(f'Invalid neighborhood {neighborhood}')  # noqa: B904
     for key in connectivity:
-        if "incidence" in key and "-" not in key:
+        if 'incidence' in key and '-' not in key:
             useful_connectivity[key] = connectivity[key]
     return useful_connectivity
 
@@ -409,7 +408,7 @@ def load_manual_graph():
         Manual graph.
     """
     # Define the vertices (just 8 vertices)
-    vertices = [i for i in range(8)]
+    vertices = list(range(8))
     y = [0, 1, 1, 1, 0, 0, 0, 0]
     # Define the edges
     edges = [
@@ -466,7 +465,7 @@ def load_manual_graph_second_structure():
         A simple graph data object.
     """
     # Define the vertices (12 vertices, based on the highest index in edges)
-    vertices = [i for i in range(12)]
+    vertices = list(range(12))
     y = [0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0]
 
     # Updated edges
@@ -578,22 +577,22 @@ def data2simplicial(data):
     sc = SimplicialComplex()
 
     # Nodes as single-element lists
-    nodes = [[i] for i in range(data["incidence_0"].shape[1])]
+    nodes = [[i] for i in range(data['incidence_0'].shape[1])]
 
     # Convert edges to a list of pairs
-    edges = torch_geometric.utils.remove_self_loops(data["adjacency_0"].indices())[0].T.tolist()
+    edges = torch_geometric.utils.remove_self_loops(data['adjacency_0'].indices())[0].T.tolist()
 
     # Detect triangles if incidence_1 and incidence_2 exist
     triangles = (
-        find_triangles(data["incidence_1"], data["incidence_2"])
-        if "incidence_1" in data and "incidence_2" in data
+        find_triangles(data['incidence_1'], data['incidence_2'])
+        if 'incidence_1' in data and 'incidence_2' in data
         else []
     )
 
     # Detect tetrahedrons if incidence_3 exists
     tetrahedrons = (
-        find_tetrahedrons(data["incidence_1"], data["incidence_2"], data["incidence_3"])
-        if "incidence_3" in data
+        find_tetrahedrons(data['incidence_1'], data['incidence_2'], data['incidence_3'])
+        if 'incidence_3' in data
         else []
     )
 

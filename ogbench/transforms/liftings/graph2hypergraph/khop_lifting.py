@@ -26,7 +26,7 @@ class HypergraphKHopLifting(Graph2HypergraphLifting):
         self.k = k_value
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(k={self.k!r})"
+        return f'{self.__class__.__name__}(k={self.k!r})'
 
     def lift_topology(self, data: torch_geometric.data.Data) -> dict:
         r"""Lift a graphs to hypergraphs by considering k-hop neighborhoods.
@@ -42,7 +42,7 @@ class HypergraphKHopLifting(Graph2HypergraphLifting):
             The lifted topology.
         """
         # Check if data has instance x:
-        if hasattr(data, "x") and data.x is not None:
+        if hasattr(data, 'x') and data.x is not None:
             num_nodes = data.x.shape[0]
         else:
             num_nodes = data.num_nodes
@@ -69,7 +69,7 @@ class HypergraphKHopLifting(Graph2HypergraphLifting):
         num_hyperedges = incidence_1.shape[1]
         incidence_1 = torch.Tensor(incidence_1).to_sparse_coo()
         return {
-            "incidence_hyperedges": incidence_1,
-            "num_hyperedges": num_hyperedges,
-            "x_0": data.x,
+            'incidence_hyperedges': incidence_1,
+            'num_hyperedges': num_hyperedges,
+            'x_0': data.x,
         }

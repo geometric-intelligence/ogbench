@@ -1,6 +1,5 @@
 """Test IdentityTransform class."""
 
-import pytest
 import torch
 from torch_geometric.data import Data
 
@@ -16,27 +15,27 @@ class TestIdentityTransform:
 
     def test_initialization(self):
         """Test initialization of the transform."""
-        assert self.transform.type == "domain2domain"
+        assert self.transform.type == 'domain2domain'
         assert isinstance(self.transform.parameters, dict)
         assert len(self.transform.parameters) == 0
 
         # Test with custom parameters
-        params = {"param1": "value1", "param2": 42}
+        params = {'param1': 'value1', 'param2': 42}
         transform = IdentityTransform(**params)
         assert transform.parameters == params
 
     def test_repr(self):
         """Test string representation of the transform."""
         repr_str = repr(self.transform)
-        assert "IdentityTransform" in repr_str
-        assert "domain2domain" in repr_str
-        assert "parameters={}" in repr_str
+        assert 'IdentityTransform' in repr_str
+        assert 'domain2domain' in repr_str
+        assert 'parameters={}' in repr_str
 
         # Test repr with parameters
-        transform = IdentityTransform(param="test")
+        transform = IdentityTransform(param='test')
         repr_str = repr(transform)
-        assert "param" in repr_str
-        assert "test" in repr_str
+        assert 'param' in repr_str
+        assert 'test' in repr_str
 
     def test_forward_simple_graph(self):
         """Test transform on a simple graph."""
@@ -57,7 +56,7 @@ class TestIdentityTransform:
         x = torch.tensor([[1.0], [2.0]])
         edge_attr = torch.tensor([[1.0], [1.0]])
         custom_tensor = torch.randn(5, 3)
-        custom_string = "test_string"
+        custom_string = 'test_string'
         custom_int = 42
 
         data = Data(

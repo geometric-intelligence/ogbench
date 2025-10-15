@@ -1,6 +1,5 @@
 """Test GroupCombinatorialHomophily transform."""
 
-import pytest
 import torch
 from torch_geometric.data import Data
 
@@ -18,7 +17,7 @@ class TestGroupCombinatorialHomophily:
         """Test initialization with different parameters."""
         # Test default initialization
         default_transform = GroupCombinatorialHomophily()
-        assert default_transform.type == "calcualte_group_combinatorial_homophily"
+        assert default_transform.type == 'calcualte_group_combinatorial_homophily'
         assert default_transform.top_k == 3
 
         # Test custom initialization
@@ -28,8 +27,8 @@ class TestGroupCombinatorialHomophily:
     def test_repr(self):
         """Test string representation."""
         repr_str = repr(self.transform)
-        assert "GroupCombinatorialHomophily" in repr_str
-        assert "calcualte_group_combinatorial_homophily" in repr_str
+        assert 'GroupCombinatorialHomophily' in repr_str
+        assert 'calcualte_group_combinatorial_homophily' in repr_str
 
     def test_simple_hypergraph(self):
         """Test transform on a simple hypergraph."""
@@ -47,16 +46,16 @@ class TestGroupCombinatorialHomophily:
 
         transformed = self.transform(data)
 
-        assert "group_combinatorial_homophily" in transformed
-        result = transformed["group_combinatorial_homophily"]
+        assert 'group_combinatorial_homophily' in transformed
+        result = transformed['group_combinatorial_homophily']
 
         # Should have entry for hyperedges of size 2
-        assert "he_card=2" in result
+        assert 'he_card=2' in result
         # Check matrices exist
-        assert "D" in result["he_card=2"]
-        assert "Dt" in result["he_card=2"]
-        assert "Bt" in result["he_card=2"]
-        assert "num_hyperedges" in result["he_card=2"]
+        assert 'D' in result['he_card=2']
+        assert 'Dt' in result['he_card=2']
+        assert 'Bt' in result['he_card=2']
+        assert 'num_hyperedges' in result['he_card=2']
 
     def test_mixed_size_hyperedges(self):
         """Test transform with hyperedges of different sizes."""
@@ -75,11 +74,11 @@ class TestGroupCombinatorialHomophily:
         )
 
         transformed = self.transform(data)
-        result = transformed["group_combinatorial_homophily"]
+        result = transformed['group_combinatorial_homophily']
 
         # Should capture the two most frequent sizes
         assert len(result) <= self.transform.top_k
-        assert any("he_card=2" in key for key in result.keys())
+        assert any('he_card=2' in key for key in result.keys())
 
     def test_single_class(self):
         """Test transform when all nodes belong to the same class."""
@@ -93,12 +92,12 @@ class TestGroupCombinatorialHomophily:
         )
 
         transformed = self.transform(data)
-        result = transformed["group_combinatorial_homophily"]
+        result = transformed['group_combinatorial_homophily']
 
         for size_data in result.values():
-            assert size_data["Dt"].shape[0] == 1  # Only one class
-            assert not torch.isnan(size_data["Dt"]).any()
-            assert not torch.isnan(size_data["Bt"]).any()
+            assert size_data['Dt'].shape[0] == 1  # Only one class
+            assert not torch.isnan(size_data['Dt']).any()
+            assert not torch.isnan(size_data['Bt']).any()
 
     def test_empty_hypergraph(self):
         """Test transform on empty hypergraph."""
@@ -108,8 +107,8 @@ class TestGroupCombinatorialHomophily:
         )
 
         transformed = self.transform(data)
-        assert "group_combinatorial_homophily" in transformed
-        assert isinstance(transformed["group_combinatorial_homophily"], dict)
+        assert 'group_combinatorial_homophily' in transformed
+        assert isinstance(transformed['group_combinatorial_homophily'], dict)
 
     def test_affinity_score(self):
         """Test affinity score calculation."""
@@ -152,9 +151,9 @@ class TestGroupCombinatorialHomophily:
         data = Data(
             incidence_hyperedges=incidence.to_sparse(),
             y=torch.tensor([0, 1, 0]),
-            custom_attr="test",
+            custom_attr='test',
         )
 
         transformed = self.transform(data)
-        assert transformed.custom_attr == "test"
+        assert transformed.custom_attr == 'test'
         assert torch.equal(transformed.y, data.y)

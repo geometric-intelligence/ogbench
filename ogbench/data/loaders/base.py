@@ -20,10 +20,10 @@ class AbstractLoader(ABC):
 
     def __init__(self, parameters: DictConfig):
         self.parameters = parameters
-        self.root_data_dir = Path(parameters["data_dir"])
+        self.root_data_dir = Path(parameters['data_dir'])
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(parameters={self.parameters})"
+        return f'{self.__class__.__name__}(parameters={self.parameters})'
 
     def get_data_dir(self) -> Path:
         """Get the data directory.

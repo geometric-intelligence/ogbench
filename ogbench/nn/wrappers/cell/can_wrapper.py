@@ -34,7 +34,7 @@ class CANWrapper(AbstractWrapper):
             up_laplacian_1=batch.up_laplacian_1.coalesce(),
         )
 
-        model_out = {"labels": batch.y, "batch_0": batch.batch_0}
-        model_out["x_1"] = x_1
-        model_out["x_0"] = torch.sparse.mm(batch.incidence_1, x_1)
+        model_out = {'labels': batch.y, 'batch_0': batch.batch_0}
+        model_out['x_1'] = x_1
+        model_out['x_0'] = torch.sparse.mm(batch.incidence_1, x_1)
         return model_out

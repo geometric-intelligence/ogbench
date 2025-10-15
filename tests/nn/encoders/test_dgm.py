@@ -1,12 +1,10 @@
 """Unit tests for the DGMStructureFeatureEncoder module."""
 
-import numpy as np
 import pytest
 import torch
 import torch_geometric
 
 from ogbench.nn.encoders import DGMStructureFeatureEncoder
-from ogbench.nn.encoders.kdgm import DGM_d
 
 
 class TestDGMStructureFeatureEncoder:
@@ -51,7 +49,7 @@ class TestDGMStructureFeatureEncoder:
         encoder = DGMStructureFeatureEncoder(in_channels=[5, 7, 9], out_channels=64)
 
         # Test __repr__ method
-        repr_str = encoder.__repr__()
+        encoder.__repr__()
 
         # Check basic attributes
         assert encoder.in_channels == [5, 7, 9]
@@ -78,15 +76,15 @@ class TestDGMStructureFeatureEncoder:
         # Check output attributes
         for i in [0, 1, 2]:
             # Check encoded features exist
-            assert hasattr(output_data, f"x_{i}")
-            assert output_data[f"x_{i}"].shape[1] == 64
+            assert hasattr(output_data, f'x_{i}')
+            assert output_data[f'x_{i}'].shape[1] == 64
 
             # Check auxiliary attributes
-            assert hasattr(output_data, f"x_aux_{i}")
-            assert hasattr(output_data, f"logprobs_{i}")
+            assert hasattr(output_data, f'x_aux_{i}')
+            assert hasattr(output_data, f'logprobs_{i}')
 
         # Check edges index exists
-        assert "edges_index" in output_data
+        assert 'edges_index' in output_data
 
     def test_selective_encoding(self, sample_data):
         """Test encoding only specific dimensions.
@@ -106,10 +104,10 @@ class TestDGMStructureFeatureEncoder:
         output_data = encoder(sample_data)
 
         # Verify encoding for selected dimensions
-        assert hasattr(output_data, "x_1")
-        assert output_data["x_0"].shape[1] == 64
-        assert output_data["x_1"].shape[1] == 64
-        assert output_data["x_2"].shape[1] == 9
+        assert hasattr(output_data, 'x_1')
+        assert output_data['x_0'].shape[1] == 64
+        assert output_data['x_1'].shape[1] == 64
+        assert output_data['x_2'].shape[1] == 9
 
     def test_dropout_configuration(self):
         """Test dropout configuration for the encoder."""
@@ -120,12 +118,12 @@ class TestDGMStructureFeatureEncoder:
 
         # Check dropout value
         for i in encoder.dimensions:
-            encoder_module = getattr(encoder, f"encoder_{i}")
+            encoder_module = getattr(encoder, f'encoder_{i}')
             assert encoder_module.base_enc.dropout.p == 0.5
             assert encoder_module.embed_f.dropout.p == 0.5
 
     @pytest.mark.parametrize(
-        "in_channels",
+        'in_channels',
         [
             [5],  # Single dimension
             [5, 7, 9],  # Multiple dimensions
@@ -147,16 +145,16 @@ class TestDGMStructureFeatureEncoder:
         # Prepare data dynamically
         data = torch_geometric.data.Data()
         for i, channel in enumerate(in_channels):
-            setattr(data, f"x_{i}", torch.randn(10, channel))
-            setattr(data, f"batch_{i}", torch.zeros(10, dtype=torch.long))
+            setattr(data, f'x_{i}', torch.randn(10, channel))
+            setattr(data, f'batch_{i}', torch.zeros(10, dtype=torch.long))
 
         # Perform forward pass
         output_data = encoder(data)
 
         # Verify encoding for each dimension
         for i in range(len(in_channels)):
-            assert hasattr(output_data, f"x_{i}")
-            assert output_data[f"x_{i}"].shape[1] == 64
+            assert hasattr(output_data, f'x_{i}')
+            assert output_data[f'x_{i}'].shape[1] == 64
 
 
 def pytest_configure():

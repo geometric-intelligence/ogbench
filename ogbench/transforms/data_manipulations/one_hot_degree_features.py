@@ -34,14 +34,14 @@ class OneHotDegreeFeatures(torch_geometric.transforms.BaseTransform):
         **kwargs,
     ) -> None:
         super().__init__()
-        self.type = "one_hot_degree_features"
+        self.type = 'one_hot_degree_features'
         self.max_degree = max_degree
         self.degrees_field = degrees_fields
         self.features_field = features_fields
         self.cat = cat
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r}, max_degree={self.max_degree}, degrees_field={self.deg_field!r}, features_field={self.features_fields!r})"
+        return f'{self.__class__.__name__}(type={self.type!r}, max_degree={self.max_degree}, degrees_field={self.deg_field!r}, features_field={self.features_fields!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.

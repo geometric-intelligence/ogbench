@@ -57,12 +57,12 @@ class TestHypergraphKNNLifting:
         )
 
         assert torch.equal(
-            lifted_data_k2["incidence_hyperedges"].to_dense(),
+            lifted_data_k2['incidence_hyperedges'].to_dense(),
             expected_incidence_1,
-        ), "Incorrect incidence_hyperedges for k=2"
+        ), 'Incorrect incidence_hyperedges for k=2'
 
-        assert lifted_data_k2["num_hyperedges"] == expected_n_hyperedges
-        assert torch.equal(lifted_data_k2["x_0"], simple_graph_2.x)
+        assert lifted_data_k2['num_hyperedges'] == expected_n_hyperedges
+        assert torch.equal(lifted_data_k2['x_0'], simple_graph_2.x)
 
     def test_lift_topology_k3(self, simple_graph_2):
         """Test the lift_topology method with k=3.
@@ -90,12 +90,12 @@ class TestHypergraphKNNLifting:
         )
 
         assert torch.equal(
-            lifted_data_k3["incidence_hyperedges"].to_dense(),
+            lifted_data_k3['incidence_hyperedges'].to_dense(),
             expected_incidence_1,
-        ), "Incorrect incidence_hyperedges for k=3"
+        ), 'Incorrect incidence_hyperedges for k=3'
 
-        assert lifted_data_k3["num_hyperedges"] == expected_n_hyperedges
-        assert torch.equal(lifted_data_k3["x_0"], simple_graph_2.x)
+        assert lifted_data_k3['num_hyperedges'] == expected_n_hyperedges
+        assert torch.equal(lifted_data_k3['x_0'], simple_graph_2.x)
 
     def test_lift_topology_no_loop(self, simple_graph_2):
         """Test the lift_topology method with loop=False.
@@ -108,9 +108,9 @@ class TestHypergraphKNNLifting:
         lifted_data = self.lifting_no_loop.lift_topology(simple_graph_2.clone())
 
         # Verify no self-loops in the incidence matrix
-        incidence_matrix = lifted_data["incidence_hyperedges"].to_dense()
+        incidence_matrix = lifted_data['incidence_hyperedges'].to_dense()
         diagonal = torch.diag(incidence_matrix)
-        assert not torch.any(diagonal), "Self-loops found when loop=False"
+        assert not torch.any(diagonal), 'Self-loops found when loop=False'
 
     def test_lift_topology_with_equal_features(self):
         """Test lift_topology with nodes having equal features."""
@@ -123,11 +123,11 @@ class TestHypergraphKNNLifting:
         lifted_data = self.lifting_k2.lift_topology(data)
 
         # Verify the shape of the output
-        assert lifted_data["incidence_hyperedges"].size() == (4, 4)
-        assert lifted_data["num_hyperedges"] == 4
-        assert torch.equal(lifted_data["x_0"], data.x)
+        assert lifted_data['incidence_hyperedges'].size() == (4, 4)
+        assert lifted_data['num_hyperedges'] == 4
+        assert torch.equal(lifted_data['x_0'], data.x)
 
-    @pytest.mark.parametrize("k_value", [1, 2, 3, 4])
+    @pytest.mark.parametrize('k_value', [1, 2, 3, 4])
     def test_different_k_values(self, k_value, simple_graph_2):
         """Test lift_topology with different k values.
 
@@ -142,13 +142,13 @@ class TestHypergraphKNNLifting:
         lifted_data = lifting.lift_topology(simple_graph_2.clone())
 
         # Verify basic properties
-        assert lifted_data["num_hyperedges"] == simple_graph_2.x.size(0)
-        incidence_matrix = lifted_data["incidence_hyperedges"].to_dense()
+        assert lifted_data['num_hyperedges'] == simple_graph_2.x.size(0)
+        incidence_matrix = lifted_data['incidence_hyperedges'].to_dense()
 
         # Check that each node is connected to at most k nodes
         assert torch.all(
             incidence_matrix.sum(dim=1) <= k_value
-        ), f"Some nodes are connected to more than {k_value} neighbors"
+        ), f'Some nodes are connected to more than {k_value} neighbors'
 
     def test_invalid_inputs(self):
         """Test handling of invalid inputs and edge cases."""
@@ -163,9 +163,9 @@ class TestHypergraphKNNLifting:
             edge_index=torch.tensor([[0], [0]]),
         )
         lifted_single = self.lifting_k2.lift_topology(single_node_data)
-        assert lifted_single["num_hyperedges"] == 1
-        assert lifted_single["incidence_hyperedges"].size() == (1, 1)
-        assert torch.equal(lifted_single["x_0"], single_node_data.x)
+        assert lifted_single['num_hyperedges'] == 1
+        assert lifted_single['incidence_hyperedges'].size() == (1, 1)
+        assert torch.equal(lifted_single['x_0'], single_node_data.x)
 
         # Test with identical nodes (edge case that should work)
         identical_nodes_data = Data(
@@ -173,16 +173,16 @@ class TestHypergraphKNNLifting:
             edge_index=torch.tensor([[0, 1], [1, 0]]),
         )
         lifted_identical = self.lifting_k2.lift_topology(identical_nodes_data)
-        assert lifted_identical["num_hyperedges"] == 2
-        assert lifted_identical["incidence_hyperedges"].size() == (2, 2)
-        assert torch.equal(lifted_identical["x_0"], identical_nodes_data.x)
+        assert lifted_identical['num_hyperedges'] == 2
+        assert lifted_identical['incidence_hyperedges'].size() == (2, 2)
+        assert torch.equal(lifted_identical['x_0'], identical_nodes_data.x)
 
         # Test with missing edge_index (this should work as KNNGraph will create edges)
         data_no_edges = Data(x=torch.tensor([[1.0], [2.0]], dtype=torch.float))
         lifted_no_edges = self.lifting_k2.lift_topology(data_no_edges)
-        assert lifted_no_edges["num_hyperedges"] == 2
-        assert lifted_no_edges["incidence_hyperedges"].size() == (2, 2)
-        assert torch.equal(lifted_no_edges["x_0"], data_no_edges.x)
+        assert lifted_no_edges['num_hyperedges'] == 2
+        assert lifted_no_edges['incidence_hyperedges'].size() == (2, 2)
+        assert torch.equal(lifted_no_edges['x_0'], data_no_edges.x)
 
         # Test with no data (should raise AttributeError)
         with pytest.raises(AttributeError):
@@ -194,23 +194,23 @@ class TestHypergraphKNNLifting:
             edge_index=torch.tensor([], dtype=torch.long).reshape(2, 0),
         )
         lifted_empty = self.lifting_k2.lift_topology(empty_data)
-        assert lifted_empty["num_hyperedges"] == 0
-        assert lifted_empty["incidence_hyperedges"].size(0) == 0
+        assert lifted_empty['num_hyperedges'] == 0
+        assert lifted_empty['incidence_hyperedges'].size(0) == 0
 
     def test_invalid_initialization(self):
         """Test invalid initialization parameters."""
         # Test with non-integer k_value
-        with pytest.raises(TypeError, match="k_value must be an integer"):
+        with pytest.raises(TypeError, match='k_value must be an integer'):
             HypergraphKNNLifting(k_value=1.5)
 
         # Test with zero k_value
-        with pytest.raises(ValueError, match="k_value must be greater than or equal to 1"):
+        with pytest.raises(ValueError, match='k_value must be greater than or equal to 1'):
             HypergraphKNNLifting(k_value=0)
 
         # Test with negative k_value
-        with pytest.raises(ValueError, match="k_value must be greater than or equal to 1"):
+        with pytest.raises(ValueError, match='k_value must be greater than or equal to 1'):
             HypergraphKNNLifting(k_value=-1)
 
         # Test with non-boolean loop
-        with pytest.raises(TypeError, match="loop must be a boolean"):
-            HypergraphKNNLifting(k_value=1, loop="True")
+        with pytest.raises(TypeError, match='loop must be a boolean'):
+            HypergraphKNNLifting(k_value=1, loop='True')

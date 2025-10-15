@@ -7,8 +7,8 @@ import pytest
 from ogbench.utils import log_hyperparameters
 
 
-@patch("ogbench.utils.logging_utils.pylogger.RankedLogger.warning")
-@patch("ogbench.utils.logging_utils.OmegaConf.to_container")
+@patch('ogbench.utils.logging_utils.pylogger.RankedLogger.warning')
+@patch('ogbench.utils.logging_utils.OmegaConf.to_container')
 def test_log_hyperparameters(mock_to_container, mock_warning):
     """Test the log_hyperparameters function.
 
@@ -26,20 +26,20 @@ def test_log_hyperparameters(mock_to_container, mock_warning):
     mock_trainer.logger = True  # Ensure logger is present
 
     object_dict = {
-        "cfg": mock_cfg,
-        "model": mock_model,
-        "trainer": mock_trainer,
+        'cfg': mock_cfg,
+        'model': mock_model,
+        'trainer': mock_trainer,
     }
 
     # Mock the OmegaConf.to_container return value to include all required keys
     mock_to_container.return_value = {
-        "model": "mock_model",
-        "dataset": "mock_dataset",
-        "trainer": "mock_trainer",
-        "callbacks": "mock_callbacks",
-        "extras": "mock_extras",
-        "task_name": "mock_task_name",
-        "tags": "mock_tags",
+        'model': 'mock_model',
+        'dataset': 'mock_dataset',
+        'trainer': 'mock_trainer',
+        'callbacks': 'mock_callbacks',
+        'extras': 'mock_extras',
+        'task_name': 'mock_task_name',
+        'tags': 'mock_tags',
     }
 
     # Call the function
@@ -58,8 +58,8 @@ def test_log_hyperparameters(mock_to_container, mock_warning):
     log_hyperparameters(object_dict)
 
     # Check if the warning was called
-    mock_warning.assert_called_once_with("Logger not found! Skipping hyperparameter logging...")
+    mock_warning.assert_called_once_with('Logger not found! Skipping hyperparameter logging...')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main()

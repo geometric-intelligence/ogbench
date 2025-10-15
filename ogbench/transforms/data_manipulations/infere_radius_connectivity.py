@@ -17,11 +17,11 @@ class InfereRadiusConnectivity(torch_geometric.transforms.BaseTransform):
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.type = "infer_radius_connectivity"
+        self.type = 'infer_radius_connectivity'
         self.parameters = kwargs
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})"
+        return f'{self.__class__.__name__}(type={self.type!r}, parameters={self.parameters!r})'
 
     def forward(self, data: torch_geometric.data.Data):
         r"""Apply the transform to the input data.
@@ -36,5 +36,5 @@ class InfereRadiusConnectivity(torch_geometric.transforms.BaseTransform):
         torch_geometric.data.Data
             The transformed data.
         """
-        data.edge_index = radius_graph(data.x, **self.parameters["args"])
+        data.edge_index = radius_graph(data.x, **self.parameters['args'])
         return data

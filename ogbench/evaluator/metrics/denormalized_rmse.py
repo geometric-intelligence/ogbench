@@ -46,18 +46,18 @@ class DenormalizedRMSE(Metric):
 
         if not isinstance(num_outputs, int) or num_outputs <= 0:
             raise ValueError(
-                f"Expected num_outputs to be a positive integer but got {num_outputs}"
+                f'Expected num_outputs to be a positive integer but got {num_outputs}'
             )
         self.num_outputs = num_outputs
         self.target_mean = target_mean
         self.target_std = target_std
 
         self.add_state(
-            "sum_squared_error",
+            'sum_squared_error',
             default=torch.zeros(num_outputs),
-            dist_reduce_fx="sum",
+            dist_reduce_fx='sum',
         )
-        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state('total', default=torch.tensor(0), dist_reduce_fx='sum')
 
     def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
         """Update state with predictions and targets.

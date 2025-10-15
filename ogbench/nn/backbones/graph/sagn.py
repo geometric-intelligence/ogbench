@@ -1,5 +1,4 @@
 import math
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -18,10 +17,10 @@ class SAGN(nn.Module):
         dropout,
         num_layers=2,
         num_heads=1,
-        weight_style="attention",
+        weight_style='attention',
         alpha=0.5,
-        focal="first",
-        hop_norm="softmax",
+        focal='first',
+        hop_norm='softmax',
         input_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
@@ -58,7 +57,7 @@ class SAGN(nn.Module):
         )
         self.res_fc = nn.Linear(in_feats, hidden * num_heads, bias=False)
 
-        if weight_style == "attention":
+        if weight_style == 'attention':
             self.hop_attn_l = nn.Parameter(torch.FloatTensor(size=(1, num_heads, hidden)))
             self.hop_attn_r = nn.Parameter(torch.FloatTensor(size=(1, num_heads, hidden)))
             self.leaky_relu = nn.LeakyReLU(negative_slope)
@@ -72,11 +71,11 @@ class SAGN(nn.Module):
         # self.reset_parameters()
 
     def reset_parameters(self):
-        gain = nn.init.calculate_gain("relu")
+        gain = nn.init.calculate_gain('relu')
         for encoder in self.multihop_encoders:
             encoder.reset_parameters()
         nn.init.xavier_uniform_(self.res_fc.weight, gain=gain)
-        if self._weight_style == "attention":
+        if self._weight_style == 'attention':
             if self._zero_inits:
                 nn.init.zeros_(self.hop_attn_l)
                 nn.init.zeros_(self.hop_attn_r)
@@ -100,12 +99,12 @@ class SAGN(nn.Module):
             )
 
         a = None
-        if self._weight_style == "attention":
-            if self._focal == "first":
+        if self._weight_style == 'attention':
+            if self._focal == 'first':
                 focal_feat = hidden[0]
-            if self._focal == "last":
+            if self._focal == 'last':
                 focal_feat = hidden[-1]
-            if self._focal == "average":
+            if self._focal == 'average':
                 focal_feat = 0
                 for h in hidden:
                     focal_feat += h
@@ -114,23 +113,23 @@ class SAGN(nn.Module):
             astack_l = [(h * self.hop_attn_l).sum(dim=-1).unsqueeze(-1) for h in hidden]
             a_r = (focal_feat * self.hop_attn_r).sum(dim=-1).unsqueeze(-1)
             astack = torch.stack([(a_l + a_r) for a_l in astack_l], dim=-1)
-            if self._hop_norm == "softmax":
+            if self._hop_norm == 'softmax':
                 a = self.leaky_relu(astack)
                 a = F.softmax(a, dim=-1)
-            if self._hop_norm == "sigmoid":
+            if self._hop_norm == 'sigmoid':
                 a = torch.sigmoid(astack)
-            if self._hop_norm == "tanh":
+            if self._hop_norm == 'tanh':
                 a = torch.tanh(astack)
             a = self.attn_dropout(a)
 
             for i in range(a.shape[-1]):
                 out += hidden[i] * a[:, :, :, i]
 
-        if self._weight_style == "uniform":
+        if self._weight_style == 'uniform':
             for h in hidden:
                 out += h / len(hidden)
 
-        if self._weight_style == "exponent":
+        if self._weight_style == 'exponent':
             for k, h in enumerate(hidden):
                 out += self._alpha**k * h
 
@@ -159,7 +158,7 @@ class MultiHeadLinear(nn.Module):
             self.bias = None
 
     def reset_parameters(self) -> None:
-        for weight, bias in zip(self.weight, self.bias):
+        for weight, bias in zip(self.weight, self.bias, strict=True):
             nn.init.kaiming_uniform_(weight, a=math.sqrt(5))
             if bias is not None:
                 fan_in, _ = nn.init._calculate_fan_in_and_fan_out(weight)
@@ -181,7 +180,6 @@ class MultiHeadLinear(nn.Module):
 # Modified multi-head BatchNorm1d layer
 class MultiHeadBatchNorm(nn.Module):
     def __init__(self, n_heads, in_feats, momentum=0.1, affine=True, device=None, dtype=None):
-        factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
         assert in_feats % n_heads == 0
         self._in_feats = in_feats
@@ -192,13 +190,13 @@ class MultiHeadBatchNorm(nn.Module):
             self.weight = nn.Parameter(torch.empty(size=(n_heads, in_feats // n_heads)))
             self.bias = nn.Parameter(torch.empty(size=(n_heads, in_feats // n_heads)))
         else:
-            self.register_parameter("weight", None)
-            self.register_parameter("bias", None)
+            self.register_parameter('weight', None)
+            self.register_parameter('bias', None)
 
-        self.register_buffer("running_mean", torch.zeros(size=(n_heads, in_feats // n_heads)))
-        self.register_buffer("running_var", torch.ones(size=(n_heads, in_feats // n_heads)))
-        self.running_mean: Optional[Tensor]
-        self.running_var: Optional[Tensor]
+        self.register_buffer('running_mean', torch.zeros(size=(n_heads, in_feats // n_heads)))
+        self.register_buffer('running_var', torch.ones(size=(n_heads, in_feats // n_heads)))
+        self.running_mean: Tensor | None
+        self.running_var: Tensor | None
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -248,7 +246,7 @@ class GroupMLP(nn.Module):
         dropout,
         input_drop=0.0,
         residual=False,
-        normalization="batch",
+        normalization='batch',
     ):
         super().__init__()
         self._residual = residual
@@ -263,19 +261,19 @@ class GroupMLP(nn.Module):
             self.layers.append(MultiHeadLinear(in_feats, out_feats, n_heads))
         else:
             self.layers.append(MultiHeadLinear(in_feats, hidden, n_heads))
-            if normalization == "batch":
+            if normalization == 'batch':
                 self.norms.append(MultiHeadBatchNorm(n_heads, hidden * n_heads))
-            if normalization == "layer":
+            if normalization == 'layer':
                 self.norms.append(nn.GroupNorm(n_heads, hidden * n_heads))
-            if normalization == "none":
+            if normalization == 'none':
                 self.norms.append(nn.Identity())
-            for i in range(self._n_layers - 2):
+            for _ in range(self._n_layers - 2):
                 self.layers.append(MultiHeadLinear(hidden, hidden, n_heads))
-                if normalization == "batch":
+                if normalization == 'batch':
                     self.norms.append(MultiHeadBatchNorm(n_heads, hidden * n_heads))
-                if normalization == "layer":
+                if normalization == 'layer':
                     self.norms.append(nn.GroupNorm(n_heads, hidden * n_heads))
-                if normalization == "none":
+                if normalization == 'none':
                     self.norms.append(nn.Identity())
             self.layers.append(MultiHeadLinear(hidden, out_feats, n_heads))
         if self._n_layers > 1:
@@ -292,7 +290,7 @@ class GroupMLP(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        gain = nn.init.calculate_gain("relu")
+        gain = nn.init.calculate_gain('relu')
 
         for head in range(self._n_heads):
             for layer in self.layers:

@@ -31,19 +31,19 @@ class TestConnectivityTransforms:
         )
 
         # Initialize transforms
-        self.infer_by_knn = InfereKNNConnectivity(args={"k": 3})
-        self.infer_by_radius = InfereRadiusConnectivity(args={"r": 1.0})
+        self.infer_by_knn = InfereKNNConnectivity(args={'k': 3})
+        self.infer_by_radius = InfereRadiusConnectivity(args={'r': 1.0})
 
     def test_infer_knn_connectivity(self):
         """Test inferring connectivity using k-nearest neighbors."""
         data = self.infer_by_knn(self.data.clone())
-        assert "edge_index" in data, "No edges in Data object"
+        assert 'edge_index' in data, 'No edges in Data object'
         assert data.edge_index.size(0) == 2
         assert data.edge_index.size(1) > 0
 
     def test_radius_connectivity(self):
         """Test inferring connectivity by radius."""
         data = self.infer_by_radius(self.data.clone())
-        assert "edge_index" in data, "No edges in Data object"
+        assert 'edge_index' in data, 'No edges in Data object'
         assert data.edge_index.size(0) == 2
         assert data.edge_index.size(1) > 0

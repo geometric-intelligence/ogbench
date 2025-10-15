@@ -1,7 +1,6 @@
 """Tests for the PropagateSignalDown layer."""
 
 import pytest
-import topomodelx
 import torch
 import torch_geometric.data as tg_data
 
@@ -21,11 +20,11 @@ class TestPropagateSignalDown:
             The base parameters for the PropagateSignalDown layer.
         """
         return {
-            "hidden_dim": 64,
-            "out_channels": 32,
-            "task_level": "graph",
-            "num_cell_dimensions": 2,  # Need at least 2 dimensions for signal propagation
-            "readout_name": "test_readout",
+            'hidden_dim': 64,
+            'out_channels': 32,
+            'task_level': 'graph',
+            'num_cell_dimensions': 2,  # Need at least 2 dimensions for signal propagation
+            'readout_name': 'test_readout',
         }
 
     @pytest.fixture
@@ -43,7 +42,7 @@ class TestPropagateSignalDown:
             A PropagateSignalDown instance for testing.
         """
         layer = PropagateSignalDown(**base_kwargs)
-        layer.hidden_dim = base_kwargs["hidden_dim"]
+        layer.hidden_dim = base_kwargs['hidden_dim']
         return layer
 
     @pytest.fixture
@@ -138,9 +137,9 @@ class TestPropagateSignalDown:
         num_edges = sample_batch.edge_index.size(1)
 
         return {
-            "logits": torch.randn(num_nodes, hidden_dim),
-            "x_0": torch.randn(num_nodes, hidden_dim),
-            "x_1": torch.randn(num_edges, hidden_dim),
+            'logits': torch.randn(num_nodes, hidden_dim),
+            'x_0': torch.randn(num_nodes, hidden_dim),
+            'x_1': torch.randn(num_edges, hidden_dim),
         }
 
     def test_forward_propagation(self, readout_layer, sample_model_output, sample_batch):
@@ -156,19 +155,19 @@ class TestPropagateSignalDown:
             A fixture to create a sample batch with required incidence matrices.
         """
         initial_output = {k: v.clone() for k, v in sample_model_output.items()}
-        sample_model_output["x_0"] = sample_model_output["logits"]
+        sample_model_output['x_0'] = sample_model_output['logits']
 
         output = readout_layer(sample_model_output, sample_batch)
 
-        assert "x_0" in output
-        assert output["x_0"].shape == initial_output["logits"].shape
-        assert output["x_0"].dtype == torch.float32
+        assert 'x_0' in output
+        assert output['x_0'].shape == initial_output['logits'].shape
+        assert output['x_0'].dtype == torch.float32
 
-        assert "x_1" in output
-        assert output["x_1"].shape == initial_output["x_1"].shape
-        assert output["x_1"].dtype == torch.float32
+        assert 'x_1' in output
+        assert output['x_1'].shape == initial_output['x_1'].shape
+        assert output['x_1'].dtype == torch.float32
 
-    @pytest.mark.parametrize("missing_key", ["incidence_1"])
+    @pytest.mark.parametrize('missing_key', ['incidence_1'])
     def test_missing_incidence_matrix(
         self, readout_layer, sample_model_output, sample_batch, missing_key
     ):
@@ -186,12 +185,12 @@ class TestPropagateSignalDown:
             The key to remove from the sample batch.
         """
         invalid_batch = tg_data.Data(**{k: v for k, v in sample_batch.items() if k != missing_key})
-        sample_model_output["x_0"] = sample_model_output["logits"]
+        sample_model_output['x_0'] = sample_model_output['logits']
 
         with pytest.raises(KeyError):
             readout_layer(sample_model_output, invalid_batch)
 
-    @pytest.mark.parametrize("missing_key", ["x_1"])  # Changed to only test x_1
+    @pytest.mark.parametrize('missing_key', ['x_1'])  # Changed to only test x_1
     def test_missing_cell_features(
         self, readout_layer, sample_model_output, sample_batch, missing_key
     ):
@@ -209,7 +208,7 @@ class TestPropagateSignalDown:
             The key to remove from the sample model output.
         """
         invalid_output = {k: v for k, v in sample_model_output.items() if k != missing_key}
-        invalid_output["x_0"] = invalid_output["logits"]  # Always map logits to x_0
+        invalid_output['x_0'] = invalid_output['logits']  # Always map logits to x_0
 
         with pytest.raises(KeyError):
             readout_layer(invalid_output, sample_batch)
@@ -227,17 +226,17 @@ class TestPropagateSignalDown:
             A fixture to create a sample batch with required incidence matrices.
         """
         # Create a copy of logits tensor to track gradients properly
-        logits = sample_model_output["logits"].clone().detach().requires_grad_(True)
-        x_1 = sample_model_output["x_1"].clone().detach().requires_grad_(True)
+        logits = sample_model_output['logits'].clone().detach().requires_grad_(True)
+        x_1 = sample_model_output['x_1'].clone().detach().requires_grad_(True)
 
         model_output = {
-            "logits": logits,
-            "x_0": logits,
-            "x_1": x_1,
+            'logits': logits,
+            'x_0': logits,
+            'x_1': x_1,
         }  # Share the same tensor
 
         output = readout_layer(model_output, sample_batch)
-        loss = output["x_0"].sum()
+        loss = output['x_0'].sum()
         loss.backward()
 
         # Check gradient flow
