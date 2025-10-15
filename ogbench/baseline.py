@@ -60,7 +60,7 @@ class DatasetContainer:
     y_train: np.ndarray
     y_val: np.ndarray
 
-    # Processed data (after imputation and scaling)
+    # Processed data (after imputation but before scaling - pipeline handles scaling)
     X_train_processed: np.ndarray
     X_val_processed: np.ndarray
 
@@ -77,7 +77,8 @@ class DatasetContainer:
     def get_features_at_stage(self, stage: str) -> tuple[np.ndarray, np.ndarray]:
         """Get features at a specific preprocessing stage.
 
-        :param stage: 'raw', 'processed', 'before_selection', 'after_selection'
+        :param stage: 'raw' (before any preprocessing), 'processed' (after imputation but before
+            scaling)
         :return: Tuple of (X_train, X_val) at the specified stage
         """
         if stage == "raw":
@@ -252,16 +253,11 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 
     # Impute missing values (using mean strategy like in HFOmicsDataset)
     imputer = SimpleImputer(strategy=cfg.dataset.loader.parameters.imputation_method)
-    X_train = imputer.fit_transform(X_train)
-    X_val = imputer.transform(X_val)
+    X_train_imputed = imputer.fit_transform(X_train)
+    X_val_imputed = imputer.transform(X_val)
 
-    # Apply scaling for plotting (note: pipeline will also scale, but we need this for plots)
-    scaler = StandardScaler()
-    X_train_processed = scaler.fit_transform(X_train)
-    X_val_processed = scaler.transform(X_val)
-
-    # Combine train and val for GridSearchCV with custom split
-    X_combined = np.vstack([X_train, X_val])
+    # Combine train and val for GridSearchCV with custom split (use imputed but unscaled)
+    X_combined = np.vstack([X_train_imputed, X_val_imputed])
     y_combined = np.concatenate([y_train, y_val])
 
     # Get class distribution info
@@ -277,8 +273,8 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         X_val_raw=X_val_raw,
         y_train=y_train,
         y_val=y_val,
-        X_train_processed=X_train_processed,
-        X_val_processed=X_val_processed,
+        X_train_processed=X_train_imputed,  # Now contains imputed but unscaled data
+        X_val_processed=X_val_imputed,  # Now contains imputed but unscaled data
         X_combined=X_combined,
         y_combined=y_combined,
         dataset_name=data_name,
@@ -411,42 +407,41 @@ def generate_comprehensive_plots(
     plot_dir = output_dir / "plots"
     plot_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get features at different stages
-    X_train_processed, X_val_processed = dataset.get_features_at_stage("processed")
-    X_train_before_selection = X_train_processed.copy()
-    X_val_before_selection = X_val_processed.copy()
+    # Get imputed but unscaled features (let pipeline handle all transformations)
+    X_train_imputed, X_val_imputed = dataset.get_features_at_stage("processed")
 
     # Apply pipeline up to feature selection to get selected features
     if "feature_selection" in [step[0] for step in pipeline.steps]:
-        X_train_after_selection = X_train_processed.copy()
-        X_val_after_selection = X_val_processed.copy()
+        X_train_before_selection = X_train_imputed.copy()
+        X_val_before_selection = X_val_imputed.copy()
+        X_train_after_selection = X_train_imputed.copy()
+        X_val_after_selection = X_val_imputed.copy()
 
         for step_name, step in pipeline.steps[:-1]:  # Exclude classifier
             X_train_after_selection = step.transform(X_train_after_selection)
             X_val_after_selection = step.transform(X_val_after_selection)
     else:
-        X_train_after_selection = X_train_processed
-        X_val_after_selection = X_val_processed
+        X_train_before_selection = X_train_imputed
+        X_val_before_selection = X_val_imputed
+        X_train_after_selection = X_train_imputed
+        X_val_after_selection = X_val_imputed
 
-    # Generate predictions
-    y_train_pred = pipeline.predict(X_train_processed)
-    y_val_pred = pipeline.predict(X_val_processed)
+    # Generate predictions (pipeline will handle all preprocessing internally)
+    y_train_pred = pipeline.predict(X_train_imputed)
+    y_val_pred = pipeline.predict(X_val_imputed)
 
     # Get probabilities if available
     y_train_proba = None
     y_val_proba = None
     if hasattr(pipeline, "predict_proba"):
-        y_train_proba_full = pipeline.predict_proba(X_train_processed)
-        y_val_proba_full = pipeline.predict_proba(X_val_processed)
+        y_train_proba_full = pipeline.predict_proba(X_train_imputed)
+        y_val_proba_full = pipeline.predict_proba(X_val_imputed)
         if y_train_proba_full.shape[1] == 2:  # Binary classification
             y_train_proba = y_train_proba_full[:, 1]
             y_val_proba = y_val_proba_full[:, 1]
     elif hasattr(pipeline, "decision_function"):
-        y_train_proba = pipeline.decision_function(X_train_processed)
-        y_val_proba = pipeline.decision_function(X_val_processed)
-
-    # Find optimal threshold to reduce false negatives
-    optimal_threshold = 1.0
+        y_train_proba = pipeline.decision_function(X_train_imputed)
+        y_val_proba = pipeline.decision_function(X_val_imputed)
 
     # Create comprehensive figure
     fig = plt.figure(figsize=(20, 24))
@@ -615,19 +610,16 @@ def generate_comprehensive_plots(
     )
     ax8.set_title("Confusion Matrix - Val")
 
-    # Add threshold info if optimal threshold was used
-    if (
-        y_val_proba is not None
-        and dataset.get_class_info()["is_binary"]
-        and optimal_threshold != 0.5
-    ):
+    # Add threshold info for binary classification
+    if y_val_proba is not None and dataset.get_class_info()["is_binary"]:
         ax8.text(
             0.02,
             0.98,
-            f"Threshold: {optimal_threshold:.3f}",
+            "Threshold: 0.5",
             transform=ax8.transAxes,
             verticalalignment="top",
-            bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.8),
+            bbox=dict(boxstyle="round", facecolor="lightblue", alpha=0.8),
+            fontsize=10,
         )
 
     # 9. ROC Curves (bottom row, left and middle) - only for binary classification
@@ -635,6 +627,7 @@ def generate_comprehensive_plots(
         ax9 = fig.add_subplot(gs[3, 0])
         RocCurveDisplay.from_predictions(dataset.y_train, y_train_proba, ax=ax9, name="Train")
         ax9.plot([0, 1], [0, 1], "k--", label="Random")
+        ax9.axvline(0.5, color="red", linestyle=":", alpha=0.7, label="Threshold: 0.5")
         ax9.set_title("ROC Curve - Train")
         ax9.legend()
         ax9.grid(True, alpha=0.3)
@@ -642,6 +635,7 @@ def generate_comprehensive_plots(
         ax10 = fig.add_subplot(gs[3, 1])
         RocCurveDisplay.from_predictions(dataset.y_val, y_val_proba, ax=ax10, name="Val")
         ax10.plot([0, 1], [0, 1], "k--", label="Random")
+        ax10.axvline(0.5, color="red", linestyle=":", alpha=0.7, label="Threshold: 0.5")
         ax10.set_title("ROC Curve - Val")
         ax10.legend()
         ax10.grid(True, alpha=0.3)
@@ -649,7 +643,9 @@ def generate_comprehensive_plots(
         # 10. Precision-Recall Curves (bottom row, right)
         ax11 = fig.add_subplot(gs[3, 2])
         PrecisionRecallDisplay.from_predictions(dataset.y_val, y_val_proba, ax=ax11, name="Val")
+        ax11.axhline(0.5, color="red", linestyle=":", alpha=0.7, label="Threshold: 0.5")
         ax11.set_title("Precision-Recall Curve - Val")
+        ax11.legend()
         ax11.grid(True, alpha=0.3)
     else:
         # If not binary classification, show additional feature analysis
@@ -667,11 +663,12 @@ def generate_comprehensive_plots(
         ax9.set_title("Classification Type")
         ax9.axis("off")
 
-    # Add overall title with dataset name
+    # Add overall title with dataset name (much bigger)
     fig.suptitle(
         f"{dataset.dataset_name.upper()} Dataset - Comprehensive Evaluation Report - {baseline_name}",
-        fontsize=16,
+        fontsize=24,
         y=0.98,
+        fontweight="bold",
     )
 
     # Save the comprehensive plot
@@ -779,14 +776,14 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             for param_name, param_value in search.best_params_.items():
                 best_pipeline.set_params(**{param_name: param_value})
 
-            # Fit only on training data
+            # Fit only on training data (imputed but unscaled)
             best_pipeline.fit(dataset.X_train_processed, dataset.y_train)
 
             best_params = search.best_params_
             best_score = search.best_score_
         else:
             logger.info("No parameter grid provided, training with default parameters...")
-            pipeline.fit(dataset.X_train_processed, dataset.y_train)
+            pipeline.fit(dataset.X_train_processed, dataset.y_train)  # imputed but unscaled
             best_pipeline = pipeline
             best_params = {}
             best_score = None
@@ -840,7 +837,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     if best_results["best_params"]:
         best_pipeline.set_params(**best_results["best_params"])
 
-    # Retrain on train set only (not combined) for proper evaluation
+    # Retrain on train set only (not combined) for proper evaluation (imputed but unscaled)
     best_pipeline.fit(dataset.X_train_processed, dataset.y_train)
 
     # Generate comprehensive plots
