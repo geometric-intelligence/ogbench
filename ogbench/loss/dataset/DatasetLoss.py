@@ -41,7 +41,7 @@ class DatasetLoss(AbstractLoss):
         elif self.task == 'regression' and self.loss_type == 'mae':
             self.criterion = torch.nn.L1Loss()
         else:
-            raise Exception('Loss is not defined')
+            raise ValueError('Loss is not defined')
 
     def __repr__(self) -> str:
         weights_str = (
@@ -110,6 +110,6 @@ class DatasetLoss(AbstractLoss):
             dataset_loss = (loss.sum(dim=-1) / mask.sum(dim=-1)).mean()
 
         else:
-            raise Exception('Loss is not defined')
+            raise ValueError('Loss is not defined')
 
         return dataset_loss
