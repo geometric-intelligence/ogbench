@@ -7,3 +7,4 @@ numpy
 torch
 torch-geometric
 ipykernel
+pre-commit

@@ -10,7 +10,7 @@ loader:
     method: variance
     imputation_method: mean
     train_val_test_split: [0.7, 0.2, 0.1]
-    revision: e1631e8
+    revision: d9d45d9
 
 parameters:
   num_features: 1
@@ -60,7 +60,7 @@ baselines:
     param_grid:
       feature_selection__k: [50, 100, 500]
       calibrated_svm__estimator__C: [1e-3, 1e-2, 1e-1]
-    scoring: f1_weighted
+    scoring: f1_macro
     n_jobs: -1
   elastic_net:
     pipeline:

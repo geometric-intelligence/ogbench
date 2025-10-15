@@ -215,29 +215,20 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     delta_rel_series = delta_rel.reset_index(drop=True)
     raw_data = adjust_for_covariates(raw_data, delta_rel_series, cov, covariates_to_adjust)
 
-    # 7) Emit multiple targets (regression + classification)
+    # 7) Emit classification target only
     out = os.path.join(output_dir, "motrpac")
     os.makedirs(out, exist_ok=True)
 
     raw_data.reset_index(drop=True).to_parquet(os.path.join(out, "motrpac_data.parquet"))
 
-    pd.DataFrame({"target": delta_rel.reset_index(drop=True)}).to_parquet(
-        os.path.join(out, "motrpac_targets_vo2_rel.parquet")
-    )
     pd.DataFrame({"target": responder15.reset_index(drop=True).astype(np.int64)}).to_parquet(
-        os.path.join(out, "motrpac_targets_responder15.parquet")
+        os.path.join(out, "motrpac_targets.parquet")
     )
 
     cov.reset_index(drop=True).to_parquet(os.path.join(out, "motrpac_covariates.parquet"))
 
     # 8) Create metadata
     target_stats = {
-        "delta_rel": {
-            "mean": float(delta_rel.mean()),
-            "std": float(delta_rel.std()),
-            "min": float(delta_rel.min()),
-            "max": float(delta_rel.max()),
-        },
         "responder15": {
             "pos": int((responder15 == 1).sum()),
             "neg": int((responder15 == 0).sum()),
@@ -260,8 +251,7 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     # Upload to HuggingFace
     data_files = {
         "data": os.path.join(out, "motrpac_data.parquet"),
-        "targets_vo2_rel": os.path.join(out, "motrpac_targets_vo2_rel.parquet"),
-        "targets_responder15": os.path.join(out, "motrpac_targets.parquet"),
+        "targets": os.path.join(out, "motrpac_targets.parquet"),
     }
 
     upload_to_huggingface("motrpac", data_files, metadata)
