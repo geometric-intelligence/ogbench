@@ -125,7 +125,7 @@ def load_and_prepare_data(
     # Check for local temp_data first
     local_data_dir = "temp_data"
     local_data_file = osp.join(local_data_dir, data_name, f"{data_name}_data.parquet")
-    target_filename = f"{data_name}_target.parquet"
+    target_filename = f"{data_name}_targets.parquet"
     local_targets_file = osp.join(local_data_dir, data_name, target_filename)
 
     if osp.exists(local_data_file) and osp.exists(local_targets_file):
