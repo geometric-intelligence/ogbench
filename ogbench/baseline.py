@@ -1,6 +1,7 @@
 """Sklearn baseline runner for omics classification tasks."""
 
 import importlib
+import json
 import logging
 import os.path as osp
 from dataclasses import dataclass
@@ -13,7 +14,6 @@ import numpy as np
 import pandas as pd
 import rootutils
 import seaborn as sns
-import wandb
 from huggingface_hub import hf_hub_download
 from omegaconf import DictConfig, OmegaConf
 from sklearn.decomposition import PCA
@@ -33,6 +33,8 @@ from sklearn.metrics import (
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.utils import shuffle
+
+import wandb
 
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 
@@ -71,6 +73,7 @@ class DatasetContainer:
     n_features: int
     n_samples: int
     class_distribution: dict
+    class_mapping: dict[int, str]  # Maps class ID to class name
 
     def get_features_at_stage(self, stage: str) -> tuple[np.ndarray, np.ndarray]:
         """Get features at a specific preprocessing stage.
@@ -97,6 +100,14 @@ class DatasetContainer:
             'n_classes': len(np.unique(self.y_train)),
             'is_binary': len(np.unique(self.y_train)) == 2,
         }
+
+    def get_class_names(self, class_ids: np.ndarray) -> list[str]:
+        """Get class names for given class IDs.
+
+        :param class_ids: Array of class IDs
+        :return: List of class names
+        """
+        return [self.class_mapping.get(cls_id, f'Class_{cls_id}') for cls_id in class_ids]
 
 
 def task_wrapper(task_func):
@@ -146,6 +157,49 @@ def compute_classification_metrics(
     return metrics
 
 
+def download_and_parse_metadata(data_name: str, cfg: DictConfig) -> dict[int, str]:
+    """Download and parse metadata file to get class ID to name mapping.
+
+    :param data_name: Name of the dataset
+    :param cfg: Configuration containing revision info
+    :return: Dictionary mapping class ID to class name
+    """
+    # Check for local metadata first
+    local_metadata_file = osp.join('temp_data', data_name, f'{data_name}_metadata.json')
+
+    if osp.exists(local_metadata_file):
+        logger.info('Loading metadata from local temp_data...')
+        metadata_file = local_metadata_file
+    else:
+        # Download from HuggingFace
+        logger.info('Downloading metadata from HuggingFace...')
+
+        hf_repo_id = 'geometric-intelligence/bgbench'
+        revision = cfg.dataset.loader.parameters.get('revision', 'e1631e8')
+
+        metadata_file = hf_hub_download(  # nosec
+            repo_id=hf_repo_id,
+            repo_type='dataset',
+            revision=revision,
+            filename=f'{data_name}_metadata.json',
+        )
+
+    # Load and parse metadata
+    with open(metadata_file) as f:
+        metadata = json.load(f)
+
+    # Extract class mapping from metadata
+    class_mapping_raw = metadata['statistics']['target_stats']['class_mapping']
+
+    # Convert string keys to integers and reverse the mapping (name -> id becomes id -> name)
+    class_mapping = {
+        int(class_id): class_name for class_name, class_id in class_mapping_raw.items()
+    }
+
+    logger.info(f'Class mapping: {class_mapping}')
+    return class_mapping
+
+
 def prepare_param_grid(baseline_config: DictConfig) -> dict[str, list]:
     """Prepare parameter grid from config.
 
@@ -182,6 +236,9 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
     :return: DatasetContainer with all data variants
     """
     data_name = cfg.dataset.loader.parameters.data_name
+
+    # Download metadata first to get class mapping
+    class_mapping = download_and_parse_metadata(data_name, cfg)
 
     # Check for local temp_data first
     local_data_dir = 'temp_data'
@@ -279,6 +336,7 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         n_features=data.shape[1],
         n_samples=len(targets),
         class_distribution=class_distribution,
+        class_mapping=class_mapping,
     )
 
 
@@ -452,6 +510,9 @@ def generate_comprehensive_plots(
     counts_train = list(class_info['train'].values())
     counts_val = list(class_info['val'].values())
 
+    # Convert class IDs to class names using the mapping
+    class_names = dataset.get_class_names(unique_train)
+
     x_pos = np.arange(len(unique_train))
     width = 0.35
 
@@ -461,7 +522,7 @@ def generate_comprehensive_plots(
     ax1.set_ylabel('Count')
     ax1.set_title('Class Distribution')
     ax1.set_xticks(x_pos)
-    ax1.set_xticklabels(unique_train)
+    ax1.set_xticklabels(class_names)
     ax1.legend()
     ax1.grid(True, alpha=0.3, axis='y')
 
@@ -571,7 +632,14 @@ def generate_comprehensive_plots(
     ax5.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2%} var)')
     ax5.set_title(f'PCA - Train Set\n({X_train_after_selection.shape[1]} features)')
     ax5.grid(True, alpha=0.3)
-    plt.colorbar(scatter, ax=ax5, label='Class')
+
+    # Create custom colorbar with class names
+    cbar = plt.colorbar(scatter, ax=ax5)
+    unique_classes = np.unique(dataset.y_train)
+    class_names_for_cbar = dataset.get_class_names(unique_classes)
+    cbar.set_ticks(unique_classes)
+    cbar.set_ticklabels(class_names_for_cbar)
+    cbar.set_label('Class')
 
     # 6. PCA Visualization Val (third row, left)
     ax6 = fig.add_subplot(gs[2, 0])
@@ -589,7 +657,14 @@ def generate_comprehensive_plots(
     ax6.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2%} var)')
     ax6.set_title(f'PCA - Val Set\n({X_val_after_selection.shape[1]} features)')
     ax6.grid(True, alpha=0.3)
-    plt.colorbar(scatter, ax=ax6, label='Class')
+
+    # Create custom colorbar with class names
+    cbar = plt.colorbar(scatter, ax=ax6)
+    unique_classes_val = np.unique(dataset.y_val)
+    class_names_for_cbar_val = dataset.get_class_names(unique_classes_val)
+    cbar.set_ticks(unique_classes_val)
+    cbar.set_ticklabels(class_names_for_cbar_val)
+    cbar.set_label('Class')
 
     # 7. Confusion Matrix Train (third row, middle)
     ax7 = fig.add_subplot(gs[2, 1])
@@ -598,12 +673,24 @@ def generate_comprehensive_plots(
     )
     ax7.set_title('Confusion Matrix - Train')
 
+    # Update confusion matrix labels to use class names
+    unique_classes_cm = np.unique(np.concatenate([dataset.y_train, y_train_pred]))
+    class_names_cm = dataset.get_class_names(unique_classes_cm)
+    ax7.set_xticklabels(class_names_cm)
+    ax7.set_yticklabels(class_names_cm)
+
     # 8. Confusion Matrix Val (third row, right)
     ax8 = fig.add_subplot(gs[2, 2])
     ConfusionMatrixDisplay.from_predictions(
         dataset.y_val, y_val_pred, ax=ax8, cmap='Blues', values_format='d'
     )
     ax8.set_title('Confusion Matrix - Val')
+
+    # Update confusion matrix labels to use class names
+    unique_classes_cm_val = np.unique(np.concatenate([dataset.y_val, y_val_pred]))
+    class_names_cm_val = dataset.get_class_names(unique_classes_cm_val)
+    ax8.set_xticklabels(class_names_cm_val)
+    ax8.set_yticklabels(class_names_cm_val)
 
     # Add threshold info for binary classification
     if y_val_proba is not None and dataset.get_class_info()['is_binary']:

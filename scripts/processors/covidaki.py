@@ -108,6 +108,9 @@ def process_covidaki(output_dir: str = 'temp_data') -> None:
 
     # Create metadata
     target_stats = {
+        'class_mapping': {'Negative': 0, 'Positive': 1},
+        'num_classes': 2,
+        'class_names': ['Negative', 'Positive'],
         'mean': float(np.mean(targets)),
         'std': float(np.std(targets)),
         'min': float(np.min(targets)),
