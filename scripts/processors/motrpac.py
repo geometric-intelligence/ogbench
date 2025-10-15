@@ -261,7 +261,7 @@ def process_motrpac(output_dir: str = "temp_data") -> None:
     data_files = {
         "data": os.path.join(out, "motrpac_data.parquet"),
         "targets_vo2_rel": os.path.join(out, "motrpac_targets_vo2_rel.parquet"),
-        "targets_responder15": os.path.join(out, "motrpac_targets_responder15.parquet"),
+        "targets_responder15": os.path.join(out, "motrpac_targets.parquet"),
     }
 
     upload_to_huggingface("motrpac", data_files, metadata)
