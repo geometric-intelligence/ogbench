@@ -128,6 +128,9 @@ known-first-party = ["ogbench"]
 wrap-summaries = 79
 wrap-descriptions = 79
 
+[tool.ruff.pydocstyle]
+convention = "pep257"
+
 [tool.setuptools.dynamic]
 version = {attr = "ogbench.__version__"}
 
