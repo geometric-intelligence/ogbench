@@ -51,6 +51,7 @@ dependencies=[
     "fastparquet",
     "datasets>=2.14.0",
     "typer>=0.9.0",
+    "torch-sparse",
     "pycombat",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
     "toponetx @ git+https://github.com/pyt-team/TopoNetX.git",

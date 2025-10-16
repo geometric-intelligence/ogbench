@@ -265,16 +265,57 @@ class HFOmicsDataset(InMemoryDataset):
 
     def calculate_adjacency_matrix(self, node_features: pd.DataFrame) -> np.ndarray:
         """Calculate adjacency matrix using WGCNA with soft-thresholding and binarization."""
-        # Use WGCNA to find optimal power for scale-free topology
-        soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features)
-        power = soft_threshold[0]
+        logger.info(f'Original data shape: {node_features.shape}')
+        logger.info(f'Data contains inf: {np.isinf(node_features.values).any()}')
+        logger.info(f'Data contains NaN: {node_features.isnull().any().any()}')
 
-        # Apply soft-thresholding
-        adjacency = PyWGCNA.WGCNA.adjacency(
-            node_features,
-            power=power,
-            adjacencyType='signed hybrid',
-        )
+        # Clean data more carefully
+        node_features_clean = node_features.copy()
+
+        # Replace infinite values with finite alternatives
+        inf_mask = np.isinf(node_features_clean.values)
+        if inf_mask.any():
+            logger.info(f'Replacing {inf_mask.sum()} infinite values')
+            # Replace +inf with max finite value, -inf with min finite value
+            finite_values = node_features_clean.values[~inf_mask]
+            if len(finite_values) > 0:
+                max_finite = np.max(finite_values)
+                min_finite = np.min(finite_values)
+                node_features_clean = node_features_clean.replace([np.inf], max_finite)
+                node_features_clean = node_features_clean.replace([-np.inf], min_finite)
+            else:
+                # If all values are infinite, replace with 0
+                node_features_clean = node_features_clean.replace([np.inf, -np.inf], 0)
+
+        # Handle NaN values by filling with median of each column
+        if node_features_clean.isnull().any().any():
+            logger.info('Filling NaN values with column medians')
+            node_features_clean = node_features_clean.fillna(node_features_clean.median())
+
+        logger.info(f'Cleaned data shape: {node_features_clean.shape}')
+
+        # Try WGCNA approach first
+        try:
+            # Use WGCNA to find optimal power for scale-free topology
+            soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_clean)
+            power = soft_threshold[0]
+            logger.info(f'WGCNA selected power: {power}')
+
+            # Apply soft-thresholding
+            adjacency = PyWGCNA.WGCNA.adjacency(
+                node_features_clean,
+                power=power,
+                adjacencyType='signed hybrid',
+            )
+        except Exception as e:
+            logger.warning(f'WGCNA failed: {e}. Falling back to correlation-based adjacency.')
+            # Fallback: use correlation-based adjacency
+            corr_matrix = node_features_clean.corr().values
+            # Convert correlation to adjacency using a fixed power
+            power = 6  # Default power for correlation-based networks
+            adjacency = np.power(np.abs(corr_matrix), power)
+            # Apply sign
+            adjacency = np.sign(corr_matrix) * adjacency
 
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
