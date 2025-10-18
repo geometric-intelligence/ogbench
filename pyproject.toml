@@ -163,16 +163,6 @@ pythonpath = [
   "."
 ]
 
-[tool.numpydoc_validation]
-checks = [
-    "all",
-    "GL01",
-    "ES01",
-    "EX01",
-    "SA01"
-]
-exclude = [
-    '\.undocumented_method$',
-    '\.__init__$',
-    '\.__repr__$',
-]
+[tool.uv]
+index-url = "https://pypi.org/simple"
+find-links = ["https://data.pyg.org/whl/torch-2.8.0+cu129.html"]
