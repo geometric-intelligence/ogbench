@@ -54,7 +54,7 @@ dependencies=[
     "typer>=0.9.0",
     "torch-sparse",
     "torch-scatter",
-    "torch==2.8.0",
+    "torch==2.9.0",
     "torch-cluster",
     "pycombat",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
