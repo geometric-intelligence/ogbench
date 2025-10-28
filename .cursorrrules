@@ -1,0 +1,3 @@
+Launch all commands in the conda environement "bgbench"
+
+It should be done via the conda shell activate.

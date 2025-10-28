@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # Parse command line arguments
 PARALLEL=false
 while [[ $# -gt 0 ]]; do

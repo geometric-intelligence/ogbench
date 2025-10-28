@@ -32,13 +32,15 @@ class MeanStdNormalizer:
         """Normalize input array."""
         if self.mean is None or self.std is None:
             raise ValueError('Normalizer must be fitted before use')
-        return (x - self.mean) / self.std
+        # Add epsilon to prevent division by zero for constant features
+        return (x - self.mean) / (self.std + 1e-8)
 
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         """Convert normalized data back to original scale."""
         if self.mean is None or self.std is None:
             raise ValueError('Normalizer must be fitted before use')
-        return x * self.std + self.mean
+        # Use same epsilon as in transform for consistency
+        return x * (self.std + 1e-8) + self.mean
 
 
 class MinMaxNormalizer:
@@ -57,13 +59,15 @@ class MinMaxNormalizer:
         """Normalize input array to [0, 1] range."""
         if self.min_val is None or self.max_val is None:
             raise ValueError('Normalizer must be fitted before use')
-        return (x - self.min_val) / (self.max_val - self.min_val)
+        # Add epsilon to prevent division by zero for constant features
+        return (x - self.min_val) / (self.max_val - self.min_val + 1e-8)
 
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         """Convert normalized data back to original scale."""
         if self.min_val is None or self.max_val is None:
             raise ValueError('Normalizer must be fitted before use')
-        return x * (self.max_val - self.min_val) + self.min_val
+        # Use same epsilon as in transform for consistency
+        return x * (self.max_val - self.min_val + 1e-8) + self.min_val
 
 
 def get_routes_from_neighborhoods(neighborhoods):
