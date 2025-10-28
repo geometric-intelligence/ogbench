@@ -47,12 +47,14 @@ dependencies=[
     "ogb",
     "rootutils",
     "PyWGCNA",
+    "pre-commit",
     "openpyxl",
     "fastparquet",
     "datasets>=2.14.0",
     "typer>=0.9.0",
     "torch-sparse",
-    "torch>=2.8.0",
+    "torch-scatter",
+    "torch==2.8.0",
     "pycombat",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
     "toponetx @ git+https://github.com/pyt-team/TopoNetX.git",
@@ -86,8 +88,12 @@ test = [
 dev = ["BGBench[test, lint]"]
 all = ["BGBench[dev, doc]"]
 
+
+[project.scripts]
+ogbench-train = "ogbench.run:main"
+
 [project.urls]
-homepage="https://geometric-intelligence.github.io/begbench/index.html"
+homepage="https://geometric-intelligence.github.io/bgbench/index.html"
 repository="https://github.com/geometric-intelligence/bgbench"
 
 [tool.ruff]
@@ -165,4 +171,4 @@ pythonpath = [
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
-find-links = ["https://data.pyg.org/whl/torch-2.8.0+cu129.html"]
+find-links = ["https://data.pyg.org/whl/torch-2.8.0+cu128.html"]
