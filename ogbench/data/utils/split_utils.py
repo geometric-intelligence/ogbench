@@ -252,8 +252,13 @@ def load_transductive_splits(dataset, parameters):
 
     if parameters.get('standardize', False):
         # Standardize the node features respecting train mask
-        data.x = (data.x - data.x[data.train_mask].mean(0)) / data.x[data.train_mask].std(0)
-        data.y = (data.y - data.y[data.train_mask].mean(0)) / data.y[data.train_mask].std(0)
+        # Add epsilon to prevent division by zero for constant features
+        data.x = (data.x - data.x[data.train_mask].mean(0)) / (
+            data.x[data.train_mask].std(0) + 1e-8
+        )
+        data.y = (data.y - data.y[data.train_mask].mean(0)) / (
+            data.y[data.train_mask].std(0) + 1e-8
+        )
 
     return DataloadDataset([data]), None, None
 
