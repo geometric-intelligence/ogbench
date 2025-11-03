@@ -1,3 +1,7 @@
+# UPDATED: adjacency_threshold changed from 0.3 to 0.05
+# Target connectivity: ~20% (actual: 2.48%)
+# Mean degree: 67.1
+
 loader:
   _target_: ogbench.data.loaders.graph.OmicsDatasetLoader
   parameters:
@@ -5,39 +9,45 @@ loader:
     data_domain: graph
     data_name: motrpac
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.85
-    node_sample_ratio: 0.169
+    adjacency_threshold: 0.05
+    node_sample_ratio: 0.5
     method: variance
     imputation_method: mean
-    train_val_test_split: [0.7, 0.15, 0.15]
+    train_val_test_split:
+      - 0.7
+      - 0.2
+      - 0.1
     revision: 9f052d330ce130408a2c7c347b2ed197154da7c8
-
 parameters:
   num_features: 1
   num_classes: 2
   num_samples: 654
   full_num_nodes: 4977
-  num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio}, ${dataset.parameters.full_num_nodes}} # 4698 # TODO: it depends on the node sample ratio!
+  num_nodes:
+    ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio},
+    ${dataset.parameters.full_num_nodes}}
   task: classification
   loss_type: cross_entropy
   class_weights: null
   monitor_metric: f1_macro
   metrics:
-    ["accuracy", "precision", "recall", "auroc", "f1_weighted", "f1_macro"]
+    - accuracy
+    - precision
+    - recall
+    - auroc
+    - f1_weighted
+    - f1_macro
   task_level: graph
-
 split_params:
   learning_setting: inductive
   data_split_dir: ${paths.data_dir}/${dataset.loader.parameters.data_name}/data_splits
   data_seed: 0
-  split_type: "fixed"
-
+  split_type: fixed
 dataloader_params:
   batch_size: 16
   num_workers: 0
-  pin_memory: False
-  persistent_workers: False
-
+  pin_memory: false
+  persistent_workers: false
 baselines:
   svm:
     pipeline:
@@ -57,7 +67,13 @@ baselines:
           random_state: ${seed}
         method: sigmoid
     param_grid:
-      feature_selection__k: [50, 100, 500]
-      calibrated_svm__estimator__C: [1e-3, 1e-2, 1e-1]
+      feature_selection__k:
+        - 50
+        - 100
+        - 500
+      calibrated_svm__estimator__C:
+        - 0.001
+        - 0.01
+        - 0.1
     scoring: f1_macro
     n_jobs: -1

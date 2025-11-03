@@ -490,9 +490,9 @@ def main():
     args = parser.parse_args()
 
     # Define hyperparameter grids (from your notebook)
-    DATASETS = ['covidaki', 'motrpac', 'addneuromed', 'parkinsons']
-    NODE_SAMPLE_RATIOS = [1.0, 0.5]  # , 0.2]  # , 0.125]
-    SAMPLE_METHODS = ['variance', 'random', 'correlation']
+    DATASETS = ['motrpac', 'addneuromed', 'parkinsons']
+    NODE_SAMPLE_RATIOS = [1.0, 0.8, 0.5]  # , 0.2]  # , 0.125]
+    SAMPLE_METHODS = ['variance', 'random']
 
     OPT_LRS = [0.001]
     OPT_WD = [0.0004]
@@ -507,18 +507,13 @@ def main():
 
     # Dataset-specific adjacency thresholds
     DATASET_ADJ_THRESHOLDS = {
-        'addneuromed': [0.3, 0.4, 0.5],
-        'covidaki': [0.025, 0.05, 0.1],
-        'motrpac': [0.01, 0.02, 0.03],
-        'parkinsons': [0.01, 0.02, 0.03],
+        'addneuromed': [0.3],
+        'motrpac': [0.03],
+        'parkinsons': [0.03],
     }
 
     # Model and dataset-specific grids
     PER_MODEL_DATASET_GRID = {
-        ('gcn', 'covidaki'): {
-            'model.backbone.num_layers': [4],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
-        },
         ('gcn', 'motrpac'): {
             'model.backbone.num_layers': [4],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['motrpac'],
@@ -531,10 +526,6 @@ def main():
             'model.backbone.num_layers': [4],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['parkinsons'],
         },
-        ('gin', 'covidaki'): {
-            'model.backbone.num_layers': [8],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
-        },
         ('gin', 'motrpac'): {
             'model.backbone.num_layers': [8],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['motrpac'],
@@ -546,12 +537,6 @@ def main():
         ('gin', 'parkinsons'): {
             'model.backbone.num_layers': [8],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['parkinsons'],
-        },
-        ('gatv2', 'covidaki'): {
-            'model.backbone.v2': [True],
-            'model.backbone.heads': [8],
-            'model.backbone.num_layers': [8],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
         },
         ('gatv2', 'motrpac'): {
             'model.backbone.v2': [True],
@@ -571,11 +556,6 @@ def main():
             'model.backbone.num_layers': [8],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['parkinsons'],
         },
-        ('gatv4', 'covidaki'): {
-            'model.backbone.hidden_channels': [[16, 32]],
-            'model.backbone.heads': [[4, 4]],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
-        },
         ('gatv4', 'motrpac'): {
             'model.backbone.hidden_channels': [[16, 32]],
             'model.backbone.heads': [[4, 4]],
@@ -591,10 +571,6 @@ def main():
             'model.backbone.heads': [[4, 4]],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['parkinsons'],
         },
-        ('graph_sage', 'covidaki'): {
-            'model.backbone.num_layers': [8],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
-        },
         ('graph_sage', 'motrpac'): {
             'model.backbone.num_layers': [8],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['motrpac'],
@@ -606,11 +582,6 @@ def main():
         ('graph_sage', 'parkinsons'): {
             'model.backbone.num_layers': [8],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['parkinsons'],
-        },
-        ('chebnet', 'covidaki'): {
-            'model.backbone.K': [2],
-            'model.backbone.num_layers': [2],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
         },
         ('chebnet', 'motrpac'): {
             'model.backbone.K': [2],
@@ -627,10 +598,6 @@ def main():
             'model.backbone.num_layers': [2],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['parkinsons'],
         },
-        ('mlp', 'covidaki'): {
-            'model.backbone.hidden_channels': [[6, 16, 4]],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
-        },
         ('mlp', 'motrpac'): {
             'model.backbone.hidden_channels': [[8, 16, 4]],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['motrpac'],
@@ -642,13 +609,6 @@ def main():
         ('mlp', 'parkinsons'): {
             'model.backbone.hidden_channels': [[24, 16, 4]],
             'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['parkinsons'],
-        },
-        ('sagn', 'covidaki'): {
-            'model.backbone.hidden_channels': [32],
-            'model.backbone.dropout': [0.2],
-            'model.backbone.num_layers': [4],
-            'model.backbone.alpha': [0.5],
-            'dataset.loader.parameters.adjacency_threshold': DATASET_ADJ_THRESHOLDS['covidaki'],
         },
         ('sagn', 'motrpac'): {
             'model.backbone.hidden_channels': [32],
