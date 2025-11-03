@@ -92,6 +92,7 @@ all = ["BGBench[dev, doc]"]
 
 [project.scripts]
 ogbench-train = "ogbench.run:main"
+ogbench-run-all-experiments = "scripts.run_all_experiments:main"
 
 [project.urls]
 homepage="https://geometric-intelligence.github.io/bgbench/index.html"

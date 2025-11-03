@@ -153,7 +153,7 @@ class HFOmicsDataset(InMemoryDataset):
         list[str]
             List of raw file names.
         """
-        return ['selected_data.parquet', 'targets.npy', 'adj_matrix.npy']
+        return ['selected_data.parquet', 'targets.npy', 'adj_matrix.npy', 'split_info.json']
 
     @property
     def processed_file_names(self) -> str:
@@ -206,47 +206,105 @@ class HFOmicsDataset(InMemoryDataset):
 
         logger.info(f'Downloaded {len(targets)} samples with {raw_data.shape[1]} features')
 
-        # Impute missing values BEFORE any processing
-        nan_count = raw_data.isna().sum().sum()
-        if nan_count > 0:
-            logger.info(f'Imputing {nan_count} NaN values using {self.imputer.strategy} strategy')
-            raw_data_imputed = self.imputer.fit_transform(raw_data)
-            raw_data = pd.DataFrame(
-                raw_data_imputed, columns=raw_data.columns, index=raw_data.index
+        # IMPORTANT: Split data BEFORE any feature engineering to avoid data leakage
+        # Shuffle with fixed random seed for reproducibility
+        raw_data, targets = shuffle(raw_data, targets, random_state=42)
+
+        # Calculate split indices
+        n_samples = len(targets)
+        train_idx = int(n_samples * self.train_val_test_split[0])
+        val_idx = int(n_samples * (self.train_val_test_split[0] + self.train_val_test_split[1]))
+
+        # Split into train/val/test
+        train_data = raw_data.iloc[:train_idx]
+        train_targets = targets[:train_idx]
+        val_data = raw_data.iloc[train_idx:val_idx]
+        val_targets = targets[train_idx:val_idx]
+        test_data = raw_data.iloc[val_idx:]
+        test_targets = targets[val_idx:]
+
+        logger.info(
+            f'Split: Train={len(train_targets)}, Val={len(val_targets)}, Test={len(test_targets)}'
+        )
+
+        # Impute missing values - FIT on training data only, TRANSFORM on all splits
+        nan_count = train_data.isna().sum().sum()
+        if nan_count > 0 or raw_data.isna().sum().sum() > 0:
+            logger.info(f'Training data has {nan_count} NaN values')
+            logger.info(f'Fitting imputer on training data using {self.imputer.strategy} strategy')
+            self.imputer.fit(train_data)
+
+            # Transform all splits
+            train_data_imputed = self.imputer.transform(train_data)
+            train_data = pd.DataFrame(
+                train_data_imputed, columns=train_data.columns, index=train_data.index
             )
-            logger.info(f'After imputation: {raw_data.isna().sum().sum()} NaN values remain')
 
-        np.save(os.path.join(self.raw_dir, 'targets.npy'), targets)
+            if val_data.shape[0] > 0:
+                val_data_imputed = self.imputer.transform(val_data)
+                val_data = pd.DataFrame(
+                    val_data_imputed, columns=val_data.columns, index=val_data.index
+                )
 
-        # Calculate number of nodes to select
-        n_training_samples = int(raw_data.shape[0] * self.train_val_test_split[0])
+            if test_data.shape[0] > 0:
+                test_data_imputed = self.imputer.transform(test_data)
+                test_data = pd.DataFrame(
+                    test_data_imputed, columns=test_data.columns, index=test_data.index
+                )
+
+            logger.info(
+                f'After imputation: Train NaN={train_data.isna().sum().sum()}, '
+                f'Val NaN={val_data.isna().sum().sum()}, Test NaN={test_data.isna().sum().sum()}'
+            )
+
+        # Calculate number of nodes to select based on TRAINING data only
+        n_training_samples = len(train_targets)
         if self.node_sample_ratio == 'full':
-            print('Using full node sample ratio')
-            n_nodes = raw_data.shape[1]
+            logger.info('Using full node sample ratio')
+            n_nodes = train_data.shape[1]
         elif isinstance(self.node_sample_ratio, float):
             n_nodes = int(n_training_samples / self.node_sample_ratio)
-            if n_nodes > raw_data.shape[1]:
-                n_nodes = raw_data.shape[1]
+            if n_nodes > train_data.shape[1]:
+                n_nodes = train_data.shape[1]
         logger.info(
             f'Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}'
         )
 
-        # Select nodes
-        logger.info('Selecting nodes...')
-        selected_nodes = self.select_nodes(
-            raw_data.values, targets, n_selected=n_nodes, method=self.method
+        # Select nodes based ONLY on training data
+        logger.info('Selecting nodes based on training data only...')
+        selected_node_indices = self.select_nodes(
+            train_data.values, train_targets, n_selected=n_nodes, method=self.method
         )
-        selected_data = raw_data.iloc[:, selected_nodes]
+
+        # Apply same node selection to all splits
+        train_selected = train_data.iloc[:, selected_node_indices]
+        val_selected = val_data.iloc[:, selected_node_indices]
+        test_selected = test_data.iloc[:, selected_node_indices]
+
+        # Concatenate back for saving (maintaining split order)
+        selected_data = pd.concat([train_selected, val_selected, test_selected], axis=0)
         selected_data.to_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
 
-        # Calculate adjacency matrix
-        logger.info('Calculating adjacency matrix...')
-        adj_matrix = self.calculate_adjacency_matrix(selected_data)
+        # Save all targets (maintaining split order)
+        all_targets = np.concatenate([train_targets, val_targets, test_targets])
+        np.save(os.path.join(self.raw_dir, 'targets.npy'), all_targets)
+
+        # Save split indices for later use
+        split_info = {'train_idx': train_idx, 'val_idx': val_idx, 'total_samples': n_samples}
+        import json
+
+        with open(os.path.join(self.raw_dir, 'split_info.json'), 'w') as f:
+            json.dump(split_info, f, indent=4)
+        logger.info(f'Saved split info: {split_info}')
+
+        # Calculate adjacency matrix based ONLY on training data
+        logger.info('Calculating adjacency matrix based on training data only...')
+        adj_matrix = self.calculate_adjacency_matrix(train_selected)
         np.save(osp.join(self.raw_dir, 'adj_matrix.npy'), adj_matrix)
 
         # Log statistics
         node_degrees = np.sum(adj_matrix, axis=1)
-        logger.info('Node degrees statistics:')
+        logger.info('Node degrees statistics (from training data):')
         logger.info(f'Mean degree: {np.mean(node_degrees):.2f}')
         logger.info(f'Median degree: {np.median(node_degrees):.2f}')
         logger.info(f'Min degree: {np.min(node_degrees):.2f}')
@@ -373,14 +431,20 @@ class HFOmicsDataset(InMemoryDataset):
         adj_matrix = np.load(osp.join(self.raw_dir, 'adj_matrix.npy'))
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
-        # Shuffle selected_data and targets in unison
+        # Load split info - data is already shuffled and split in download()
+        import json
 
-        selected_data, targets = shuffle(selected_data, targets, random_state=42)
+        with open(os.path.join(self.raw_dir, 'split_info.json')) as f:
+            split_info = json.load(f)
+        train_idx = split_info['train_idx']
+        logger.info(f'Loaded split info: train_idx={train_idx}')
+
+        # Data is already in the correct order (train, val, test) from download()
+        # No need to shuffle again - this would break the carefully constructed splits
 
         # Fit normalizers on training data
-        train_idx = int(len(selected_data) * self.train_val_test_split[0])
         train_data = selected_data.iloc[:train_idx]
-        logger.info('Fitting normalizers')
+        logger.info('Fitting normalizers on training data')
         self.feature_normalizer.fit(train_data.values)
         # Save normalizer statistics to JSON
         import json
@@ -437,22 +501,19 @@ class HFOmicsDataset(InMemoryDataset):
             - Target values
             - Dictionary with 'train_idx' and 'val_idx' split indices
         """
-
-        from sklearn.utils import shuffle
+        import json
 
         # Load raw data
         logger.info('Loading raw data for baseline...')
         selected_data = pd.read_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
         targets = np.load(osp.join(self.raw_dir, 'targets.npy'))
 
-        # Apply same shuffling as in process()
-        selected_data, targets = shuffle(selected_data, targets, random_state=42)
+        # Load split indices from the same file used in download() and process()
+        with open(os.path.join(self.raw_dir, 'split_info.json')) as f:
+            split_info = json.load(f)
 
-        # Calculate split indices (same as in process())
-        train_idx = int(len(selected_data) * self.train_val_test_split[0])
-        val_idx = int(
-            len(selected_data) * (self.train_val_test_split[0] + self.train_val_test_split[1])
-        )
+        train_idx = split_info['train_idx']
+        val_idx = split_info['val_idx']
 
         split_indices = {
             'train_idx': train_idx,
