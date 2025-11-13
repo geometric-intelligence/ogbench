@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hyperparameter search driver script.
 
-This script performs grid search over hyperparameters by calling run.py via subprocess. Supports
+This script performs grid search over hyperparameters by calling train via subprocess. Supports
 both normal execution and dry-run mode for parameter counting.
 """
 
@@ -10,10 +10,8 @@ import itertools
 import json
 import os
 import subprocess  # nosec B404
-import sys
 import time
 from collections.abc import Iterable
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -204,11 +202,11 @@ class HyperparameterSearch:
     def run_config(
         self, overrides: list[str], timeout: int | None = None, gpu_id: int | None = None
     ) -> tuple[bool, str | None, dict[str, Any] | None]:
-        """Run a configuration via subprocess call to run.py."""
+        """Run a configuration via subprocess call to ogbench-train."""
         # Use overrides as-is since dataset is now explicitly included in grid
         final_overrides = overrides.copy()
 
-        cmd = [sys.executable, 'ogbench/run.py'] + final_overrides
+        cmd = ['ogbench-train'] + final_overrides
 
         # Set GPU environment if specified
         env = os.environ.copy()
@@ -221,7 +219,6 @@ class HyperparameterSearch:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd=Path(__file__).parent,
                 env=env,
                 check=False,  # nosec B603
             )
@@ -384,10 +381,15 @@ class HyperparameterSearch:
 
                     for hp in self.product_dict(full_grid):
                         current_run += 1
+
+                        # Extract method for wandb tags
+                        method = hp.get('dataset.loader.parameters.method', 'unknown')
+
                         overrides = [
                             f'model={model_key}',
                             f'dataset={dataset_key}',
                             f'seed={seed}',
+                            f'logger.wandb.tags=[{model_key},{dataset_key},{method}]',
                         ]
                         overrides = self.build_overrides(overrides, hp)
 
@@ -492,7 +494,7 @@ def main():
     # Define hyperparameter grids (from your notebook)
     DATASETS = ['motrpac', 'addneuromed', 'parkinsons']
     NODE_SAMPLE_RATIOS = [1.0, 0.8, 0.5]  # , 0.2]  # , 0.125]
-    SAMPLE_METHODS = ['variance', 'random']
+    SAMPLE_METHODS = ['variance', 'random', 'correlation']
 
     OPT_LRS = [0.001]
     OPT_WD = [0.0004]
@@ -503,13 +505,13 @@ def main():
     MODEL_KEYS = ['sagn', 'chebnet', 'mlp', 'gcn', 'gin', 'gatv4', 'gatv2', 'graph_sage']
 
     # Seeds for reproducibility
-    SEEDS = [42, 123, 456]
+    SEEDS = [891, 112, 131, 430]
 
     # Dataset-specific adjacency thresholds
     DATASET_ADJ_THRESHOLDS = {
-        'addneuromed': [0.3],
-        'motrpac': [0.03],
-        'parkinsons': [0.03],
+        'addneuromed': [0.1792],
+        'motrpac': [0.0229],
+        'parkinsons': [0.0463],
     }
 
     # Model and dataset-specific grids
