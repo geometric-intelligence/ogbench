@@ -162,9 +162,6 @@ class TBModel(LightningModule):
             batch_size=1,
         )
 
-        # Track best train loss in evaluator
-        self.evaluator.update_best_loss(loss_value, 'train')
-
         # Return loss for backpropagation step
         return model_out['loss']
 
@@ -192,9 +189,6 @@ class TBModel(LightningModule):
             batch_size=1,
         )
 
-        # Track best validation loss in evaluator
-        self.evaluator.update_best_loss(loss_value, 'val')
-
     def test_step(self, batch: Data, batch_idx: int) -> None:
         r"""Perform a single test step on a batch of data.
 
@@ -218,9 +212,6 @@ class TBModel(LightningModule):
             prog_bar=True,
             batch_size=1,
         )
-
-        # Track best test loss in evaluator
-        self.evaluator.update_best_loss(loss_value, 'test')
 
     def process_outputs(self, model_out: dict, batch: Data) -> dict:
         r"""Handle model outputs.
@@ -302,6 +293,12 @@ class TBModel(LightningModule):
         Note that the validation step is within the train epoch. Hence here we have to log the train metrics
         before we reset the evaluator to start the validation loop.
         """
+        # Track epoch-level best train loss (NOT per-batch).
+        # Lightning aggregates `train/loss` because we log it with `on_epoch=True`.
+        train_loss = self.trainer.callback_metrics.get('train/loss')
+        if train_loss is not None:
+            self.evaluator.update_best_loss(float(train_loss), 'train')
+
         # Log train metrics and reset evaluator
         self.log_metrics(mode='train')
         self.train_metrics_logged = True
@@ -321,6 +318,11 @@ class TBModel(LightningModule):
 
         This hook is used to log the validation metrics.
         """
+        # Track epoch-level best validation loss (NOT per-batch).
+        val_loss = self.trainer.callback_metrics.get('val/loss')
+        if val_loss is not None:
+            self.evaluator.update_best_loss(float(val_loss), 'val')
+
         # Log validation metrics and reset evaluator
         self.log_metrics(mode='val')
 
@@ -329,6 +331,11 @@ class TBModel(LightningModule):
 
         This hook is used to log the test metrics.
         """
+        # Track epoch-level best test loss (NOT per-batch).
+        test_loss = self.trainer.callback_metrics.get('test/loss')
+        if test_loss is not None:
+            self.evaluator.update_best_loss(float(test_loss), 'test')
+
         self.log_metrics(mode='test')
         # Log best metrics summary at the end of testing
         self.evaluator.log_best_metrics_summary()
