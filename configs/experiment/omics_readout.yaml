@@ -4,11 +4,7 @@
 # Enables OmicsReadOut with grid search over fc_dim and fc_dropout
 #
 # Usage:
-#   python scripts/run_all_experiments.py experiment=omics_readout \
-#       dataset=parkinsons,addneuromed,motrpac \
-#       model=gcn,gin,graph_sage,gatv2,chebnet \
-#       model.readout.fc_dim='[8,4,2]','[16,8,4]' \
-#       model.readout.fc_dropout=0.1,0.3
+#   python scripts/hyperparam_search.py --config configs/hparams_search/omics_readout_grid.yaml
 
 defaults:
   - override /dataset: parkinsons # Default, override via CLI

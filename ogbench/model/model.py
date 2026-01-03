@@ -77,7 +77,7 @@ class TBModel(LightningModule):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(backbone={self.backbone}, readout={self.readout}, loss={self.loss}, feature_encoder={self.feature_encoder})'
 
-    def forward(self, batch: Data) -> dict:
+    def forward(self, batch: Data) -> dict[str, Any]:
         r"""Perform a forward pass through the model.
 
         Parameters
@@ -87,7 +87,7 @@ class TBModel(LightningModule):
 
         Returns
         -------
-        dict
+        dict[str, Any]
             Dictionary containing the model output, which includes the logits and other relevant information.
         """
         # Feature Encoder
@@ -101,7 +101,7 @@ class TBModel(LightningModule):
 
         return model_out
 
-    def model_step(self, batch: Data) -> dict:
+    def model_step(self, batch: Data) -> dict[str, Any]:
         r"""Perform a single model step on a batch of data.
 
         Parameters
@@ -111,7 +111,7 @@ class TBModel(LightningModule):
 
         Returns
         -------
-        dict
+        dict[str, Any]
             Dictionary containing the model output and the loss.
         """
         # Allow batch object to know the phase of the training

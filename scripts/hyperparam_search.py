@@ -27,45 +27,12 @@ from hydra import compose, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from hydra.utils import instantiate
 from joblib import Parallel, delayed
-from omegaconf import OmegaConf
 
 from ogbench.utils.config_resolvers import (
-    calculate_num_nodes,
-    get_default_metrics,
-    get_default_trainer,
-    get_default_transform,
-    get_flattened_channels,
-    get_gatv4_output_dim,
-    get_monitor_metric,
-    get_monitor_mode,
-    get_non_relational_out_channels,
-    get_required_lifting,
-    infer_in_channels,
-    infer_num_cell_dimensions,
+    register_all_resolvers,
 )
 
-
-def register_resolvers() -> None:
-    """Register all custom OmegaConf resolvers."""
-    OmegaConf.register_new_resolver('calculate_num_nodes', calculate_num_nodes, replace=True)
-    OmegaConf.register_new_resolver('get_default_metrics', get_default_metrics, replace=True)
-    OmegaConf.register_new_resolver('get_default_trainer', get_default_trainer, replace=True)
-    OmegaConf.register_new_resolver('get_default_transform', get_default_transform, replace=True)
-    OmegaConf.register_new_resolver('get_flattened_channels', get_flattened_channels, replace=True)
-    OmegaConf.register_new_resolver('get_required_lifting', get_required_lifting, replace=True)
-    OmegaConf.register_new_resolver('get_monitor_metric', get_monitor_metric, replace=True)
-    OmegaConf.register_new_resolver('get_monitor_mode', get_monitor_mode, replace=True)
-    OmegaConf.register_new_resolver('get_gatv4_output_dim', get_gatv4_output_dim, replace=True)
-    OmegaConf.register_new_resolver(
-        'get_non_relational_out_channels', get_non_relational_out_channels, replace=True
-    )
-    OmegaConf.register_new_resolver('infer_in_channels', infer_in_channels, replace=True)
-    OmegaConf.register_new_resolver(
-        'infer_num_cell_dimensions', infer_num_cell_dimensions, replace=True
-    )
-
-
-register_resolvers()
+register_all_resolvers()
 
 
 @dataclass
@@ -149,7 +116,7 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
         if GlobalHydra().is_initialized():
             GlobalHydra().clear()
 
-        register_resolvers()
+        register_all_resolvers()
 
         # Get absolute path to configs directory
         script_dir = Path(__file__).resolve().parent
@@ -172,6 +139,10 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
 
     except Exception as e:
         return None, str(e)
+    finally:
+        # Always clean up GlobalHydra to prevent state leakage in parallel execution
+        if GlobalHydra().is_initialized():
+            GlobalHydra().clear()
 
 
 def run_training(
@@ -205,7 +176,14 @@ def run_training(
                 pass
             return True, None, metrics
         else:
-            error_msg = f'Return code {result.returncode}\nSTDERR: {result.stderr[-1000:]}'
+            # Truncate error message to prevent memory issues with large outputs
+            # Show first 500 chars (where error typically is) and last 500 chars
+            stderr_truncated = (
+                result.stderr[:500] + '...' + result.stderr[-500:]
+                if len(result.stderr) > 1000
+                else result.stderr
+            )
+            error_msg = f'Return code {result.returncode}\nSTDERR: {stderr_truncated}'
             return False, error_msg, None
 
     except subprocess.TimeoutExpired:
