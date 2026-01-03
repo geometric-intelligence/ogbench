@@ -80,6 +80,7 @@ class SearchConfig:
     per_model_grid: dict[str, dict[str, list[Any]]]
     timeout: int
     output_dir: str
+    tags: list[str]
 
     @classmethod
     def from_yaml(cls, path: str) -> 'SearchConfig':
@@ -96,6 +97,7 @@ class SearchConfig:
             per_model_grid=config.get('per_model_grid', {}),
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
+            tags=config.get('tags', []),
         )
 
 
@@ -280,11 +282,13 @@ def build_run_configs(
                 run_id += 1
 
                 # Build overrides list
+                all_tags = [model, search_config.dataset, 'hpsearch'] + search_config.tags
+                tags_str = ','.join(all_tags)
                 overrides = [
                     f'model={model}',
                     f'dataset={search_config.dataset}',
                     f'seed={seed}',
-                    f'logger.wandb.tags=[{model},{search_config.dataset},hpsearch]',
+                    f'logger.wandb.tags=[{tags_str}]',
                 ]
 
                 # Add fixed parameters
