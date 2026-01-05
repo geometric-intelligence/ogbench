@@ -5,6 +5,37 @@ import os
 
 import omegaconf
 import torch
+from omegaconf import OmegaConf
+
+
+def register_all_resolvers() -> None:
+    """Register all custom OmegaConf resolvers.
+
+    This centralizes resolver registration to avoid duplication across modules. Should be called
+    before Hydra initialization in any script that uses configs.
+    """
+    OmegaConf.register_new_resolver('calculate_num_nodes', calculate_num_nodes, replace=True)
+    OmegaConf.register_new_resolver('get_default_metrics', get_default_metrics, replace=True)
+    OmegaConf.register_new_resolver('get_default_trainer', get_default_trainer, replace=True)
+    OmegaConf.register_new_resolver('get_default_transform', get_default_transform, replace=True)
+    OmegaConf.register_new_resolver('get_flattened_channels', get_flattened_channels, replace=True)
+    OmegaConf.register_new_resolver('get_required_lifting', get_required_lifting, replace=True)
+    OmegaConf.register_new_resolver('get_monitor_metric', get_monitor_metric, replace=True)
+    OmegaConf.register_new_resolver('get_monitor_mode', get_monitor_mode, replace=True)
+    OmegaConf.register_new_resolver('get_gatv4_output_dim', get_gatv4_output_dim, replace=True)
+    OmegaConf.register_new_resolver(
+        'get_non_relational_out_channels', get_non_relational_out_channels, replace=True
+    )
+    OmegaConf.register_new_resolver('infer_in_channels', infer_in_channels, replace=True)
+    OmegaConf.register_new_resolver(
+        'infer_num_cell_dimensions', infer_num_cell_dimensions, replace=True
+    )
+    OmegaConf.register_new_resolver(
+        'parameter_multiplication', lambda x, y: int(int(x) * int(y)), replace=True
+    )
+    OmegaConf.register_new_resolver(
+        'get_target_normalizer_stats', get_target_normalizer_stats, replace=True
+    )
 
 
 def get_gatv4_output_dim(num_nodes, num_layers=3):
@@ -64,7 +95,7 @@ def get_flattened_channels(num_nodes, channels):
     Returns
     -------
     int
-        Flatenned cchannels dimension.
+        Flattened channels dimension.
     """
     return num_nodes * channels
 
@@ -120,12 +151,6 @@ def get_default_transform(dataset, model):
     str
         Default transform.
     """
-    # data_domain, dataset = dataset.split("/")
-    # model_domain, model = model.split("/")
-    # if model_domain == "non_relational" or model_domain == "pointcloud":
-    #     model_domain = "graph"
-    # # Check if there is a default transform for the dataset at ./configs/transforms/dataset_defaults/
-    # # If not, use the default lifting transform for the dataset to be compatible with the model
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     model_configs_dir = os.path.join(base_dir, 'configs', 'transforms', 'model_defaults')
     dataset_configs_dir = os.path.join(base_dir, 'configs', 'transforms', 'dataset_defaults')
@@ -349,39 +374,10 @@ def infer_in_channels(dataset, transforms):
 
     # Case when there is no lifting
     elif not there_is_complex_lifting:
-        # Check if dataset and model are from the same domain and data_domain is higher-order
-
-        # TODO: Does this if statement ever execute? model_domain == data_domain and data_domain in ["simplicial", "cell", "combinatorial", "hypergraph"]
-        # BUT get_default_transform() returns "no_transform" when model_domain == data_domain
-        if dataset.loader.parameters.get(
-            'model_domain', 'graph'
-        ) == dataset.loader.parameters.data_domain and dataset.loader.parameters.data_domain in [
-            'simplicial',
-            'cell',
-            'combinatorial',
-            'hypergraph',
-        ]:
-            if isinstance(
-                dataset.parameters.num_features,
-                omegaconf.listconfig.ListConfig,
-            ):
-                return list(dataset.parameters.num_features)
-            else:
-                raise ValueError(
-                    'The dataset and model are from the same domain but the data_domain is not higher-order.'
-                )
-
-        elif isinstance(dataset.parameters.num_features, int):
+        if isinstance(dataset.parameters.num_features, int):
             return [dataset.parameters.num_features]
-
         else:
             return [dataset.parameters.num_features[0]]
-
-    # This else is never executed
-    else:
-        raise ValueError(
-            'There is a problem with the complex lifting. Please check the configuration file.'
-        )
 
 
 def infer_num_cell_dimensions(selected_dimensions, in_channels):

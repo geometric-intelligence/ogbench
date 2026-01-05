@@ -3,12 +3,6 @@
 # OmicsReadOut experiment configuration
 # Enables OmicsReadOut with grid search over fc_dim and fc_dropout
 #
-# Usage:
-#   python scripts/run_all_experiments.py experiment=omics_readout \
-#       dataset=parkinsons,addneuromed,motrpac \
-#       model=gcn,gin,graph_sage,gatv2,chebnet \
-#       model.readout.fc_dim='[8,4,2]','[16,8,4]' \
-#       model.readout.fc_dropout=0.1,0.3
 
 defaults:
   - override /dataset: parkinsons # Default, override via CLI
@@ -41,8 +35,8 @@ model:
     num_nodes: ${dataset.parameters.num_nodes}
     hidden_dim: ${get_flattened_channels:${dataset.parameters.num_nodes},${model.backbone_wrapper.out_channels}}
     which_layer: ["output"]
-    fc_dim: [8, 4, 2]
-    fc_dropout: 0.1
+    fc_dim: [16, 8, 4]
+    fc_dropout: 0.3
     fc_act: relu
     out_channels: ${dataset.parameters.num_classes}
     task_level: ${dataset.parameters.task_level}
