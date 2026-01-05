@@ -39,12 +39,13 @@ register_all_resolvers()
 class SearchConfig:
     """Configuration for hyperparameter search."""
 
-    dataset: str
+    datasets: list[str]
     models: list[str]
     seeds: list[int]
     fixed: dict[str, Any]
     shared_grid: dict[str, list[Any]]
     per_model_grid: dict[str, dict[str, list[Any]]]
+    per_model_dataset_grid: dict[tuple[str, str], dict[str, list[Any]]]
     timeout: int
     output_dir: str
     tags: list[str]
@@ -55,13 +56,36 @@ class SearchConfig:
         with open(path) as f:
             config = yaml.safe_load(f)
 
+        # Handle both single dataset (backward compatible) and multiple datasets
+        if 'datasets' in config:
+            datasets = config['datasets']
+        elif 'dataset' in config:
+            datasets = [config['dataset']]
+        else:
+            raise ValueError("Config must specify either 'dataset' or 'datasets'")
+
+        # Parse per_model_dataset_grid with string keys "model,dataset" -> tuple keys
+        per_model_dataset_raw = config.get('per_model_dataset_grid', {})
+        per_model_dataset_grid = {}
+        for key, value in per_model_dataset_raw.items():
+            if isinstance(key, str) and ',' in key:
+                # Parse "model,dataset" -> (model, dataset)
+                parts = key.split(',')
+                if len(parts) == 2:
+                    model, dataset = parts[0].strip(), parts[1].strip()
+                    per_model_dataset_grid[(model, dataset)] = value
+            elif isinstance(key, tuple) and len(key) == 2:
+                # Already a tuple (shouldn't happen with YAML but handle it)
+                per_model_dataset_grid[key] = value
+
         return cls(
-            dataset=config['dataset'],
+            datasets=datasets,
             models=config['models'],
             seeds=config['seeds'],
             fixed=config.get('fixed', {}),
             shared_grid=config.get('shared_grid', {}),
             per_model_grid=config.get('per_model_grid', {}),
+            per_model_dataset_grid=per_model_dataset_grid,
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
             tags=config.get('tags', []),
@@ -248,52 +272,61 @@ def build_run_configs(
     models = models_filter if models_filter else search_config.models
 
     for model in models:
-        # Get model-specific grid
-        model_grid = search_config.per_model_grid.get(model, {})
+        for dataset in search_config.datasets:
+            # 3-level grid merge (priority: shared < per_model < per_model_dataset)
+            # Get model-specific grid
+            model_grid = search_config.per_model_grid.get(model, {})
 
-        # Combine shared and model-specific grids
-        full_grid = {**search_config.shared_grid, **model_grid}
+            # Get model+dataset-specific grid
+            model_dataset_grid = search_config.per_model_dataset_grid.get((model, dataset), {})
 
-        # Generate all hyperparameter combinations
-        for hp_combo in product_dict(full_grid):
-            for seed in search_config.seeds:
-                run_id += 1
+            # Combine all three levels (later overrides earlier)
+            full_grid = {
+                **search_config.shared_grid,
+                **model_grid,
+                **model_dataset_grid,
+            }
 
-                # Build overrides list
-                all_tags = [model, search_config.dataset, 'hpsearch'] + search_config.tags
-                tags_str = ','.join(all_tags)
-                overrides = [
-                    f'model={model}',
-                    f'dataset={search_config.dataset}',
-                    f'seed={seed}',
-                    f'logger.wandb.tags=[{tags_str}]',
-                ]
+            # Generate all hyperparameter combinations
+            for hp_combo in product_dict(full_grid):
+                for seed in search_config.seeds:
+                    run_id += 1
 
-                # Add fixed parameters
-                for key, value in search_config.fixed.items():
-                    overrides.append(to_override(key, value))
+                    # Build overrides list
+                    all_tags = [model, dataset, 'hpsearch'] + search_config.tags
+                    tags_str = ','.join(all_tags)
+                    overrides = [
+                        f'model={model}',
+                        f'dataset={dataset}',
+                        f'seed={seed}',
+                        f'logger.wandb.tags=[{tags_str}]',
+                    ]
 
-                # Add hyperparameters
-                for key, value in hp_combo.items():
-                    overrides.append(to_override(key, value))
+                    # Add fixed parameters
+                    for key, value in search_config.fixed.items():
+                        overrides.append(to_override(key, value))
 
-                # Assign GPU round-robin
-                gpu_id = None
-                if parallel and not dry_run and n_gpus > 0:
-                    gpu_id = (run_id - 1) % n_gpus
+                    # Add hyperparameters
+                    for key, value in hp_combo.items():
+                        overrides.append(to_override(key, value))
 
-                configs.append(
-                    RunConfig(
-                        run_id=run_id,
-                        model=model,
-                        dataset=search_config.dataset,
-                        seed=seed,
-                        overrides=overrides,
-                        hyperparams=hp_combo,
-                        timeout=search_config.timeout,
-                        gpu_id=gpu_id,
+                    # Assign GPU round-robin
+                    gpu_id = None
+                    if parallel and not dry_run and n_gpus > 0:
+                        gpu_id = (run_id - 1) % n_gpus
+
+                    configs.append(
+                        RunConfig(
+                            run_id=run_id,
+                            model=model,
+                            dataset=dataset,
+                            seed=seed,
+                            overrides=overrides,
+                            hyperparams=hp_combo,
+                            timeout=search_config.timeout,
+                            gpu_id=gpu_id,
+                        )
                     )
-                )
 
     return configs
 
@@ -322,7 +355,7 @@ def run_search(
     print('=' * 60)
     print('HYPERPARAMETER SEARCH')
     print('=' * 60)
-    print(f'Dataset: {search_config.dataset}')
+    print(f'Datasets: {search_config.datasets}')
     print(f'Models: {models_filter or search_config.models}')
     print(f'Seeds: {search_config.seeds}')
     print(f'Total runs: {len(configs)}')
@@ -356,11 +389,12 @@ def run_search(
 
     # Create summary
     summary_rows = []
-    for model, group in df.groupby('model'):
+    for (model, dataset), group in df.groupby(['model', 'dataset']):
         total = len(group)
         success = group['success'].sum()
         summary_row = {
             'model': model,
+            'dataset': dataset,
             'total_runs': total,
             'successful': success,
             'failed': total - success,

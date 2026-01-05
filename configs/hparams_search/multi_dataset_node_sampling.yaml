@@ -1,0 +1,195 @@
+# Multi-dataset hyperparameter grid search for node sampling strategies
+# Tests all 9 models across 3 datasets with different node sampling approaches
+# Used by scripts/hyperparam_search.py
+
+datasets:
+  - parkinsons
+  - addneuromed
+  - motrpac
+
+models:
+  - gcn
+  - gin
+  - gatv2
+  - gatv4
+  - graph_sage
+  - chebnet
+  - sagn
+
+seeds: [42, 123, 456]
+
+# Custom tags for wandb (appended to auto-generated [model, dataset, hpsearch])
+tags:
+  - omics_readout
+  - node_sampling
+
+# Fixed parameters (not searched)
+fixed:
+  experiment: omics_readout
+  optimizer.parameters.lr: 0.001
+  optimizer.parameters.weight_decay: 0.0
+  model.readout.fc_dim: [16, 8, 4]
+  model.readout.fc_dropout: 0.3
+  logger.wandb.project: bgbench_hyperparams
+
+# Shared hyperparameter grid (applied to all models and datasets)
+shared_grid:
+  dataset.loader.parameters.node_sample_ratio:
+    - 1.0
+    - 0.8
+    - 0.5
+  dataset.loader.parameters.method:
+    - variance
+    - random
+    - correlation
+
+# Per-model hyperparameter grids (applied across all datasets)
+# Not used in this config since we have model+dataset specific params
+per_model_grid: {}
+
+# Per-model-dataset hyperparameter grids
+# Each model-dataset pair gets specific architecture params and adjacency threshold
+per_model_dataset_grid:
+  # GCN configurations
+  gcn,motrpac:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [4]
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  gcn,addneuromed:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [4]
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  gcn,parkinsons:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [4]
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  # GIN configurations
+  gin,motrpac:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  gin,addneuromed:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  gin,parkinsons:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  # GATv2 configurations
+  gatv2,motrpac:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.v2: [true]
+    model.backbone.heads: [8]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  gatv2,addneuromed:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.v2: [true]
+    model.backbone.heads: [8]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  gatv2,parkinsons:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.v2: [true]
+    model.backbone.heads: [8]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  # GATv4 configurations
+  gatv4,motrpac:
+    model.backbone.hidden_channels: [[28, 56]]
+    model.backbone.heads: [[7, 7]]
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  gatv4,addneuromed:
+    model.backbone.hidden_channels: [[28, 56]]
+    model.backbone.heads: [[7, 7]]
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  gatv4,parkinsons:
+    model.backbone.hidden_channels: [[28, 56]]
+    model.backbone.heads: [[7, 7]]
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  # GraphSAGE configurations
+  graph_sage,motrpac:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  graph_sage,addneuromed:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  graph_sage,parkinsons:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [8]
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  # ChebNet configurations
+  chebnet,motrpac:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.K: [2]
+    model.backbone.num_layers: [2]
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  chebnet,addneuromed:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.K: [2]
+    model.backbone.num_layers: [2]
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  chebnet,parkinsons:
+    model.feature_encoder.out_channels: [16]
+    model.backbone.K: [2]
+    model.backbone.num_layers: [2]
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  # SAGN configurations
+  sagn,motrpac:
+    model.backbone.hidden_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [3]
+    model.backbone.alpha: [0.5]
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  sagn,addneuromed:
+    model.backbone.hidden_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [3]
+    model.backbone.alpha: [0.5]
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  sagn,parkinsons:
+    model.backbone.hidden_channels: [16]
+    model.backbone.dropout: [0.5]
+    model.backbone.num_layers: [3]
+    model.backbone.alpha: [0.5]
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+# Training settings
+training:
+  timeout: 3600 # 1 hour per run
+  output_dir: ./search_results/multi_dataset_node_sampling
