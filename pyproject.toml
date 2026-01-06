@@ -173,3 +173,6 @@ pythonpath = [
 [tool.uv]
 index-url = "https://pypi.org/simple"
 find-links = ["https://data.pyg.org/whl/torch-2.8.0+cu128.html"]
+
+[tool.pip]
+find-links = ["https://data.pyg.org/whl/torch-2.8.0+cu128.html"]
