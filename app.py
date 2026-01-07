@@ -33,7 +33,8 @@ DATASETS = {
 }
 
 # Valid parameter values (must match precomputed stats)
-VALID_RATIOS = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+# Note: p=1.0 excluded because it was capped at 1000 nodes during precomputation
+VALID_RATIOS = [0.5, 0.6, 0.7, 0.8, 0.9]
 VALID_METHODS = ['variance', 'correlation', 'random']
 VALID_THRESHOLDS = [0.02, 0.1, 0.2, 0.3, 0.4, 0.5]
 
@@ -288,9 +289,9 @@ app.layout = html.Div([
                     dcc.Slider(
                         id='node-sample-ratio',
                         min=0.5,
-                        max=1.0,
+                        max=0.9,
                         step=None,
-                        value=1.0,
+                        value=0.5,  # Start with lowest p (most nodes)
                         marks={v: f'{v}' for v in VALID_RATIOS},
                         included=False,
                     ),
@@ -326,19 +327,19 @@ app.layout = html.Div([
                     ),
                 ], className='control-group'),
                 
-                # Dataset Selector
+                # Dataset Selector (colored labels)
                 html.Div([
                     html.Div('Datasets', className='control-label'),
                     dcc.Checklist(
                         id='dataset-selector',
                         options=[
-                            {'label': html.Span([' MotrPac'], style={'fontWeight': '500'}), 'value': 'motrpac'},
-                            {'label': html.Span([' AddNeuroMed'], style={'fontWeight': '500'}), 'value': 'addneuromed'},
-                            {'label': html.Span([' Parkinson\'s'], style={'fontWeight': '500'}), 'value': 'parkinsons'},
+                            {'label': html.Span([' MotrPac'], style={'fontWeight': '600', 'color': DATASETS['motrpac']['color']}), 'value': 'motrpac'},
+                            {'label': html.Span([' AddNeuroMed'], style={'fontWeight': '600', 'color': DATASETS['addneuromed']['color']}), 'value': 'addneuromed'},
+                            {'label': html.Span([' Parkinson\'s'], style={'fontWeight': '600', 'color': DATASETS['parkinsons']['color']}), 'value': 'parkinsons'},
                         ],
                         value=['motrpac', 'addneuromed', 'parkinsons'],
                         inline=True,
-                        style={'display': 'flex', 'gap': '12px', 'flexWrap': 'wrap', 'marginTop': '4px'}
+                        style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap', 'marginTop': '4px'}
                     ),
                 ], className='control-group'),
             ], className='controls-grid'),
@@ -471,7 +472,7 @@ def update_visualization(node_sample_ratio, method, adj_threshold, selected_data
         font=dict(family='Avenir, Avenir Next, -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, sans-serif', size=14),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(248,250,252,1)',
-        margin=dict(l=50, r=30, t=60, b=50),
+        margin=dict(l=50, r=30, t=60, b=70),  # Extra bottom margin for diagonal labels
     )
     
     # Style subplot titles
@@ -482,8 +483,8 @@ def update_visualization(node_sample_ratio, method, adj_threshold, selected_data
     # Style axes (fixed ranges for smooth transitions)
     fig.update_xaxes(
         showgrid=False,
-        tickangle=0,
-        tickfont=dict(size=13, family='Avenir, Avenir Next, sans-serif'),
+        tickangle=-35,  # Diagonal labels to avoid overlap
+        tickfont=dict(size=11, family='Avenir, Avenir Next, sans-serif'),
         fixedrange=True,
         categoryorder='array',
         categoryarray=x_labels,  # Lock x-axis order
