@@ -1,0 +1,249 @@
+# Hyperparameter grid search configuration for parkinsons dataset
+# Used by scripts/hyperparam_search.py
+
+datasets:
+  - parkinsons
+  - addneuromed
+  - motrpac
+
+models:
+  - gcn
+  - gin
+  - gatv2
+  - gatv4
+  - graph_sage
+  - sagn
+
+seeds: [42, 123, 456]
+
+# Fixed parameters (not searched)
+fixed:
+  logger.wandb.project: bgbench_multi_dataset_grid_search
+
+# Shared hyperparameter grid (applied to all models)
+shared_grid:
+  dataset.loader.parameters.node_sample_ratio:
+    - 1.25
+    - 1.0
+    - 0.8
+    - 0.5
+  dataset.loader.parameters.method:
+    - variance
+    - random
+    - correlation
+  optimizer.parameters.lr:
+    - 0.0001
+    - 0.001
+    - 0.01
+  optimizer.parameters.weight_decay:
+    - 0.0
+    - 0.0001
+    - 0.001
+  model.backbone.dropout:
+    - 0.1
+    - 0.3
+  model.readout.readout_name:
+    - OmicsReadOut
+  model.readout.fc_dim:
+    - [8, 4, 2]
+    - [16, 8, 4]
+  model.readout.fc_dropout: #TODO: only define backbone.dropout and change config 
+    # to define readout.fc_readout with the same value ($model.backbone.dropout)
+    - 0.1
+    - 0.3
+
+# Per-model hyperparameter grids
+per_model_grid:
+  gcn:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+
+  gin:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+      - 8
+
+  gatv2:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+    model.backbone.num_layers:
+      - 2
+      - 4
+      - 8
+    model.backbone.heads:
+      - 4
+      - 8
+
+  gatv4:
+    model.backbone.hidden_channels:
+      - [16, 32]
+      - [32, 64]
+    model.backbone.heads:
+      - [4, 4]
+      - [8, 8]
+    model.backbone.use_layer_norm:
+      - true
+      - false
+
+  graph_sage:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+      - 8
+
+  sagn:
+    model.backbone.hidden_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+      - 8
+    model.backbone.num_heads:
+      - 1
+      - 3
+
+# Per-dataset, per-node_sample_ratio, per-method hyperparameter grids
+# Format: "dataset,ratio,method" as key (e.g., "parkinsons,1.0,variance")
+# Organized by ratio and method first, then by dataset
+per_dataset_ratio_method_grid:
+  # ratio=1.25, method=variance
+  motrpac,1.25,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.1178]
+  
+  parkinsons,1.25,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0420]
+  
+  addneuromed,1.25,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.3522]
+  
+  # ratio=1.25, method=random 
+  motrpac,1.25,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0088]
+  
+  parkinsons,1.25,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0086]
+  
+  addneuromed,1.25,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0092]
+  
+  # ratio=1.25, method=correlation
+  motrpac,1.25,correlation:
+    dataset.loader.parameters.adjacency_threshold: [.0094]
+  
+  parkinsons,1.25,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0090]
+  
+  addneuromed,1.25,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0618]
+  
+  # ratio=1.0, method=variance
+  motrpac,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0926]
+  
+  parkinsons,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0350]
+  
+  addneuromed,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.2997]
+  
+  # ratio=1.0, method=random
+  motrpac,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0093]
+  
+  parkinsons,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+  
+  addneuromed,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+  
+  # ratio=1.0, method=correlation
+  motrpac,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0095]
+  
+  parkinsons,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+  
+  addneuromed,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0997]
+  
+  # ratio=0.8, method=variance
+  motrpac,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0847]
+
+  parkinsons,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0311]
+
+  addneuromed,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.2535]
+
+  # ratio=0.8, method=random
+  motrpac,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0088]
+
+  parkinsons,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0096]
+
+  addneuromed,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0086]
+
+  # ratio=0.8, method=correlation
+  motrpac,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0786]
+
+  parkinsons,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0089]
+
+  addneuromed,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.1088]
+
+  # ratio=0.5, method=variance
+  motrpac,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  parkinsons,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  addneuromed,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  # ratio=0.8, method=random
+  motrpac,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0988]
+
+  parkinsons,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  addneuromed,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  # ratio=0.5, method=correlation
+  motrpac,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0522]
+
+  parkinsons,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0086]
+
+  addneuromed,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0972]
+  
+# Training settings
+training:
+  timeout: 3600 # 1 hour per run
+  output_dir: ./search_results/multi_dataset_grid_search
