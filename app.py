@@ -5,7 +5,9 @@ This app visualizes graph statistics for the three omics datasets
 (MotrPac, AddNeuroMed, Parkinsons) with interactive controls.
 """
 
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 import dash
@@ -53,6 +55,34 @@ HF_REPO_ID = 'geometric-intelligence/bgbench'
 # Cache for loaded datasets and computed graph stats
 _data_cache = {}
 _stats_cache = {}  # Cache for computed graph statistics keyed by parameters
+
+# Path to precomputed stats file
+PRECOMPUTED_STATS_FILE = Path(__file__).parent / 'precomputed_stats.json'
+
+
+def load_precomputed_stats():
+    """Load precomputed stats from JSON file into cache."""
+    global _stats_cache
+    if PRECOMPUTED_STATS_FILE.exists():
+        print(f'Loading precomputed stats from {PRECOMPUTED_STATS_FILE}...')
+        with open(PRECOMPUTED_STATS_FILE, 'r') as f:
+            precomputed = json.load(f)
+        
+        # Convert JSON keys back to tuple format for cache
+        for key_str, stats in precomputed.items():
+            # Key format: "dataset|ratio|method|threshold"
+            parts = key_str.split('|')
+            dataset = parts[0]
+            ratio = float(parts[1])
+            method = parts[2]
+            threshold = float(parts[3])
+            cache_key = (dataset, ratio, method, threshold)
+            _stats_cache[cache_key] = stats
+        
+        print(f'  Loaded {len(_stats_cache)} precomputed combinations')
+    else:
+        print(f'No precomputed stats found at {PRECOMPUTED_STATS_FILE}')
+        print('  Run: python precompute_stats.py to generate them')
 
 
 def load_raw_data(dataset_name: str) -> tuple[pd.DataFrame, np.ndarray]:
@@ -751,13 +781,23 @@ def update_visualization(node_sample_ratio, method, adj_threshold, selected_data
 print('\n' + '='*60)
 print('BGBench Dataset Explorer')
 print('='*60)
-print('\nPreloading datasets from HuggingFace...')
-for dataset_name in DATASETS.keys():
-    try:
-        load_raw_data(dataset_name)
-    except Exception as e:
-        print(f'Error preloading {dataset_name}: {e}')
-print('\nDatasets loaded successfully!')
+
+# Load precomputed stats first (fast)
+print('\nLoading precomputed statistics...')
+load_precomputed_stats()
+
+# Only load raw data if precomputed stats are missing
+if len(_stats_cache) == 0:
+    print('\nNo precomputed stats found. Loading datasets from HuggingFace...')
+    for dataset_name in DATASETS.keys():
+        try:
+            load_raw_data(dataset_name)
+        except Exception as e:
+            print(f'Error preloading {dataset_name}: {e}')
+    print('\nDatasets loaded successfully!')
+else:
+    print(f'\nUsing {len(_stats_cache)} precomputed statistics for fast startup!')
+
 print('='*60 + '\n')
 
 
