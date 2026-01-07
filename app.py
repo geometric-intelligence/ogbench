@@ -1,305 +1,80 @@
 #!/usr/bin/env python3
 """Interactive Dash app for exploring BGBench omics datasets.
 
-This app visualizes graph statistics for the three omics datasets
+This app visualizes precomputed graph statistics for the three omics datasets
 (MotrPac, AddNeuroMed, Parkinsons) with interactive controls.
+
+Note: This app requires precomputed stats. Run `python precompute_stats.py` first.
 """
 
 import json
-import os
 from pathlib import Path
-from typing import Any
 
 import dash
-import networkx as nx
-import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
 from dash import dcc, html
 from dash.dependencies import Input, Output
-from huggingface_hub import hf_hub_download
 from plotly.subplots import make_subplots
-from sklearn.impute import SimpleImputer
-from sklearn.utils import shuffle
 
 # Dataset configurations
 DATASETS = {
     'motrpac': {
-        'data_name': 'motrpac',
-        'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
-        'train_val_test_split': [0.7, 0.2, 0.1],
         'full_name': 'MotrPac',
-        'description': 'Exercise response proteomics',
         'color': '#3b82f6',  # Blue
     },
     'addneuromed': {
-        'data_name': 'addneuromed',
-        'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
-        'train_val_test_split': [0.7, 0.2, 0.1],
         'full_name': 'AddNeuroMed',
-        'description': 'Alzheimer\'s gene expression',
         'color': '#f97316',  # Orange
     },
     'parkinsons': {
-        'data_name': 'parkinsons',
-        'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
-        'train_val_test_split': [0.7, 0.15, 0.15],
         'full_name': 'Parkinson\'s',
-        'description': 'Parkinson\'s gene expression',
         'color': '#22c55e',  # Green
     },
 }
 
-HF_REPO_ID = 'geometric-intelligence/bgbench'
+# Valid parameter values (must match precomputed stats)
+VALID_RATIOS = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+VALID_METHODS = ['variance', 'correlation', 'random']
+VALID_THRESHOLDS = [0.02, 0.1, 0.2, 0.3, 0.4, 0.5]
 
-# Cache for loaded datasets and computed graph stats
-_data_cache = {}
-_stats_cache = {}  # Cache for computed graph statistics keyed by parameters
+# Precomputed stats loaded at startup
+PRECOMPUTED_STATS = {}
+METRIC_MAX_VALUES = {}
 
 # Path to precomputed stats file
 PRECOMPUTED_STATS_FILE = Path(__file__).parent / 'precomputed_stats.json'
 
 
 def load_precomputed_stats():
-    """Load precomputed stats from JSON file into cache."""
-    global _stats_cache
-    if PRECOMPUTED_STATS_FILE.exists():
-        print(f'Loading precomputed stats from {PRECOMPUTED_STATS_FILE}...')
-        with open(PRECOMPUTED_STATS_FILE, 'r') as f:
-            precomputed = json.load(f)
-        
-        # Convert JSON keys back to tuple format for cache
-        for key_str, stats in precomputed.items():
-            # Key format: "dataset|ratio|method|threshold"
-            parts = key_str.split('|')
-            dataset = parts[0]
-            ratio = float(parts[1])
-            method = parts[2]
-            threshold = float(parts[3])
-            cache_key = (dataset, ratio, method, threshold)
-            _stats_cache[cache_key] = stats
-        
-        print(f'  Loaded {len(_stats_cache)} precomputed combinations')
-    else:
-        print(f'No precomputed stats found at {PRECOMPUTED_STATS_FILE}')
+    """Load precomputed stats from JSON file."""
+    global PRECOMPUTED_STATS, METRIC_MAX_VALUES
+    
+    if not PRECOMPUTED_STATS_FILE.exists():
+        print(f'ERROR: No precomputed stats found at {PRECOMPUTED_STATS_FILE}')
         print('  Run: python precompute_stats.py to generate them')
+        return
+    
+    print(f'Loading precomputed stats from {PRECOMPUTED_STATS_FILE}...')
+    with open(PRECOMPUTED_STATS_FILE, 'r') as f:
+        PRECOMPUTED_STATS = json.load(f)
+    
+    # Compute max values for each metric (for fixed y-axis ranges)
+    metrics = ['n_nodes', 'n_edges', 'mean_degree', 'density', 'avg_clustering', 
+               'largest_cc_ratio', 'avg_path_length', 'n_components', 'std_degree']
+    for m in metrics:
+        vals = [v[m] for v in PRECOMPUTED_STATS.values()]
+        METRIC_MAX_VALUES[m] = max(vals) * 1.20 if vals else 1  # 20% padding for text labels
+    
+    print(f'  Loaded {len(PRECOMPUTED_STATS)} precomputed combinations')
 
 
-def load_raw_data(dataset_name: str) -> tuple[pd.DataFrame, np.ndarray]:
-    """Load raw dataset from HuggingFace (cached)."""
-    if dataset_name in _data_cache:
-        return _data_cache[dataset_name]
-    
-    print(f'Loading {dataset_name} from HuggingFace...')
-    config = DATASETS[dataset_name]
-    
-    # Download data
-    data_file = hf_hub_download(
-        repo_id=HF_REPO_ID,
-        repo_type='dataset',
-        revision=config['revision'],
-        filename=f'{dataset_name}_data.parquet',
-    )
-    targets_file = hf_hub_download(
-        repo_id=HF_REPO_ID,
-        repo_type='dataset',
-        revision=config['revision'],
-        filename=f'{dataset_name}_targets.parquet',
-    )
-    
-    # Load data
-    raw_data = pd.read_parquet(data_file)
-    targets_df = pd.read_parquet(targets_file)
-    
-    if 'target' in raw_data.columns:
-        raw_data = raw_data.drop('target', axis=1)
-    
-    targets = targets_df['target'].values
-    
-    # Shuffle and split
-    raw_data, targets = shuffle(raw_data, targets, random_state=42)
-    
-    train_val_test_split = config['train_val_test_split']
-    train_idx = int(len(targets) * train_val_test_split[0])
-    
-    # Get training data only
-    train_data = raw_data.iloc[:train_idx]
-    train_targets = targets[:train_idx]
-    
-    # Impute missing values
-    imputer = SimpleImputer(strategy='mean')
-    train_data_imputed = imputer.fit_transform(train_data)
-    train_data = pd.DataFrame(
-        train_data_imputed, columns=train_data.columns, index=train_data.index
-    )
-    
-    print(f'  {dataset_name}: {train_data.shape[0]} samples, {train_data.shape[1]} features')
-    
-    _data_cache[dataset_name] = (train_data, train_targets)
-    return train_data, train_targets
-
-
-def select_nodes(
-    data: np.ndarray, targets: np.ndarray, n_selected: int, method: str
-) -> np.ndarray:
-    """Select nodes based on feature importance."""
-    np.random.seed(42)  # For reproducibility in random selection
-    
-    if method == 'variance':
-        variances = np.std(data, axis=0)
-        ranked_nodes = np.argsort(variances)[::-1]
-    elif method == 'correlation':
-        correlations = np.abs(
-            np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
-        )
-        # Handle NaN correlations
-        correlations = np.nan_to_num(correlations, nan=0.0)
-        ranked_nodes = np.argsort(correlations)[::-1]
-    elif method == 'random':
-        ranked_nodes = np.random.permutation(data.shape[1])
-    else:
-        raise ValueError(f'Invalid method: {method}')
-    
-    return ranked_nodes[:n_selected]
-
-
-def calculate_adjacency_matrix(
-    node_features: pd.DataFrame, adjacency_threshold: float
-) -> np.ndarray:
-    """Calculate adjacency matrix using correlation-based approach."""
-    # Use correlation-based adjacency with soft thresholding (power=6)
-    corr_matrix = node_features.corr().values
-    adjacency = np.abs(corr_matrix) ** 6
-    
-    # Binarize
-    adjacency = np.nan_to_num(adjacency, nan=0.0)
-    adj_matrix = np.where(adjacency > adjacency_threshold, 1, 0)
-    np.fill_diagonal(adj_matrix, 1)
-    
-    return adj_matrix
-
-
-def compute_graph_metrics(adj_matrix: np.ndarray) -> dict[str, float]:
-    """Compute various graph metrics from adjacency matrix."""
-    n_nodes = adj_matrix.shape[0]
-    
-    # Remove self-loops for metric computation
-    adj_no_diag = adj_matrix.copy()
-    np.fill_diagonal(adj_no_diag, 0)
-    
-    # Create NetworkX graph for advanced metrics
-    graph = nx.from_numpy_array(adj_no_diag)
-    
-    # Node degrees
-    node_degrees = np.sum(adj_no_diag, axis=1)
-    
-    # Number of edges (undirected)
-    n_edges = np.sum(adj_no_diag) / 2
-    
-    # Maximum possible edges
-    max_edges = n_nodes * (n_nodes - 1) / 2
-    
-    # Density
-    density = n_edges / max_edges if max_edges > 0 else 0
-    
-    # Degree statistics
-    mean_degree = np.mean(node_degrees) if n_nodes > 0 else 0
-    std_degree = np.std(node_degrees) if n_nodes > 0 else 0
-    
-    # Connected components
-    n_components = nx.number_connected_components(graph)
-    
-    # Largest connected component ratio
-    if n_nodes > 0 and n_components > 0:
-        largest_cc = max(nx.connected_components(graph), key=len)
-        largest_cc_ratio = len(largest_cc) / n_nodes * 100
-    else:
-        largest_cc_ratio = 0
-    
-    # Average clustering coefficient
-    try:
-        avg_clustering = nx.average_clustering(graph)
-    except Exception:
-        avg_clustering = 0
-    
-    # Average shortest path length (sample-based for performance)
-    try:
-        if n_components > 0 and len(largest_cc) > 1:
-            subgraph = graph.subgraph(largest_cc)
-            # For large graphs, sample nodes for path length estimation
-            if len(largest_cc) > 100:
-                # Sample 50 random pairs
-                sample_nodes = list(largest_cc)[:min(50, len(largest_cc))]
-                path_lengths = []
-                for source in sample_nodes[:25]:
-                    lengths = nx.single_source_shortest_path_length(subgraph, source)
-                    path_lengths.extend(lengths.values())
-                avg_path_length = np.mean(path_lengths) if path_lengths else 0
-            else:
-                avg_path_length = nx.average_shortest_path_length(subgraph)
-        else:
-            avg_path_length = 0
-    except Exception:
-        avg_path_length = 0
-    
-    return {
-        'n_nodes': n_nodes,
-        'n_edges': int(n_edges),
-        'density': density * 100,  # as percentage
-        'mean_degree': mean_degree,
-        'std_degree': std_degree,
-        'n_components': n_components,
-        'largest_cc_ratio': largest_cc_ratio,
-        'avg_clustering': avg_clustering,
-        'avg_path_length': avg_path_length,
-    }
-
-
-def get_graph_stats_for_params(
-    dataset_name: str,
-    node_sample_ratio: float,
-    method: str,
-    adjacency_threshold: float
-) -> dict[str, float]:
-    """Compute graph statistics for given parameters (with caching)."""
-    # Create cache key from parameters
-    cache_key = (dataset_name, node_sample_ratio, method, adjacency_threshold)
-    
-    # Return cached result if available
-    if cache_key in _stats_cache:
-        return _stats_cache[cache_key].copy()
-    
-    train_data, train_targets = load_raw_data(dataset_name)
-    
-    # Calculate number of nodes based on p ratio
-    n_training_samples = len(train_targets)
-    if node_sample_ratio >= 1.0:
-        # Use all features but cap at 1000 for performance
-        n_nodes = min(train_data.shape[1], 1000)
-    else:
-        n_nodes = int(n_training_samples / node_sample_ratio)
-        if n_nodes > train_data.shape[1]:
-            n_nodes = train_data.shape[1]
-        # Cap for performance
-        n_nodes = min(n_nodes, 1000)
-    
-    # Select nodes
-    selected_nodes = select_nodes(
-        train_data.values, train_targets, n_selected=n_nodes, method=method
-    )
-    train_selected = train_data.iloc[:, selected_nodes]
-    
-    # Calculate adjacency matrix
-    adj_matrix = calculate_adjacency_matrix(train_selected, adjacency_threshold)
-    
-    # Compute metrics
-    metrics = compute_graph_metrics(adj_matrix)
-    metrics['dataset'] = dataset_name
-    
-    # Cache the result
-    _stats_cache[cache_key] = metrics.copy()
-    
-    return metrics
+def get_stats(dataset_name: str, ratio: float, method: str, threshold: float) -> dict | None:
+    """Get precomputed statistics for given parameters."""
+    # Build key with consistent float formatting to match JSON keys
+    ratio_str = f'{float(ratio)}'  # Ensure "1" becomes "1.0"
+    threshold_str = f'{float(threshold)}'  # Ensure "0.02" format
+    key = f'{dataset_name}|{ratio_str}|{method}|{threshold_str}'
+    return PRECOMPUTED_STATS.get(key)
 
 
 # Initialize Dash app
@@ -416,51 +191,6 @@ app.index_string = '''
                 margin-bottom: 10px;
             }
             
-            .stats-grid {
-                display: grid;
-                grid-template-columns: repeat(6, 1fr);
-                gap: 12px;
-                margin-bottom: 20px;
-            }
-            
-            @media (max-width: 1200px) {
-                .stats-grid {
-                    grid-template-columns: repeat(3, 1fr);
-                }
-            }
-            
-            .stat-card {
-                background: white;
-                border-radius: 12px;
-                padding: 16px;
-                text-align: center;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-                border: 1px solid #e2e8f0;
-                transition: all 0.2s ease;
-            }
-            
-            .stat-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-                border-color: #3b82f6;
-            }
-            
-            .stat-value {
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 1.5rem;
-                font-weight: 700;
-                color: #0f172a;
-                margin-bottom: 4px;
-            }
-            
-            .stat-label {
-                font-size: 0.7rem;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                font-weight: 500;
-            }
-            
             .charts-container {
                 background: white;
                 border-radius: 14px;
@@ -523,21 +253,6 @@ app.index_string = '''
                 cursor: pointer;
             }
             
-            .dataset-checkbox {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                padding: 8px 12px;
-                background: #f8fafc;
-                border-radius: 8px;
-                transition: background 0.2s;
-                cursor: pointer;
-            }
-            
-            .dataset-checkbox:hover {
-                background: #f1f5f9;
-            }
-            
             ._dash-loading {
                 margin: 40px auto;
             }
@@ -574,9 +289,10 @@ app.layout = html.Div([
                         id='node-sample-ratio',
                         min=0.5,
                         max=1.0,
-                        step=0.1,
+                        step=None,
                         value=1.0,
-                        marks={0.5: '0.5', 0.6: '0.6', 0.7: '0.7', 0.8: '0.8', 0.9: '0.9', 1.0: '1.0'},
+                        marks={v: f'{v}' for v in VALID_RATIOS},
+                        included=False,
                     ),
                 ], className='control-group'),
                 
@@ -601,11 +317,12 @@ app.layout = html.Div([
                     html.Div(id='threshold-value', className='control-value'),
                     dcc.Slider(
                         id='adjacency-threshold',
-                        min=0.0,
+                        min=0.02,
                         max=0.5,
-                        step=0.02,
+                        step=None,
                         value=0.02,
-                        marks={0: '0', 0.1: '0.1', 0.2: '0.2', 0.3: '0.3', 0.4: '0.4', 0.5: '0.5'},
+                        marks={v: f'{v}' for v in VALID_THRESHOLDS},
+                        included=False,
                     ),
                 ], className='control-group'),
                 
@@ -627,18 +344,15 @@ app.layout = html.Div([
             ], className='controls-grid'),
         ], className='controls-panel'),
         
-        # Loading indicator
-        dcc.Loading(
-            id='loading',
-            type='circle',
-            color='#3b82f6',
-            children=[
-                # Charts
-                html.Div([
-                    dcc.Graph(id='main-chart', config={'displayModeBar': True, 'responsive': True}),
-                ], className='charts-container'),
-            ]
-        ),
+        # Charts container (no loading indicator for smoother transitions)
+        html.Div([
+            dcc.Graph(
+                id='main-chart',
+                config={'displayModeBar': True, 'responsive': True},
+                # Disable default loading state for smoother animations
+                style={'height': '850px'}
+            ),
+        ], className='charts-container'),
         
     ], className='main-container'),
 ], style={'minHeight': '100vh'})
@@ -672,23 +386,14 @@ def update_visualization(node_sample_ratio, method, adj_threshold, selected_data
     if not selected_datasets:
         selected_datasets = ['motrpac']
     
-    # Compute stats for all selected datasets
+    # Get stats for selected datasets
     all_stats = []
-    for dataset_name in selected_datasets:
-        try:
-            stats = get_graph_stats_for_params(
-                dataset_name, node_sample_ratio, method, adj_threshold
-            )
-            stats['dataset_label'] = DATASETS[dataset_name]['full_name']
-            stats['color'] = DATASETS[dataset_name]['color']
-            all_stats.append(stats)
-        except Exception as e:
-            print(f'Error computing stats for {dataset_name}: {e}')
+    for ds_name in selected_datasets:
+        stats = get_stats(ds_name, node_sample_ratio, method, adj_threshold)
+        if stats:
+            all_stats.append({**stats, 'dataset': ds_name})
     
-    if not all_stats:
-        return go.Figure()
-    
-    # Create comparison chart
+    # Define metrics to display
     metrics = [
         ('n_nodes', 'Graph Size (Nodes)'),
         ('n_edges', 'Graph Connectivity (Edges)'),
@@ -701,6 +406,7 @@ def update_visualization(node_sample_ratio, method, adj_threshold, selected_data
         ('std_degree', 'Degree Distribution Std Dev'),
     ]
     
+    # Create subplot figure
     fig = make_subplots(
         rows=3, cols=3,
         subplot_titles=[m[1] for m in metrics],
@@ -708,23 +414,38 @@ def update_visualization(node_sample_ratio, method, adj_threshold, selected_data
         horizontal_spacing=0.08,
     )
     
-    for idx, (metric, title) in enumerate(metrics):
+    # Fixed x-axis labels (always all 3 datasets)
+    x_labels = [DATASETS[d]['full_name'] for d in ['motrpac', 'addneuromed', 'parkinsons']]
+    
+    for idx, (metric, _) in enumerate(metrics):
         row = idx // 3 + 1
         col = idx % 3 + 1
         
-        x_labels = [s['dataset_label'] for s in all_stats]
-        y_values = [s[metric] for s in all_stats]
-        colors = [s['color'] for s in all_stats]
+        # Build y-values for all 3 datasets
+        y_values = []
+        colors = []
+        text_values = []
         
-        # Format text
-        if metric in ['density', 'largest_cc_ratio']:
-            text_values = [f'{v:.1f}%' for v in y_values]
-        elif metric in ['avg_clustering', 'avg_path_length']:
-            text_values = [f'{v:.2f}' for v in y_values]
-        elif metric in ['n_nodes', 'n_edges', 'n_components']:
-            text_values = [f'{int(v):,}' for v in y_values]
-        else:
-            text_values = [f'{v:.1f}' for v in y_values]
+        for ds_name in ['motrpac', 'addneuromed', 'parkinsons']:
+            stat = next((s for s in all_stats if s['dataset'] == ds_name), None)
+            if stat:
+                v = stat[metric]
+                y_values.append(v)
+                colors.append(DATASETS[ds_name]['color'])
+                # Format text label
+                if metric in ['density', 'largest_cc_ratio']:
+                    text_values.append(f'{v:.1f}%')
+                elif metric in ['avg_clustering', 'avg_path_length']:
+                    text_values.append(f'{v:.2f}')
+                elif metric in ['n_nodes', 'n_edges', 'n_components']:
+                    text_values.append(f'{int(v):,}')
+                else:
+                    text_values.append(f'{v:.1f}')
+            else:
+                # Dataset not selected - show zero height bar
+                y_values.append(0)
+                colors.append('rgba(200,200,200,0.3)')
+                text_values.append('')
         
         fig.add_trace(
             go.Bar(
@@ -733,70 +454,68 @@ def update_visualization(node_sample_ratio, method, adj_threshold, selected_data
                 marker_color=colors,
                 text=text_values,
                 textposition='outside',
-                textfont=dict(size=10, family='JetBrains Mono'),
+                textfont=dict(size=14, family='JetBrains Mono', weight='bold'),
                 showlegend=False,
                 cliponaxis=False,
             ),
             row=row, col=col
         )
         
-        # Add padding to y-axis range to prevent text clipping
-        if y_values:
-            max_val = max(y_values)
-            min_val = min(y_values)
-            padding = (max_val - min_val) * 0.25 if max_val != min_val else max_val * 0.25
-            fig.update_yaxes(range=[0, max_val + padding], row=row, col=col)
+        # Fixed y-axis range (enables smooth bar height transitions)
+        if metric in METRIC_MAX_VALUES:
+            fig.update_yaxes(range=[0, METRIC_MAX_VALUES[metric]], row=row, col=col)
     
+    # Layout settings
     fig.update_layout(
         height=850,
-        font=dict(family='Avenir, Avenir Next, -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, sans-serif', size=12),
+        font=dict(family='Avenir, Avenir Next, -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, sans-serif', size=14),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(248,250,252,1)',
-        margin=dict(l=50, r=30, t=50, b=50),
+        margin=dict(l=50, r=30, t=60, b=50),
     )
     
-    # Update subplot title annotations to have proper spacing
+    # Style subplot titles
     for annotation in fig['layout']['annotations']:
-        annotation['font'] = dict(size=12, color='#374151', family='Avenir, Avenir Next, sans-serif')
-        annotation['y'] = annotation['y'] + 0.02  # Move subplot titles up slightly
+        annotation['font'] = dict(size=14, color='#374151', family='Avenir, Avenir Next, sans-serif', weight='bold')
+        annotation['y'] = annotation['y'] + 0.02
     
-    # Update axes for all subplots
+    # Style axes (fixed ranges for smooth transitions)
     fig.update_xaxes(
         showgrid=False,
         tickangle=0,
-        tickfont=dict(size=10),
+        tickfont=dict(size=13, family='Avenir, Avenir Next, sans-serif'),
+        fixedrange=True,
+        categoryorder='array',
+        categoryarray=x_labels,  # Lock x-axis order
     )
     fig.update_yaxes(
         showgrid=True,
         gridcolor='rgba(226,232,240,0.6)',
         zeroline=True,
         zerolinecolor='rgba(226,232,240,0.8)',
-        tickfont=dict(size=10),
+        tickfont=dict(size=12, family='Avenir, Avenir Next, sans-serif'),
+        fixedrange=True,
     )
     
     return fig
 
 
-# Preload data at startup
+# Startup
 print('\n' + '='*60)
 print('BGBench Dataset Explorer')
 print('='*60)
 
-# Load precomputed stats first (fast)
 print('\nLoading precomputed statistics...')
 load_precomputed_stats()
 
-# Only load raw data if precomputed stats are missing
-if len(_stats_cache) == 0:
-    print('\nNo precomputed stats found. Loading datasets from HuggingFace...')
-    for dataset_name in DATASETS.keys():
-        try:
-            load_raw_data(dataset_name)
-        except Exception as e:
-            print(f'Error preloading {dataset_name}: {e}')
-    print('\nDatasets loaded successfully!')
+if not PRECOMPUTED_STATS:
+    print('\n⚠️  ERROR: No precomputed stats found!')
+    print('   Run: python precompute_stats.py to generate them')
 else:
-    print(f'\nUsing {len(_stats_cache)} precomputed statistics for fast startup!')
+    print(f'\n✓ Loaded {len(PRECOMPUTED_STATS)} precomputed combinations')
+    print(f'✓ Valid ratios: {VALID_RATIOS}')
+    print(f'✓ Valid methods: {VALID_METHODS}')
+    print(f'✓ Valid thresholds: {VALID_THRESHOLDS}')
 
 print('='*60 + '\n')
 
