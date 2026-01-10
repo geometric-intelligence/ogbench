@@ -12,6 +12,7 @@ import PyWGCNA
 import torch
 import torch_geometric.data
 import torch_geometric.transforms as T
+import dcor
 from huggingface_hub import hf_hub_download
 from omegaconf import OmegaConf
 from sklearn.impute import SimpleImputer
@@ -79,7 +80,7 @@ class HFOmicsDataset(InMemoryDataset):
         Args:
             root: The local data directory for caching
             data_name: The name of the dataset
-            method: Method for node selection ("variance", "correlation", "random")
+            method: Method for node selection ("variance", "correlation", "distance_correlation", "random")
             imputation_method: Method for handling missing values
             adjacency_threshold: Threshold for adjacency matrix binarization
             node_sample_ratio: Ratio of nodes to sample
@@ -314,7 +315,7 @@ class HFOmicsDataset(InMemoryDataset):
     def select_nodes(
         self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = 'variance'
     ) -> np.ndarray:
-        """Select nodes based on feature importance or randomly."""
+        """Select nodes based on feature importance, correlation, distance correlation, or randomly."""
         if method == 'variance':
             # Variance-based filtering
             variances = np.std(data, axis=0)
@@ -325,6 +326,12 @@ class HFOmicsDataset(InMemoryDataset):
                 np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
             )
             ranked_nodes = np.argsort(correlations)[::-1]
+        elif method == 'distance_correlation':
+            # Distance correlation-based filtering
+            dcorrelations = np.array(
+                [dcor.distance_correlation(data[:, i], targets) for i in range(data.shape[1])]
+            )
+            ranked_nodes = np.argsort(dcorrelations)[::-1]
         elif method == 'random':
             # Random selection
             ranked_nodes = np.random.permutation(data.shape[1])

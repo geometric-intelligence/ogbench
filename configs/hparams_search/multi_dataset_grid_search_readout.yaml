@@ -32,6 +32,7 @@ shared_grid:
     - variance
     - random
     - correlation
+    - distance_correlation
   optimizer.parameters.lr:
     - 0.0001
     - 0.001
