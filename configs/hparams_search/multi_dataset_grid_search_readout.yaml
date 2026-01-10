@@ -24,10 +24,10 @@ fixed:
 # Shared hyperparameter grid (applied to all models)
 shared_grid:
   dataset.loader.parameters.node_sample_ratio:
-    - 1.25
     - 1.0
     - 0.8
     - 0.5
+    - 0.3
   dataset.loader.parameters.method:
     - variance
     - random
