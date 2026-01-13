@@ -19,7 +19,8 @@ seeds: [42, 123, 456]
 
 # Fixed parameters (not searched)
 fixed:
-  logger.wandb.project: bgbench_multi_dataset_grid_search
+  experiment: omics_readout
+  logger.wandb.project: bgbench_multi_dataset_grid_search_readout
 
 # Shared hyperparameter grid (applied to all models)
 shared_grid:
@@ -39,7 +40,7 @@ shared_grid:
     - 0.01
   optimizer.parameters.weight_decay:
     - 0.0
-    - 0.0001
+    #- 0.0001 removed for readout grid search
     - 0.001
   model.backbone.dropout:
     - 0.1
@@ -47,12 +48,9 @@ shared_grid:
   model.readout.readout_name:
     - OmicsReadOut
   model.readout.fc_dim:
-    - [8, 4, 2]
+    # - [8, 4, 2]
     - [16, 8, 4]
-  model.readout.fc_dropout: #TODO: only define backbone.dropout and change config
-    # to define readout.fc_readout with the same value ($model.backbone.dropout)
-    - 0.1
-    - 0.3
+  # model.readout.fc_dropout is automatically set to match model.backbone.dropout
 
 # Per-model hyperparameter grids
 per_model_grid:
@@ -82,7 +80,7 @@ per_model_grid:
     model.backbone.num_layers:
       - 2
       - 4
-      - 8
+    #  - 8 removed for readout grid search
     model.backbone.heads:
       - 4
       - 8

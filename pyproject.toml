@@ -57,6 +57,7 @@ dependencies=[
     "torch-scatter",
     "torch==2.8.0",
     "torch-cluster",
+    "torch-geometric",
     "pycombat",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
     "toponetx @ git+https://github.com/pyt-team/TopoNetX.git",
