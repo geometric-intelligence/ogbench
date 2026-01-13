@@ -30,9 +30,12 @@ if ! conda env list | grep -q "bgbench"; then
     conda create -n bgbench python=3.12 -y
 fi
 
+# shellcheck disable=SC1091
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate bgbench
 
 pip install --upgrade pip
-pip install -e '.[all]'
-
+pip install torch==2.8.0 --extra-index-url https://download.pytorch.org/whl/cu128
+pip install torch-sparse torch-scatter torch-cluster --find-links https://data.pyg.org/whl/torch-2.8.0+cu128.html
+pip install -e '.[all]' --find-links https://data.pyg.org/whl/torch-2.8.0+cu128.html
 pre-commit install
