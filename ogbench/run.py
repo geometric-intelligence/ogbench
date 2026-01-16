@@ -168,7 +168,9 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             ckpt_path = cfg.ckpt_path
             log.info(f'Attempting to load weights from the provided ckpt_path: {ckpt_path}')
             try:
-                trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+                trainer.test(
+                    model=model, datamodule=datamodule, ckpt_path=ckpt_path, weights_only=False
+                )
                 test_best_model_path = (
                     False  # do not test "best model" if a valid ckpt_path is provided
                 )
@@ -180,7 +182,9 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             if ckpt_path == '':
                 log.warning('Best ckpt not found! Using current weights for testing...')
                 ckpt_path = None
-            trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+            trainer.test(
+                model=model, datamodule=datamodule, ckpt_path=ckpt_path, weights_only=False
+            )
 
     test_metrics = trainer.callback_metrics
 
