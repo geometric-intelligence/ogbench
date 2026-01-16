@@ -1,17 +1,18 @@
 import os
 import json
+import ast
 import wandb
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
+from typing import Iterable, Optional, Sequence, Any, List
 
 
 # ---------------------------------------------------------------------
 # Helper to flatten nested config dicts
 # ---------------------------------------------------------------------
 def flatten_config(config, parent_key='', sep='.'):
-    """
-    Flatten a nested dictionary by joining keys with a separator.
-    """
+    """Flatten a nested dictionary by joining keys with a separator."""
     items = []
     for k, v in config.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
@@ -33,9 +34,7 @@ def load_results_dataframe(
     save_csv=True,
     filters=None,
 ):
-    """
-    Load results from W&B and return a DataFrame with all available metrics and configs.
-    """
+    """Load results from W&B and return a DataFrame with all available metrics and configs."""
     if filters is None:
         filters = {}
 
@@ -48,7 +47,7 @@ def load_results_dataframe(
         print(f"▶ Number of runs fetched from W&B: {len(runs)}")
 
         records = []
-        for run in runs:
+        for run in tqdm(runs, desc="Fetching runs", unit="run"):
             cfg = run.config.copy() or {}
             cfg_flat = flatten_config(cfg)
 
@@ -88,9 +87,8 @@ def load_results_dataframe(
 # Helper: serialize values into a *string* key for grouping
 # ---------------------------------------------------------------------
 def _serialize_for_grouping(val):
-    """
-    Convert any Python object (including lists/dicts/arrays) into a stable
-    string representation so pandas can group on it safely.
+    """Convert any Python object (including lists/dicts/arrays) into a stable string representation
+    so pandas can group on it safely.
 
     Equal configs -> equal strings.
     """
@@ -123,13 +121,11 @@ def _serialize_for_grouping(val):
 # ---------------------------------------------------------------------
 def aggregate_across_seeds(
     df,
-    seed_cols=None,
-    fold_cols=None,
+    seed_col="seed",
     metric_prefix="summary.",
     output_filename=None,
 ):
-    """
-    Aggregate W&B runs across seeds, computing mean/std/count for each metric.
+    """Aggregate W&B runs across seeds, computing mean/std/count for each metric.
 
     Grouping columns:
       - All columns EXCEPT:
@@ -140,36 +136,7 @@ def aggregate_across_seeds(
         (like the sklearn pipelines).
     """
 
-    # 1) Detect seed columns ---------------------------------------------------------
-    if seed_cols is None:
-        seed_cols = []
-        possible_seed_cols = [
-            "seed",
-            "dataset.split_params.data_seed",
-            "dataset.loader.parameters.data_seed",
-        ]
-        for col in possible_seed_cols:
-            if col in df.columns:
-                seed_cols.append(col)
-        if not seed_cols:
-            # Fallback: any column name containing "seed"
-            seed_cols = [c for c in df.columns if "seed" in c.lower()]
-
-    print(f"▶ Using seed columns: {seed_cols}")
-
-    # 2) Detect fold columns (optional) ----------------------------------------------
-    if fold_cols is None:
-        fold_cols = []
-        possible_fold_cols = [
-            "fold",
-            "dataset.split_params.fold",
-            "dataset.loader.parameters.fold",
-        ]
-        for col in possible_fold_cols:
-            if col in df.columns:
-                fold_cols.append(col)
-
-    print(f"▶ Using fold columns: {fold_cols}")
+    print(f"▶ Using seed column: {seed_col}")
 
     # 3) Identify metric columns -----------------------------------------------------
     metric_cols = [c for c in df.columns if c.startswith(metric_prefix)]
@@ -178,7 +145,7 @@ def aggregate_across_seeds(
     print(f"▶ Found {len(metric_cols)} metric columns with prefix '{metric_prefix}'")
 
     # 4) Determine initial candidate grouping columns --------------------------------
-    exclude_cols = set(seed_cols + ["run_id", "run_name", "state"])
+    exclude_cols = set([seed_col] + ["run_id", "run_name", "state"])
     exclude_cols.update(metric_cols)
 
     candidate_grouping = [c for c in df.columns if c not in exclude_cols]
@@ -198,18 +165,13 @@ def aggregate_across_seeds(
     df_temp = df.copy()
     for col in candidate_grouping:
         df_temp[col] = df_temp[col].apply(_serialize_for_grouping)
-    
+
     n_rows = len(df)
     grouping_cols = []
     for col in candidate_grouping:
         nunique = df_temp[col].nunique(dropna=False)
         if nunique < n_rows:
             grouping_cols.append(col)
-
-    # Make sure fold columns remain in grouping (if you want per-fold stats)
-    for fc in fold_cols:
-        if fc in df.columns and fc not in grouping_cols:
-            grouping_cols.append(fc)
 
     print(f"▶ Final grouping columns (after nunique filter): {len(grouping_cols)}")
 
@@ -238,6 +200,25 @@ def aggregate_across_seeds(
     agg_dict = {col: ["mean", "std", "count"] for col in numeric_metric_cols}
 
     grouped = df_group.groupby(grouping_cols, dropna=False, sort=False)
+
+    # 7a) Enforce exactly 3 seeds per group ----------------------------------------
+    group_sizes = grouped.size()
+    groups_with_3_seeds = group_sizes[group_sizes == 3].index
+
+    if len(groups_with_3_seeds) == 0:
+        raise ValueError("No groups found with exactly 3 seeds. Cannot aggregate.")
+
+    if len(groups_with_3_seeds) < len(group_sizes):
+        n_filtered = len(group_sizes) - len(groups_with_3_seeds)
+        print(f"▶ Filtering: {n_filtered} groups removed (did not have exactly 3 seeds)")
+        print(f"▶ Keeping: {len(groups_with_3_seeds)} groups with exactly 3 seeds")
+
+        # Filter df_group to only include rows from groups with exactly 3 seeds
+        df_group_filtered = df_group.set_index(grouping_cols).loc[groups_with_3_seeds].reset_index()
+        grouped = df_group_filtered.groupby(grouping_cols, dropna=False, sort=False)
+    else:
+        print(f"▶ All {len(group_sizes)} groups have exactly 3 seeds")
+
     aggregated = grouped[numeric_metric_cols].agg(agg_dict)
 
     # 8) Flatten MultiIndex columns --------------------------------------------------
@@ -260,15 +241,15 @@ def aggregate_across_seeds(
 
     return aggregated
 
+
 def diagnose_grouping_conflicts(
     df,
     metric_prefix="summary.",
     seed_cols=None,
 ):
-    """
-    Diagnose which non-metric columns vary across runs that share the same
-    'core config' (model/dataset/optimizer), and thus would break grouping
-    across seeds if you include them in groupby.
+    """Diagnose which non-metric columns vary across runs that share the same 'core config'
+    (model/dataset/optimizer), and thus would break grouping across seeds if you include them in
+    groupby.
 
     Prints:
       - basic stats about how many configs have multiple runs
@@ -396,3 +377,136 @@ def diagnose_grouping_conflicts(
         print("\n▶ Example columns that are stable within core configs (safe to include if desired):")
         for c in stable_cols[:30]:
             print("   ", c)
+
+
+# ---------------------------------------------------------------------
+# Helper: decode serialized values
+# ---------------------------------------------------------------------
+def _decode_val(x):
+    """Decode serialized values like "__val__:'sagn'" -> "sagn"."""
+    if isinstance(x, str):
+        if x == "__NaN__":
+            return np.nan
+        if x.startswith("__val__:"):
+            inner = x[len("__val__:"):]
+            # Strip simple quotes if present
+            if inner.startswith("'") and inner.endswith("'"):
+                return inner[1:-1]
+            # Try to literal-eval numbers / booleans
+            try:
+                return ast.literal_eval(inner)
+            except Exception:
+                return inner
+    return x
+
+
+# ---------------------------------------------------------------------
+# Find best runs by val/f1_macro and create tables per dataset
+# ---------------------------------------------------------------------
+def get_best_runs_by_val_f1_macro(
+    aggregated_df,
+    metric_col="summary.val/f1_macro",
+    data_name_col="dataset.loader.parameters.data_name",
+    method_col="dataset.loader.parameters.method",
+    node_sample_ratio_col="dataset.loader.parameters.node_sample_ratio",
+    datasets=None,
+):
+    # Make a copy to avoid modifying the original
+    df = aggregated_df.copy()
+
+    # Check required columns exist
+    required_cols = [metric_col, data_name_col, method_col, node_sample_ratio_col]
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    # Decode serialized values for the grouping columns
+    for col in [data_name_col, method_col, node_sample_ratio_col]:
+        if col in df.columns:
+            df[col] = df[col].apply(_decode_val)
+
+    # Ensure metric is numeric
+    df[metric_col] = pd.to_numeric(df[metric_col], errors="coerce")
+
+    # Filter out rows with NaN in required columns
+    df = df.dropna(subset=[data_name_col, method_col, node_sample_ratio_col, metric_col])
+
+    if len(df) == 0:
+        raise ValueError("No valid rows found after filtering")
+
+    # Get datasets to process
+    if datasets is None:
+        datasets = sorted(df[data_name_col].dropna().unique())
+    else:
+        # Filter to only requested datasets
+        df = df[df[data_name_col].isin(datasets)]
+        if len(df) == 0:
+            raise ValueError(f"No data found for datasets: {datasets}")
+
+    # Find the std column for the metric
+    metric_std_col = f"{metric_col}_std"
+    df[metric_std_col] = pd.to_numeric(df[metric_std_col], errors="coerce")
+
+    # Group by dataset, method, and node_sample_ratio, and find the best run
+    # (highest val/f1_macro) for each combination
+    grouped = df.groupby([data_name_col, method_col, node_sample_ratio_col], dropna=False)
+
+    # For each group, get the row with the maximum metric value
+    best_runs = []
+    for (data_name, method, ratio), group in grouped:
+        # Find the row with the maximum metric value
+        best_idx = group[metric_col].idxmax()
+        best_run = group.loc[best_idx].copy()
+        best_runs.append(best_run)
+
+    best_df = pd.DataFrame(best_runs)
+
+    # Create pivot tables for each dataset (combined mean ± std)
+    result_tables = {}
+
+    for dataset in datasets:
+        dataset_data = best_df[best_df[data_name_col] == dataset].copy()
+
+        if len(dataset_data) == 0:
+            print(f"⚠ No data found for dataset: {dataset}")
+            continue
+
+        # Create pivot tables for mean and std
+        pivot_table_mean = dataset_data.pivot_table(
+            values=metric_col,
+            index=method_col,
+            columns=node_sample_ratio_col,
+            aggfunc='first',
+        )
+
+        pivot_table_std = dataset_data.pivot_table(
+            values=metric_std_col,
+            index=method_col,
+            columns=node_sample_ratio_col,
+            aggfunc='first',
+        )
+
+        # Sort methods and ratios for better readability
+        if len(pivot_table_mean) > 0:
+            pivot_table_mean = pivot_table_mean.sort_index()
+            pivot_table_mean = pivot_table_mean.sort_index(axis=1)
+            pivot_table_std = pivot_table_std.sort_index()
+            pivot_table_std = pivot_table_std.sort_index(axis=1)
+
+        # Combine mean and std into formatted strings: "mean ± std"
+        combined_table = pivot_table_mean.copy()
+        for idx in pivot_table_mean.index:
+            for col in pivot_table_mean.columns:
+                mean_val = pivot_table_mean.loc[idx, col]
+                std_val = pivot_table_std.loc[idx, col]
+
+                if pd.notna(mean_val) and pd.notna(std_val):
+                    combined_table.loc[idx, col] = f"{mean_val:.4f} ± {std_val:.4f}"
+                elif pd.notna(mean_val):
+                    combined_table.loc[idx, col] = f"{mean_val:.4f}"
+                else:
+                    combined_table.loc[idx, col] = "NaN"
+
+        result_tables[dataset] = combined_table
+
+    return result_tables
