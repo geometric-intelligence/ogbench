@@ -43,6 +43,10 @@ The site is fully static — no server required. All interactivity runs in the b
 
 ```bash
 # Install dependencies
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+source ~/.profile
+nvm install --lts
 make install
 
 # Start dev server (http://localhost:4321)
