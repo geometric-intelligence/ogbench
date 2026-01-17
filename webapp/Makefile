@@ -22,7 +22,7 @@ help:
 	@echo "  PROJECT=$(PROJECT)"
 	@echo "  DIST_DIR=$(DIST_DIR)"
 
-dev:
+dev: build
 	$(NPM) run dev
 
 build:
