@@ -54,7 +54,7 @@ RESULTS_DF = None
 PRECOMPUTED_STATS = {}
 METRIC_MAX_VALUES = {}
 
-# Geometric Intelligence Lab logo - base64 encoded SVG
+# Logo - base64 encoded SVG
 _LOGO_SVG_RAW = '''<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 386.6">
 <style type="text/css">.st0{fill:#75B4E3;}.st1{fill:#F4951E;}.st2{fill:#FBFBFB;}</style>
 <path class="st0" d="M305.6,338.3c-24.9,19.5-55.2,31.9-87.9,34.1c-4.6,0.3-9.3,0.5-14,0.5c-32.3,0-62.5-9.5-87.8-25.8l31.1-53.9 c16.1,11.9,35.9,18.9,57.3,18.9c3.8,0,7.5-0.2,11.2-0.7c25.5-2.7,48.2-14.7,64.8-32.6L305.6,338.3z"/>
@@ -582,7 +582,7 @@ def create_leaderboard_page():
         # Footer
         html.Div([
             html.Img(src=LOGO_BASE64, className='footer-logo'),
-            html.P('OgBench Leaderboard • Geometric Intelligence Lab'),
+            html.P('OgBench Leaderboard'),
             html.P('Results aggregated across multiple graph configurations per dataset'),
         ], className='footer'),
     ], className='main-container')
@@ -670,7 +670,7 @@ def create_explorer_page():
         # Footer
         html.Div([
             html.Img(src=LOGO_BASE64, className='footer-logo'),
-            html.P('OgBench Dataset Explorer • Geometric Intelligence Lab'),
+            html.P('OgBench Dataset Explorer'),
         ], className='footer'),
     ], className='main-container')
 
