@@ -8,6 +8,7 @@ adjacency thresholds and visualizes how they change.
 import os
 from typing import Any
 
+import dcor
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -29,23 +30,23 @@ DATASETS = {
     'motrpac': {
         'data_name': 'motrpac',
         'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
-        'train_val_test_split': [0.7, 0.2, 0.1],
-        'node_sample_ratio': 0.5,
-        'method': 'variance',
+        'train_val_test_split': [0.7, 0.15, 0.15],
+        'node_sample_ratio': 0.3,
+        'method': 'distance_correlation',
     },
     'parkinsons': {
         'data_name': 'parkinsons',
         'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
         'train_val_test_split': [0.7, 0.15, 0.15],
-        'node_sample_ratio': 0.5,
-        'method': 'variance',
+        'node_sample_ratio': 0.3,
+        'method': 'distance_correlation',
     },
     'addneuromed': {
         'data_name': 'addneuromed',
         'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
-        'train_val_test_split': [0.7, 0.2, 0.1],
-        'node_sample_ratio': 0.5,
-        'method': 'variance',
+        'train_val_test_split': [0.7, 0.15, 0.15],
+        'node_sample_ratio': 0.3,
+        'method': 'distance_correlation',
     },
 }
 
@@ -111,7 +112,7 @@ def load_and_preprocess_dataset(
 
     if node_sample_ratio == 'full':
         n_nodes = train_data.shape[1]
-    elif isinstance(node_sample_ratio, (float, int)):
+    elif isinstance(node_sample_ratio, (float | int)):
         n_nodes = int(n_training_samples / node_sample_ratio)
         if n_nodes > train_data.shape[1]:
             n_nodes = train_data.shape[1]
@@ -139,6 +140,11 @@ def select_nodes(
             np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
         )
         ranked_nodes = np.argsort(correlations)[::-1]
+    elif method == 'distance_correlation':
+        dcorrelations = np.array(
+            [dcor.distance_correlation(data[:, i], targets) for i in range(data.shape[1])]
+        )
+        ranked_nodes = np.argsort(dcorrelations)[::-1]
     elif method == 'random':
         ranked_nodes = np.random.permutation(data.shape[1])
     else:

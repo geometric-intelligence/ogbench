@@ -7,8 +7,8 @@ datasets:
   - motrpac
 
 models:
-  - gcn
-  - gin
+  # - gcn
+  # - gin
   - gatv2
   - gatv4
   - graph_sage
@@ -28,16 +28,16 @@ shared_grid:
     - 1.0
     - 0.8
     - 0.5
-    - 0.3
+    # - 0.3
   dataset.loader.parameters.method:
     - variance
     - random
     - correlation
-    - distance_correlation
+    # - distance_correlation
   optimizer.parameters.lr:
     - 0.0001
     - 0.001
-    - 0.01
+    # - 0.01
   optimizer.parameters.weight_decay:
     - 0.0
     #- 0.0001 removed for readout grid search
@@ -54,24 +54,24 @@ shared_grid:
 
 # Per-model hyperparameter grids
 per_model_grid:
-  gcn:
-    model.feature_encoder.out_channels:
-      - 16
-      - 32
-      - 64
-    model.backbone.num_layers:
-      - 2
-      - 4
+  # gcn:
+  #   model.feature_encoder.out_channels:
+  #     - 16
+  #     - 32
+  #     - 64
+  #   model.backbone.num_layers:
+  #     - 2
+  #     - 4
 
-  gin:
-    model.feature_encoder.out_channels:
-      - 16
-      - 32
-      - 64
-    model.backbone.num_layers:
-      - 2
-      - 4
-      # - 8
+  # gin:
+  #   model.feature_encoder.out_channels:
+  #     - 16
+  #     - 32
+  #     - 64
+  #   model.backbone.num_layers:
+  #     - 2
+  #     - 4
+  #     # - 8
 
   gatv2:
     model.feature_encoder.out_channels:
@@ -132,36 +132,6 @@ per_model_grid:
 # Format: "dataset,ratio,method" as key (e.g., "parkinsons,1.0,variance")
 # Organized by ratio and method first, then by dataset
 per_dataset_ratio_method_grid:
-  # ratio=1.25, method=variance
-  motrpac,1.25,variance:
-    dataset.loader.parameters.adjacency_threshold: [0.1178]
-
-  parkinsons,1.25,variance:
-    dataset.loader.parameters.adjacency_threshold: [0.0420]
-
-  addneuromed,1.25,variance:
-    dataset.loader.parameters.adjacency_threshold: [0.3522]
-
-  # ratio=1.25, method=random
-  motrpac,1.25,random:
-    dataset.loader.parameters.adjacency_threshold: [0.0088]
-
-  parkinsons,1.25,random:
-    dataset.loader.parameters.adjacency_threshold: [0.0086]
-
-  addneuromed,1.25,random:
-    dataset.loader.parameters.adjacency_threshold: [0.0092]
-
-  # ratio=1.25, method=correlation
-  motrpac,1.25,correlation:
-    dataset.loader.parameters.adjacency_threshold: [.0094]
-
-  parkinsons,1.25,correlation:
-    dataset.loader.parameters.adjacency_threshold: [0.0090]
-
-  addneuromed,1.25,correlation:
-    dataset.loader.parameters.adjacency_threshold: [0.0618]
-
   # ratio=1.0, method=variance
   motrpac,1.0,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0926]
