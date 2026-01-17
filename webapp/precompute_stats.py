@@ -227,7 +227,7 @@ def get_graph_stats_for_params(
 
 def main():
     """Precompute all graph statistics and save to file."""
-    output_file = Path(__file__).parent / 'precomputed_stats.json'
+    output_file = Path(__file__).parent / 'public' / 'data' / 'stats.json'
     
     print('='*60)
     print('Precomputing Graph Statistics')

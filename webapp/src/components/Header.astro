@@ -1,0 +1,42 @@
+---
+import Logo from './Logo';
+
+interface Props {
+  badge: string;
+  title: string;
+  subtitle: string;
+  stats?: { value: string; label: string }[];
+  navLink?: { href: string; icon: string; text: string };
+}
+
+const { badge, title, subtitle, stats = [], navLink } = Astro.props;
+---
+
+<div class="header">
+  <Logo size={120} className="header-logo" client:load />
+  <div class="header-badge">{badge}</div>
+  <h1>{title}</h1>
+  <p class="header-subtitle">{subtitle}</p>
+
+  {
+    stats.length > 0 && (
+      <div class="header-stats">
+        {stats.map((stat) => (
+          <div class="header-stat">
+            <div class="header-stat-value">{stat.value}</div>
+            <div class="header-stat-label">{stat.label}</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  {
+    navLink && (
+      <a href={navLink.href} class="nav-link">
+        <span>{navLink.icon}</span>
+        <span>{navLink.text}</span>
+      </a>
+    )
+  }
+</div>
