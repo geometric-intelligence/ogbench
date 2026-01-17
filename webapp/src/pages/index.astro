@@ -1,0 +1,63 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Logo from '../components/Logo';
+import Footer from '../components/Footer.astro';
+import Leaderboard from '../components/Leaderboard';
+---
+
+<Layout title="OgBench Leaderboard">
+  <!-- Header -->
+  <div class="header">
+    <Logo size={120} className="header-logo" client:load />
+    <div class="header-badge">OMICS GRAPH BENCHMARK</div>
+    <h1>OgBench Leaderboard</h1>
+    <p class="header-subtitle">
+      Benchmarking GNN, Neural Network, and Classical ML Methods on Graph-Structured Omics Datasets
+    </p>
+
+    <div class="header-stats" id="header-stats">
+      <div class="header-stat">
+        <div class="header-stat-value" id="stat-models">--</div>
+        <div class="header-stat-label">Models</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-value" id="stat-graphs">--</div>
+        <div class="header-stat-label">Graph Configs</div>
+      </div>
+      <div class="header-stat">
+        <div class="header-stat-value" id="stat-datasets">--</div>
+        <div class="header-stat-label">Datasets</div>
+      </div>
+    </div>
+
+    <a href="/explorer" class="nav-link">
+      <span>📊</span>
+      <span>Explore Graph Dataset Characteristics</span>
+    </a>
+  </div>
+
+  <!-- Leaderboard Component -->
+  <Leaderboard client:only="react" />
+
+  <Footer text="OgBench Leaderboard" subtext="Results aggregated across multiple graph configurations per dataset" />
+</Layout>
+
+<script>
+  // Update header stats after data loads
+  fetch('/data/results.json')
+    .then((res) => res.json())
+    .then((data) => {
+      const entries = Object.values(data) as any[];
+      const models = new Set(entries.map((e) => e.model)).size;
+      const graphs = new Set(entries.map((e) => e.graph_config)).size;
+      const datasets = new Set(entries.map((e) => e.dataset)).size;
+
+      const modelsEl = document.getElementById('stat-models');
+      const graphsEl = document.getElementById('stat-graphs');
+      const datasetsEl = document.getElementById('stat-datasets');
+
+      if (modelsEl) modelsEl.textContent = String(models);
+      if (graphsEl) graphsEl.textContent = String(graphs);
+      if (datasetsEl) datasetsEl.textContent = String(datasets);
+    });
+</script>
