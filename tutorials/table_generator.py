@@ -34,39 +34,149 @@ def load_results_dataframe(
     save_csv=True,
     filters=None,
 ):
-    """Load results from W&B and return a DataFrame with all available metrics and configs."""
+    """Load results from W&B and return a DataFrame with all available metrics and configs.
+    
+    If a CSV file exists and has fewer runs than the W&B project, only new runs will be
+    fetched and appended to the existing CSV (much faster than reloading everything).
+    """
     if filters is None:
         filters = {}
 
+    api = wandb.Api(timeout=120)
+    all_runs = api.runs(f"{wandb_username}/{wandb_project}", filters=filters, per_page=200)
+
+    # Check if CSV exists and if we should do incremental update
     if os.path.exists(csv_filename) and not force_load:
-        df = pd.read_csv(csv_filename)
-        print(f"▶ Loaded existing CSV file: {csv_filename}")
+        df_existing = pd.read_csv(csv_filename)
+        existing_run_ids = set(df_existing['run_id'].astype(str))
+        n_existing = len(df_existing)
+        
+        print(f"▶ Found existing CSV with {n_existing} runs")
+        
+        # Get total count (this is fast - just a metadata query)
+        total_runs_in_wandb = len(all_runs)
+        n_new_expected = total_runs_in_wandb - n_existing
+        
+        if n_new_expected > 0:
+            print(f"▶ Found {n_new_expected} new runs in W&B")
+            print(f"▶ Scanning runs to find new ones (checking IDs only, fast)...")
+            
+            # Fast method: iterate once through all runs, check IDs (fast metadata access),
+            # and only fetch full data for new runs
+            records = []
+            failed_runs = []
+            n_new = 0
+            n_checked = 0
+            
+            # Iterate through all runs once
+            for run in tqdm(all_runs, desc="Scanning for new runs", unit="run", total=total_runs_in_wandb):
+                n_checked += 1
+                # Check run.id (this is fast - just metadata, no full data fetch)
+                run_id_str = str(run.id)
+                
+                # Only process if this run is new
+                if run_id_str not in existing_run_ids:
+                    n_new += 1
+                    try:
+                        # Now fetch full data for this new run (this is the slow part, but only for new runs)
+                        cfg = run.config.copy() or {}
+                        cfg_flat = flatten_config(cfg)
+
+                        row = {
+                            "run_id": run.id,
+                            "run_name": run.name,
+                            "state": run.state,
+                        }
+
+                        # Add all summary metrics (only simple types)
+                        if run.summary:
+                            for key, value in run.summary.items():
+                                if isinstance(value, (int, float, str, bool)) or value is None:
+                                    row[f"summary.{key}"] = value
+
+                        # Add all config parameters
+                        row.update(cfg_flat)
+                        records.append(row)
+                    except Exception as e:
+                        print(f"\n⚠ Failed to fetch run {run.id} ({run.name}): {e}")
+                        failed_runs.append((run.id, run.name, str(e)))
+                        continue
+                
+                # Early exit optimization: if we've found all expected new runs and checked enough,
+                # we can stop (assuming runs are roughly ordered)
+                if n_new >= n_new_expected and n_checked > n_existing + n_new_expected * 2:
+                    print(f"▶ Found all expected new runs, stopping early...")
+                    break
+            
+            print(f"▶ Found {n_new} new runs to add (checked {n_checked} runs total)")
+            
+            if failed_runs:
+                print(f"⚠ Warning: Failed to fetch {len(failed_runs)} new runs out of {n_new}")
+            
+            if n_new > 0 and len(records) > 0:
+                # Create DataFrame for new runs
+                df_new = pd.DataFrame(records)
+                
+                # Ensure column alignment (add missing columns to both dataframes)
+                all_columns = set(df_existing.columns) | set(df_new.columns)
+                for col in all_columns:
+                    if col not in df_existing.columns:
+                        df_existing[col] = None
+                    if col not in df_new.columns:
+                        df_new[col] = None
+                
+                # Reorder columns to match
+                df_new = df_new[df_existing.columns]
+                
+                # Append new runs to existing dataframe
+                df = pd.concat([df_existing, df_new], ignore_index=True)
+                
+                if save_csv:
+                    df.to_csv(csv_filename, index=False)
+                    print(f"▶ Appended {len(df_new)} new runs to CSV. Total runs: {len(df)}")
+            else:
+                if n_new == 0:
+                    print(f"▶ No new runs found in recent runs. Using existing CSV.")
+                else:
+                    print(f"▶ No new runs were successfully fetched. Using existing CSV.")
+                df = df_existing
+        else:
+            print(f"▶ CSV already has all runs (or more). Using existing CSV.")
+            df = df_existing
     else:
-        api = wandb.Api()
-        runs = api.runs(f"{wandb_username}/{wandb_project}", filters=filters)
-        print(f"▶ Number of runs fetched from W&B: {len(runs)}")
-
+        # Full load: fetch all runs
+        print(f"▶ Fetching all runs from W&B...")
+        
         records = []
-        for run in tqdm(runs, desc="Fetching runs", unit="run"):
-            cfg = run.config.copy() or {}
-            cfg_flat = flatten_config(cfg)
+        failed_runs = []
+        for run in tqdm(all_runs, desc="Fetching runs", unit="run"):
+            try:
+                cfg = run.config.copy() or {}
+                cfg_flat = flatten_config(cfg)
 
-            row = {
-                "run_id": run.id,
-                "run_name": run.name,
-                "state": run.state,
-            }
+                row = {
+                    "run_id": run.id,
+                    "run_name": run.name,
+                    "state": run.state,
+                }
 
-            # Add all summary metrics (only simple types)
-            if run.summary:
-                for key, value in run.summary.items():
-                    if isinstance(value, (int, float, str, bool)) or value is None:
-                        row[f"summary.{key}"] = value
+                # Add all summary metrics (only simple types)
+                if run.summary:
+                    for key, value in run.summary.items():
+                        if isinstance(value, (int, float, str, bool)) or value is None:
+                            row[f"summary.{key}"] = value
 
-            # Add all config parameters
-            row.update(cfg_flat)
-            records.append(row)
-
+                # Add all config parameters
+                row.update(cfg_flat)
+                records.append(row)
+            except Exception as e:
+                print(f"\n⚠ Failed to fetch run {run.id} ({run.name}): {e}")
+                failed_runs.append((run.id, run.name, str(e)))
+                continue
+        
+        if failed_runs:
+            print(f"\n⚠ Warning: Failed to fetch {len(failed_runs)} runs out of {total_runs_in_wandb}")
+        
         df = pd.DataFrame(records)
 
         if save_csv:
