@@ -111,7 +111,7 @@ def load_and_preprocess_dataset(
 
     if node_sample_ratio == 'full':
         n_nodes = train_data.shape[1]
-    elif isinstance(node_sample_ratio, (float, int)):
+    elif isinstance(node_sample_ratio, (float | int)):
         n_nodes = int(n_training_samples / node_sample_ratio)
         if n_nodes > train_data.shape[1]:
             n_nodes = train_data.shape[1]

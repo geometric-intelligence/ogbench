@@ -21,7 +21,7 @@ class WGCNAAdjacencyBuilder(AbstractAdjacencyBuilder):
             soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features)
             power = soft_threshold[0]
         except Exception as e:
-            raise ValueError(f"Error finding optimal power for WGCNA: {e}") from e
+            raise ValueError(f'Error finding optimal power for WGCNA: {e}') from e
 
         # Apply soft-thresholding
         adjacency = PyWGCNA.WGCNA.adjacency(
