@@ -127,6 +127,7 @@ class RunConfig:
     hyperparams: dict[str, Any]
     timeout: int | None = None
     gpu_id: int | None = None
+    cpu_cores: str | None = None  # CPU core affinity, e.g., "0-3" or "0,1,2,3"
 
 
 def to_override(key: str, value: Any) -> str:
@@ -193,14 +194,30 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
 
 
 def run_training(
-    overrides: list[str], timeout: int | None = None, gpu_id: int | None = None
+    overrides: list[str],
+    timeout: int | None = None,
+    gpu_id: int | None = None,
+    n_threads: int = 1,
+    cpu_cores: str | None = None,
 ) -> tuple[bool, str | None, dict[str, Any] | None]:
     """Run training via subprocess."""
     cmd = ['ogbench-train'] + overrides
 
+    # Use taskset to pin process to specific CPU cores if specified
+    if cpu_cores is not None:
+        cmd = ['taskset', '-c', cpu_cores] + cmd
+
     env = os.environ.copy()
     if gpu_id is not None and torch.cuda.is_available():
         env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+
+    # Limit CPU threads per process to prevent CPU oversubscription
+    # when running many parallel jobs
+    env['OMP_NUM_THREADS'] = str(n_threads)
+    env['MKL_NUM_THREADS'] = str(n_threads)
+    env['OPENBLAS_NUM_THREADS'] = str(n_threads)
+    env['VECLIB_MAXIMUM_THREADS'] = str(n_threads)
+    env['NUMEXPR_NUM_THREADS'] = str(n_threads)
 
     try:
         result = subprocess.run(  # nosec B603
@@ -239,9 +256,9 @@ def run_training(
         return False, str(e), None
 
 
-def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
+def execute_run(config: RunConfig, dry_run: bool = False, n_threads: int = 1) -> dict[str, Any]:
     """Execute a single run configuration."""
-    print(f'[{config.run_id:04d}] {config.model} | seed={config.seed} | GPU={config.gpu_id}')
+    print(f'[{config.run_id:04d}] {config.model} | seed={config.seed} | GPU={config.gpu_id} | CPUs={config.cpu_cores}')
 
     start_time = time.time()
 
@@ -251,7 +268,9 @@ def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
         metrics = {'params': n_params} if success else None
         error_msg = error
     else:
-        success, error_msg, metrics = run_training(config.overrides, config.timeout, config.gpu_id)
+        success, error_msg, metrics = run_training(
+            config.overrides, config.timeout, config.gpu_id, n_threads, config.cpu_cores
+        )
 
     elapsed = time.time() - start_time
 
@@ -265,6 +284,7 @@ def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
         'overrides': ' '.join(config.overrides),
         'error': error_msg,
         'gpu_id': config.gpu_id,
+        'cpu_cores': config.cpu_cores,
         **config.hyperparams,
     }
 
@@ -287,10 +307,16 @@ def build_run_configs(
     n_gpus: int = 1,
     parallel: bool = True,
     dry_run: bool = False,
+    n_cpus_per_job: int = 2,
+    n_total_cpus: int | None = None,
 ) -> list[RunConfig]:
     """Build all run configurations from search config."""
     configs = []
     run_id = 0
+
+    # Get total CPU count if not specified
+    if n_total_cpus is None:
+        n_total_cpus = os.cpu_count() or 128
 
     models = models_filter if models_filter else search_config.models
 
@@ -390,6 +416,13 @@ def build_run_configs(
                                 if parallel and not dry_run and n_gpus > 0:
                                     gpu_id = (run_id - 1) % n_gpus
 
+                                # Assign CPU cores round-robin
+                                cpu_cores = None
+                                if parallel and not dry_run and n_cpus_per_job > 0:
+                                    core_start = ((run_id - 1) * n_cpus_per_job) % n_total_cpus
+                                    core_end = core_start + n_cpus_per_job - 1
+                                    cpu_cores = f'{core_start}-{core_end}'
+
                                 configs.append(
                                     RunConfig(
                                         run_id=run_id,
@@ -400,6 +433,7 @@ def build_run_configs(
                                         hyperparams=final_hp_combo,
                                         timeout=search_config.timeout,
                                         gpu_id=gpu_id,
+                                        cpu_cores=cpu_cores,
                                     )
                                 )
                         continue  # Skip the else block below
@@ -441,6 +475,13 @@ def build_run_configs(
                     if parallel and not dry_run and n_gpus > 0:
                         gpu_id = (run_id - 1) % n_gpus
 
+                    # Assign CPU cores round-robin
+                    cpu_cores = None
+                    if parallel and not dry_run and n_cpus_per_job > 0:
+                        core_start = ((run_id - 1) * n_cpus_per_job) % n_total_cpus
+                        core_end = core_start + n_cpus_per_job - 1
+                        cpu_cores = f'{core_start}-{core_end}'
+
                     configs.append(
                         RunConfig(
                             run_id=run_id,
@@ -451,6 +492,7 @@ def build_run_configs(
                             hyperparams=hp_combo,
                             timeout=search_config.timeout,
                             gpu_id=gpu_id,
+                            cpu_cores=cpu_cores,
                         )
                     )
 
@@ -463,10 +505,13 @@ def run_search(
     dry_run: bool = False,
     parallel: bool = True,
     n_jobs: int | None = None,
+    n_threads: int = 1,
+    n_cpus_per_job: int = 2,
 ) -> pd.DataFrame:
     """Run the full hyperparameter search."""
     n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
     n_jobs = n_jobs or max(n_gpus, 1)
+    n_total_cpus = os.cpu_count() or 128
 
     # Build all run configurations
     configs = build_run_configs(
@@ -475,6 +520,8 @@ def run_search(
         n_gpus=n_gpus,
         parallel=parallel,
         dry_run=dry_run,
+        n_cpus_per_job=n_cpus_per_job,
+        n_total_cpus=n_total_cpus,
     )
 
     # Print summary
@@ -486,7 +533,7 @@ def run_search(
     print(f'Seeds: {search_config.seeds}')
     print(f'Total runs: {len(configs)}')
     print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
-    print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus})')
+    print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, n_threads={n_threads}, n_cpus_per_job={n_cpus_per_job})')
     print(f'Output: {search_config.output_dir}')
     print('=' * 60)
 
@@ -497,11 +544,11 @@ def run_search(
     if parallel and not dry_run and n_jobs > 1:
         print(f'\nRunning {len(configs)} configs in parallel...')
         results = Parallel(n_jobs=n_jobs, verbose=10)(
-            delayed(execute_run)(config, dry_run) for config in configs
+            delayed(execute_run)(config, dry_run, n_threads) for config in configs
         )
     else:
         print(f'\nRunning {len(configs)} configs sequentially...')
-        results = [execute_run(config, dry_run) for config in configs]
+        results = [execute_run(config, dry_run, n_threads) for config in configs]
 
     # Save results
     df = pd.DataFrame(results)
@@ -596,6 +643,18 @@ Examples:
         help='Number of parallel jobs (default: number of GPUs)',
     )
     parser.add_argument(
+        '--n-threads',
+        type=int,
+        default=1,
+        help='Number of CPU threads per job (default: 1). Increase if jobs are CPU-bound.',
+    )
+    parser.add_argument(
+        '--n-cpus-per-job',
+        type=int,
+        default=2,
+        help='Number of CPU cores to pin each job to via taskset (default: 2).',
+    )
+    parser.add_argument(
         '--output-dir',
         type=str,
         help='Override output directory from config',
@@ -623,6 +682,8 @@ Examples:
         dry_run=args.dry_run,
         parallel=not args.no_parallel,
         n_jobs=args.n_jobs,
+        n_threads=args.n_threads,
+        n_cpus_per_job=args.n_cpus_per_job,
     )
 
 
