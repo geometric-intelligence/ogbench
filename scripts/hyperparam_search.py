@@ -316,30 +316,38 @@ def build_run_configs(
                 node_sample_ratio_key = 'dataset.loader.parameters.node_sample_ratio'
                 method_key = 'dataset.loader.parameters.method'
                 dataset_ratio_grid = {}
-                
+
                 if node_sample_ratio_key in hp_combo and method_key in hp_combo:
                     node_sample_ratio_value = hp_combo[node_sample_ratio_key]
                     method_value = hp_combo[method_key]
                     # Try to match as float or string
                     ratio_key = None
                     # Try exact match first
-                    if (dataset, node_sample_ratio_value, method_value) in search_config.per_dataset_ratio_method_grid:
+                    if (
+                        dataset,
+                        node_sample_ratio_value,
+                        method_value,
+                    ) in search_config.per_dataset_ratio_method_grid:
                         ratio_key = (dataset, node_sample_ratio_value, method_value)
                     else:
                         # Try float conversion for matching
                         try:
                             float_value = float(node_sample_ratio_value)
-                            if (dataset, float_value, method_value) in search_config.per_dataset_ratio_method_grid:
+                            if (
+                                dataset,
+                                float_value,
+                                method_value,
+                            ) in search_config.per_dataset_ratio_method_grid:
                                 ratio_key = (dataset, float_value, method_value)
                         except (ValueError, TypeError):
                             pass
-                    
+
                     if ratio_key:
                         dataset_ratio_grid = search_config.per_dataset_ratio_method_grid[ratio_key]
                         # Generate combinations from dataset_ratio_grid and merge each into hp_combo
                         for ratio_hp_combo in product_dict(dataset_ratio_grid):
                             final_hp_combo = {**hp_combo, **ratio_hp_combo}
-                            
+
                             for seed in search_config.seeds:
                                 run_id += 1
 
@@ -360,7 +368,10 @@ def build_run_configs(
                                 # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
                                 readout_name = final_hp_combo.get('model.readout.readout_name')
                                 for key, value in final_hp_combo.items():
-                                    if readout_name == 'NoReadOut' and key in ('model.readout.fc_dim', 'model.readout.fc_dropout'):
+                                    if readout_name == 'NoReadOut' and key in (
+                                        'model.readout.fc_dim',
+                                        'model.readout.fc_dropout',
+                                    ):
                                         continue
                                     overrides.append(to_override(key, value))
 
@@ -382,7 +393,7 @@ def build_run_configs(
                                     )
                                 )
                         continue  # Skip the else block below
-                
+
                 # No per_dataset_ratio_method_grid match, use hp_combo as-is
                 for seed in search_config.seeds:
                     run_id += 1

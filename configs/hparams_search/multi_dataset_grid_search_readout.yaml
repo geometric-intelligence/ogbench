@@ -49,7 +49,7 @@ shared_grid:
   model.readout.fc_dim:
     - [8, 4, 2]
     - [16, 8, 4]
-  model.readout.fc_dropout: #TODO: only define backbone.dropout and change config 
+  model.readout.fc_dropout: #TODO: only define backbone.dropout and change config
     # to define readout.fc_readout with the same value ($model.backbone.dropout)
     - 0.1
     - 0.3
@@ -120,7 +120,7 @@ per_model_grid:
     model.backbone.num_heads:
       - 1
       - 3
-  
+
   chebnet:
     model.feature_encoder.out_channels:
       - 16
@@ -137,63 +137,63 @@ per_dataset_ratio_method_grid:
   # ratio=1.25, method=variance
   motrpac,1.25,variance:
     dataset.loader.parameters.adjacency_threshold: [0.1178]
-  
+
   parkinsons,1.25,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0420]
-  
+
   addneuromed,1.25,variance:
     dataset.loader.parameters.adjacency_threshold: [0.3522]
-  
-  # ratio=1.25, method=random 
+
+  # ratio=1.25, method=random
   motrpac,1.25,random:
     dataset.loader.parameters.adjacency_threshold: [0.0088]
-  
+
   parkinsons,1.25,random:
     dataset.loader.parameters.adjacency_threshold: [0.0086]
-  
+
   addneuromed,1.25,random:
     dataset.loader.parameters.adjacency_threshold: [0.0092]
-  
+
   # ratio=1.25, method=correlation
   motrpac,1.25,correlation:
     dataset.loader.parameters.adjacency_threshold: [.0094]
-  
+
   parkinsons,1.25,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0090]
-  
+
   addneuromed,1.25,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0618]
-  
+
   # ratio=1.0, method=variance
   motrpac,1.0,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0926]
-  
+
   parkinsons,1.0,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0350]
-  
+
   addneuromed,1.0,variance:
     dataset.loader.parameters.adjacency_threshold: [0.2997]
-  
+
   # ratio=1.0, method=random
   motrpac,1.0,random:
     dataset.loader.parameters.adjacency_threshold: [0.0093]
-  
+
   parkinsons,1.0,random:
     dataset.loader.parameters.adjacency_threshold: [0.0084]
-  
+
   addneuromed,1.0,random:
     dataset.loader.parameters.adjacency_threshold: [0.0084]
-  
+
   # ratio=1.0, method=correlation
   motrpac,1.0,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0095]
-  
+
   parkinsons,1.0,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0084]
-  
+
   addneuromed,1.0,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0997]
-  
+
   # ratio=0.8, method=variance
   motrpac,0.8,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0847]
@@ -253,7 +253,7 @@ per_dataset_ratio_method_grid:
 
   addneuromed,0.5,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0972]
-  
+
 # Training settings
 training:
   timeout: 3600 # 1 hour per run

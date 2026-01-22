@@ -37,4 +37,3 @@ SELECTOR_REGISTRY['mutual_information'] = MutualInformationSelector
 ```
 
 4. Use it by name: `method='mutual_information'`
-

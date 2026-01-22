@@ -32,4 +32,3 @@ def get_selector(method: str) -> AbstractNodeSelector:
             f'Invalid method: {method}. Available methods: {list(SELECTOR_REGISTRY.keys())}'
         )
     return SELECTOR_REGISTRY[method]()
-

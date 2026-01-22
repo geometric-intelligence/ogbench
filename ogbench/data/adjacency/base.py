@@ -8,9 +8,10 @@ import pandas as pd
 
 class AbstractAdjacencyBuilder(ABC):
     """Abstract base class for adjacency matrix construction strategies.
-    
+
     All adjacency builders must implement the `build` method which takes
-    node features and returns a continuous adjacency matrix. """
+    node features and returns a continuous adjacency matrix.
+    """
 
     @abstractmethod
     def build(self, node_features: pd.DataFrame) -> np.ndarray:
@@ -19,4 +20,3 @@ class AbstractAdjacencyBuilder(ABC):
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}()'
-

@@ -23,4 +23,3 @@ def get_adjacency_builder(method: str) -> AbstractAdjacencyBuilder:
             f'Invalid method: {method}. Available methods: {list(ADJACENCY_BUILDER_REGISTRY.keys())}'
         )
     return ADJACENCY_BUILDER_REGISTRY[method]()
-

@@ -7,7 +7,7 @@ import numpy as np
 
 class AbstractNodeSelector(ABC):
     """Abstract base class for node selection strategies.
-    
+
     All node selectors must implement the `select` method which takes
     training features and labels and returns indices of selected nodes.
     This standardized interface allows different selection strategies
@@ -15,12 +15,9 @@ class AbstractNodeSelector(ABC):
     """
 
     @abstractmethod
-    def select(
-        self, data: np.ndarray, targets: np.ndarray, n_selected: int
-    ) -> np.ndarray:
+    def select(self, data: np.ndarray, targets: np.ndarray, n_selected: int) -> np.ndarray:
         """Select nodes based on the implemented strategy."""
         pass
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}()'
-
