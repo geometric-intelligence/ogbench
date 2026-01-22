@@ -1,11 +1,13 @@
 import os
 import json
 import ast
+import time
 import wandb
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from typing import Iterable, Optional, Sequence, Any, List
+from wandb.errors import CommError
 
 
 # ---------------------------------------------------------------------
@@ -21,6 +23,100 @@ def flatten_config(config, parent_key='', sep='.'):
         else:
             items.append((new_key, v))
     return dict(items)
+
+
+# ---------------------------------------------------------------------
+# Retry helper for handling transient API errors
+# ---------------------------------------------------------------------
+def retryable_iterator(iterator, max_retries=5, initial_delay=2.0, max_delay=60.0, backoff_factor=2.0):
+    """Wrap an iterator to retry on CommError during iteration.
+    
+    This handles cases where wandb's paginator fails when loading new pages.
+    """
+    delay = initial_delay
+    iterator_obj = iter(iterator)
+    
+    while True:
+        try:
+            yield next(iterator_obj)
+            # Reset delay on successful iteration
+            delay = initial_delay
+        except StopIteration:
+            break
+        except (CommError, Exception) as e:
+            # Check if it's a retryable error
+            is_retryable = False
+            if isinstance(e, CommError):
+                is_retryable = True
+            elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                is_retryable = e.response.status_code in [502, 503, 504, 429]
+            elif '502' in str(e) or '503' in str(e) or '504' in str(e) or '429' in str(e):
+                is_retryable = True
+            
+            if is_retryable and max_retries > 0:
+                print(f"\n⚠ Pagination error during iteration: {str(e)[:100]}")
+                print(f"   Retrying iteration in {delay:.1f} seconds... (max_retries={max_retries})")
+                time.sleep(delay)
+                delay = min(delay * backoff_factor, max_delay)
+                max_retries -= 1
+                # Try to get a fresh iterator - this is tricky with wandb's paginator
+                # For now, we'll just retry the same iterator
+                try:
+                    yield next(iterator_obj)
+                    delay = initial_delay  # Reset on success
+                except StopIteration:
+                    break
+            else:
+                # Non-retryable or out of retries
+                raise
+
+
+def retry_with_backoff(func, max_retries=5, initial_delay=1.0, max_delay=60.0, backoff_factor=2.0):
+    """Retry a function with exponential backoff on CommError or HTTP errors.
+    
+    Args:
+        func: Function to retry (should be a callable that takes no arguments)
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay in seconds before first retry
+        max_delay: Maximum delay in seconds between retries
+        backoff_factor: Multiplier for delay after each retry
+        
+    Returns:
+        Result of the function call
+        
+    Raises:
+        Last exception if all retries fail
+    """
+    delay = initial_delay
+    last_exception = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            return func()
+        except (CommError, Exception) as e:
+            last_exception = e
+            # Check if it's a retryable error (502, 503, 504, or CommError)
+            is_retryable = False
+            if isinstance(e, CommError):
+                is_retryable = True
+            elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                is_retryable = e.response.status_code in [502, 503, 504, 429]
+            elif '502' in str(e) or '503' in str(e) or '504' in str(e) or '429' in str(e):
+                is_retryable = True
+            
+            if attempt < max_retries and is_retryable:
+                print(f"\n⚠ API error (attempt {attempt + 1}/{max_retries + 1}): {str(e)[:100]}")
+                print(f"   Retrying in {delay:.1f} seconds...")
+                time.sleep(delay)
+                delay = min(delay * backoff_factor, max_delay)
+            else:
+                if not is_retryable:
+                    # Non-retryable error, raise immediately
+                    raise
+                # All retries exhausted
+                raise last_exception
+    
+    raise last_exception
 
 
 # ---------------------------------------------------------------------
@@ -42,8 +138,9 @@ def load_results_dataframe(
     if filters is None:
         filters = {}
 
-    api = wandb.Api(timeout=120)
-    all_runs = api.runs(f"{wandb_username}/{wandb_project}", filters=filters, per_page=200)
+    # Increase timeout and reduce per_page to avoid overwhelming the API
+    api = wandb.Api(timeout=300)  # 5 minute timeout
+    all_runs = api.runs(f"{wandb_username}/{wandb_project}", filters=filters, per_page=100)
 
     # Check if CSV exists and if we should do incremental update
     if os.path.exists(csv_filename) and not force_load:
@@ -69,44 +166,144 @@ def load_results_dataframe(
             n_checked = 0
             
             # Iterate through all runs once
-            for run in tqdm(all_runs, desc="Scanning for new runs", unit="run", total=total_runs_in_wandb):
-                n_checked += 1
-                # Check run.id (this is fast - just metadata, no full data fetch)
-                run_id_str = str(run.id)
-                
-                # Only process if this run is new
-                if run_id_str not in existing_run_ids:
-                    n_new += 1
-                    try:
-                        # Now fetch full data for this new run (this is the slow part, but only for new runs)
-                        cfg = run.config.copy() or {}
-                        cfg_flat = flatten_config(cfg)
+            # Wrap iteration in retry logic to handle pagination errors
+            iteration_retries = 3
+            iteration_delay = 5.0
+            
+            while iteration_retries >= 0:
+                try:
+                    for run in tqdm(all_runs, desc="Scanning for new runs", unit="run", total=total_runs_in_wandb):
+                        n_checked += 1
+                        
+                        # Add delays to avoid rate limiting
+                        if n_checked % 50 == 0:
+                            # Longer pause every 50 runs
+                            time.sleep(1.0)
+                        elif n_checked % 10 == 0:
+                            # Shorter pause every 10 runs
+                            time.sleep(0.2)
+                        
+                        # Check run.id (this is fast - just metadata, no full data fetch)
+                        # Wrap in retry logic to handle transient errors
+                        try:
+                            # Access run.id with retry - this might trigger API calls
+                            run_id_str = retry_with_backoff(
+                                lambda: str(run.id),
+                                max_retries=3,
+                                initial_delay=2.0,
+                                max_delay=30.0
+                            )
+                        except Exception as e:
+                            print(f"\n⚠ Failed to get run ID (attempt {n_checked}): {e}")
+                            failed_runs.append((None, None, f"Failed to get run ID: {str(e)}"))
+                            # Add a longer delay before continuing to next run
+                            time.sleep(2.0)
+                            continue
+                        
+                        # Only process if this run is new
+                        if run_id_str not in existing_run_ids:
+                            n_new += 1
+                            try:
+                                # Now fetch full data for this new run (this is the slow part, but only for new runs)
+                                # Wrap all run data access in retry logic
+                                def fetch_run_data():
+                                    cfg = run.config.copy() or {}
+                                    cfg_flat = flatten_config(cfg)
 
-                        row = {
-                            "run_id": run.id,
-                            "run_name": run.name,
-                            "state": run.state,
-                        }
+                                    row = {
+                                        "run_id": run.id,
+                                        "run_name": run.name,
+                                        "state": run.state,
+                                    }
 
-                        # Add all summary metrics (only simple types)
-                        if run.summary:
-                            for key, value in run.summary.items():
-                                if isinstance(value, (int, float, str, bool)) or value is None:
-                                    row[f"summary.{key}"] = value
+                                    # Add all summary metrics (only simple types)
+                                    if run.summary:
+                                        for key, value in run.summary.items():
+                                            if isinstance(value, (int, float, str, bool)) or value is None:
+                                                row[f"summary.{key}"] = value
 
-                        # Add all config parameters
-                        row.update(cfg_flat)
-                        records.append(row)
-                    except Exception as e:
-                        print(f"\n⚠ Failed to fetch run {run.id} ({run.name}): {e}")
-                        failed_runs.append((run.id, run.name, str(e)))
-                        continue
-                
-                # Early exit optimization: if we've found all expected new runs and checked enough,
-                # we can stop (assuming runs are roughly ordered)
-                if n_new >= n_new_expected and n_checked > n_existing + n_new_expected * 2:
-                    print(f"▶ Found all expected new runs, stopping early...")
+                                    # Add all config parameters
+                                    row.update(cfg_flat)
+                                    return row
+                                
+                                row = retry_with_backoff(
+                                    fetch_run_data,
+                                    max_retries=3,
+                                    initial_delay=2.0,
+                                    max_delay=30.0
+                                )
+                                records.append(row)
+                            except Exception as e:
+                                print(f"\n⚠ Failed to fetch run {run_id_str}: {e}")
+                                failed_runs.append((run_id_str, None, str(e)))
+                                # Add a longer delay after a failure
+                                time.sleep(2.0)
+                                continue
+                            
+                            # Early exit optimization: if we've found all expected new runs and checked enough,
+                            # we can stop (assuming runs are roughly ordered)
+                            if n_new >= n_new_expected and n_checked > n_existing + n_new_expected * 2:
+                                print(f"▶ Found all expected new runs, stopping early...")
+                                break
+                    
+                    # If we complete the iteration successfully, break out of retry loop
                     break
+                    
+                except (CommError, Exception) as e:
+                    # Check if it's a retryable pagination error
+                    is_retryable = False
+                    if isinstance(e, CommError):
+                        is_retryable = True
+                    elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                        is_retryable = e.response.status_code in [502, 503, 504, 429]
+                    elif '502' in str(e) or '503' in str(e) or '504' in str(e) or '429' in str(e):
+                        is_retryable = True
+                    
+                    if is_retryable and iteration_retries > 0:
+                        print(f"\n⚠ Pagination error during iteration (checked {n_checked} runs, found {n_new} new): {str(e)[:100]}")
+                        print(f"   Server suggests waiting 30 seconds. Waiting {iteration_delay:.1f} seconds... ({iteration_retries} retries left)")
+                        time.sleep(iteration_delay)
+                        iteration_delay = min(iteration_delay * 2, 60.0)
+                        iteration_retries -= 1
+                        # Save progress so far before retrying
+                        if len(records) > 0:
+                            print(f"   Saving {len(records)} new runs collected so far...")
+                            df_new_temp = pd.DataFrame(records)
+                            # Ensure column alignment
+                            all_columns = set(df_existing.columns) | set(df_new_temp.columns)
+                            for col in all_columns:
+                                if col not in df_existing.columns:
+                                    df_existing[col] = None
+                                if col not in df_new_temp.columns:
+                                    df_new_temp[col] = None
+                            df_new_temp = df_new_temp[df_existing.columns]
+                            df_temp = pd.concat([df_existing, df_new_temp], ignore_index=True)
+                            if save_csv:
+                                df_temp.to_csv(csv_filename, index=False)
+                                print(f"   Progress saved to {csv_filename}")
+                        # Get a fresh iterator
+                        all_runs = api.runs(f"{wandb_username}/{wandb_project}", filters=filters, per_page=100)
+                        print(f"   Retrying iteration (will skip already processed runs)...")
+                        # Note: We can't easily skip already processed runs with wandb's paginator,
+                        # but since we check run_id against existing_run_ids, duplicates won't be added
+                    else:
+                        # Non-retryable or out of retries - save what we have
+                        if len(records) > 0:
+                            print(f"\n⚠ Saving {len(records)} runs collected before error...")
+                            df_new_temp = pd.DataFrame(records)
+                            all_columns = set(df_existing.columns) | set(df_new_temp.columns)
+                            for col in all_columns:
+                                if col not in df_existing.columns:
+                                    df_existing[col] = None
+                                if col not in df_new_temp.columns:
+                                    df_new_temp[col] = None
+                            df_new_temp = df_new_temp[df_existing.columns]
+                            df_temp = pd.concat([df_existing, df_new_temp], ignore_index=True)
+                            if save_csv:
+                                df_temp.to_csv(csv_filename, index=False)
+                        print(f"\n❌ Fatal error during iteration after {iteration_retries} retries: {e}")
+                        print(f"   Processed {n_checked} runs, found {n_new} new runs before error")
+                        raise
             
             print(f"▶ Found {n_new} new runs to add (checked {n_checked} runs total)")
             
@@ -149,29 +346,54 @@ def load_results_dataframe(
         
         records = []
         failed_runs = []
+        n_processed = 0
         for run in tqdm(all_runs, desc="Fetching runs", unit="run"):
+            n_processed += 1
+            
+            # Add delays to avoid rate limiting
+            if n_processed % 50 == 0:
+                # Longer pause every 50 runs
+                time.sleep(1.0)
+            elif n_processed % 10 == 0:
+                # Shorter pause every 10 runs
+                time.sleep(0.2)
+            
             try:
-                cfg = run.config.copy() or {}
-                cfg_flat = flatten_config(cfg)
+                # Wrap all run data access in retry logic
+                def fetch_run_data():
+                    cfg = run.config.copy() or {}
+                    cfg_flat = flatten_config(cfg)
 
-                row = {
-                    "run_id": run.id,
-                    "run_name": run.name,
-                    "state": run.state,
-                }
+                    row = {
+                        "run_id": run.id,
+                        "run_name": run.name,
+                        "state": run.state,
+                    }
 
-                # Add all summary metrics (only simple types)
-                if run.summary:
-                    for key, value in run.summary.items():
-                        if isinstance(value, (int, float, str, bool)) or value is None:
-                            row[f"summary.{key}"] = value
+                    # Add all summary metrics (only simple types)
+                    if run.summary:
+                        for key, value in run.summary.items():
+                            if isinstance(value, (int, float, str, bool)) or value is None:
+                                row[f"summary.{key}"] = value
 
-                # Add all config parameters
-                row.update(cfg_flat)
+                    # Add all config parameters
+                    row.update(cfg_flat)
+                    return row
+                
+                row = retry_with_backoff(
+                    fetch_run_data,
+                    max_retries=3,
+                    initial_delay=2.0,
+                    max_delay=30.0
+                )
                 records.append(row)
             except Exception as e:
-                print(f"\n⚠ Failed to fetch run {run.id} ({run.name}): {e}")
-                failed_runs.append((run.id, run.name, str(e)))
+                run_id = getattr(run, 'id', 'unknown')
+                run_name = getattr(run, 'name', 'unknown')
+                print(f"\n⚠ Failed to fetch run {run_id} ({run_name}): {e}")
+                failed_runs.append((run_id, run_name, str(e)))
+                # Add a longer delay after a failure
+                time.sleep(2.0)
                 continue
         
         if failed_runs:
