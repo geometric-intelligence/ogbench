@@ -46,6 +46,7 @@ class SearchConfig:
     shared_grid: dict[str, list[Any]]
     per_model_grid: dict[str, dict[str, list[Any]]]
     per_model_dataset_grid: dict[tuple[str, str], dict[str, list[Any]]]
+    per_dataset_ratio_method_grid: dict[tuple[str, float | str, str], dict[str, list[Any]]]
     timeout: int
     output_dir: str
     tags: list[str]
@@ -78,6 +79,27 @@ class SearchConfig:
                 # Already a tuple (shouldn't happen with YAML but handle it)
                 per_model_dataset_grid[key] = value
 
+        # Parse per_dataset_ratio_method_grid with string keys "dataset,ratio,method" -> tuple keys
+        per_dataset_ratio_raw = config.get('per_dataset_ratio_method_grid', {})
+        per_dataset_ratio_method_grid = {}
+        for key, value in per_dataset_ratio_raw.items():
+            if isinstance(key, str) and ',' in key:
+                # Parse "dataset,ratio,method" -> (dataset, ratio, method)
+                parts = key.split(',')
+                if len(parts) == 3:
+                    dataset = parts[0].strip()
+                    ratio_str = parts[1].strip()
+                    method = parts[2].strip()
+                    # Try to convert ratio to float, otherwise keep as string
+                    try:
+                        ratio = float(ratio_str)
+                    except ValueError:
+                        ratio = ratio_str
+                    per_dataset_ratio_method_grid[(dataset, ratio, method)] = value
+            elif isinstance(key, tuple) and len(key) == 3:
+                # Already a tuple (shouldn't happen with YAML but handle it)
+                per_dataset_ratio_method_grid[key] = value
+
         return cls(
             datasets=datasets,
             models=config['models'],
@@ -86,6 +108,7 @@ class SearchConfig:
             shared_grid=config.get('shared_grid', {}),
             per_model_grid=config.get('per_model_grid', {}),
             per_model_dataset_grid=per_model_dataset_grid,
+            per_dataset_ratio_method_grid=per_dataset_ratio_method_grid,
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
             tags=config.get('tags', []),
@@ -273,22 +296,105 @@ def build_run_configs(
 
     for model in models:
         for dataset in search_config.datasets:
-            # 3-level grid merge (priority: shared < per_model < per_model_dataset)
+            # Multi-level grid merge (priority: shared < per_model < per_model_dataset < per_dataset_ratio)
             # Get model-specific grid
             model_grid = search_config.per_model_grid.get(model, {})
 
             # Get model+dataset-specific grid
             model_dataset_grid = search_config.per_model_dataset_grid.get((model, dataset), {})
 
-            # Combine all three levels (later overrides earlier)
-            full_grid = {
+            # Combine base grids (per_dataset_ratio applied conditionally after generating combinations)
+            base_grid = {
                 **search_config.shared_grid,
                 **model_grid,
                 **model_dataset_grid,
             }
 
             # Generate all hyperparameter combinations
-            for hp_combo in product_dict(full_grid):
+            for hp_combo in product_dict(base_grid):
+                # Apply per_dataset_ratio_method_grid if dataset, node_sample_ratio, and method match
+                node_sample_ratio_key = 'dataset.loader.parameters.node_sample_ratio'
+                method_key = 'dataset.loader.parameters.method'
+                dataset_ratio_grid = {}
+
+                if node_sample_ratio_key in hp_combo and method_key in hp_combo:
+                    node_sample_ratio_value = hp_combo[node_sample_ratio_key]
+                    method_value = hp_combo[method_key]
+                    # Try to match as float or string
+                    ratio_key = None
+                    # Try exact match first
+                    if (
+                        dataset,
+                        node_sample_ratio_value,
+                        method_value,
+                    ) in search_config.per_dataset_ratio_method_grid:
+                        ratio_key = (dataset, node_sample_ratio_value, method_value)
+                    else:
+                        # Try float conversion for matching
+                        try:
+                            float_value = float(node_sample_ratio_value)
+                            if (
+                                dataset,
+                                float_value,
+                                method_value,
+                            ) in search_config.per_dataset_ratio_method_grid:
+                                ratio_key = (dataset, float_value, method_value)
+                        except (ValueError, TypeError):
+                            pass
+
+                    if ratio_key:
+                        dataset_ratio_grid = search_config.per_dataset_ratio_method_grid[ratio_key]
+                        # Generate combinations from dataset_ratio_grid and merge each into hp_combo
+                        for ratio_hp_combo in product_dict(dataset_ratio_grid):
+                            final_hp_combo = {**hp_combo, **ratio_hp_combo}
+
+                            for seed in search_config.seeds:
+                                run_id += 1
+
+                                # Build overrides list
+                                all_tags = [model, dataset, 'hpsearch'] + search_config.tags
+                                tags_str = ','.join(all_tags)
+                                overrides = [
+                                    f'model={model}',
+                                    f'dataset={dataset}',
+                                    f'seed={seed}',
+                                    f'logger.wandb.tags=[{tags_str}]',
+                                ]
+
+                                # Add fixed parameters
+                                for key, value in search_config.fixed.items():
+                                    overrides.append(to_override(key, value))
+
+                                # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
+                                readout_name = final_hp_combo.get('model.readout.readout_name')
+                                for key, value in final_hp_combo.items():
+                                    if readout_name == 'NoReadOut' and key in (
+                                        'model.readout.fc_dim',
+                                        'model.readout.fc_dropout',
+                                    ):
+                                        continue
+                                    overrides.append(to_override(key, value))
+
+                                # Assign GPU round-robin
+                                gpu_id = None
+                                if parallel and not dry_run and n_gpus > 0:
+                                    gpu_id = (run_id - 1) % n_gpus
+
+                                configs.append(
+                                    RunConfig(
+                                        run_id=run_id,
+                                        model=model,
+                                        dataset=dataset,
+                                        seed=seed,
+                                        overrides=overrides,
+                                        hyperparams=final_hp_combo,
+                                        timeout=search_config.timeout,
+                                        gpu_id=gpu_id,
+                                    )
+                                )
+                        continue  # Skip the else block below
+
+                # No per_dataset_ratio_method_grid match, use hp_combo as-is
                 for seed in search_config.seeds:
                     run_id += 1
 

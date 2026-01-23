@@ -24,6 +24,7 @@ dependencies=[
     "tqdm",
     "numpy",
     "scipy",
+    "dcor",
     "requests",
     "scikit-learn",
     "matplotlib",
@@ -86,8 +87,8 @@ test = [
     "pytest-mock"
 ]
 
-dev = ["BGBench[test, lint]"]
-all = ["BGBench[dev, doc]"]
+dev = ["ogbench[test, lint]"]
+all = ["ogbench[dev, doc]"]
 
 
 [project.scripts]

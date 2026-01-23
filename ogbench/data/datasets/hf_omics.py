@@ -8,7 +8,6 @@ from typing import Any, Final
 
 import numpy as np
 import pandas as pd
-import PyWGCNA
 import torch
 import torch_geometric.data
 import torch_geometric.transforms as T
@@ -20,6 +19,8 @@ from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.io import fs
 from tqdm import tqdm
 
+from ogbench.data.adjacency import get_adjacency_builder
+from ogbench.data.selectors import get_selector
 from ogbench.data.utils import MeanStdNormalizer
 
 # Configure logging
@@ -68,6 +69,7 @@ class HFOmicsDataset(InMemoryDataset):
         method: str = 'correlation',
         imputation_method: str = 'mean',
         adjacency_threshold: float = 0.3,
+        adjacency_method: str = 'wgcna',
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
@@ -79,9 +81,10 @@ class HFOmicsDataset(InMemoryDataset):
         Args:
             root: The local data directory for caching
             data_name: The name of the dataset
-            method: Method for node selection ("variance", "correlation", "random")
+            method: Method for node selection ("variance", "correlation", "distance_correlation", "random")
             imputation_method: Method for handling missing values
             adjacency_threshold: Threshold for adjacency matrix binarization
+            adjacency_method: Method for adjacency matrix construction (default: "wgcna")
             node_sample_ratio: Ratio of nodes to sample
             hf_repo_id: HuggingFace repository ID
             revision: HuggingFace dataset revision/commit hash
@@ -89,6 +92,7 @@ class HFOmicsDataset(InMemoryDataset):
         """
         self.data_name = data_name
         self.adjacency_threshold = adjacency_threshold
+        self.adjacency_method = adjacency_method
         self.node_sample_ratio = node_sample_ratio
         self.method = method
         self.train_val_test_split = train_val_test_split or [0.7, 0.15, 0.15]
@@ -100,6 +104,7 @@ class HFOmicsDataset(InMemoryDataset):
         self.name = osp.join(
             f'{self.data_name}',
             f'adj_thresh_{self.adjacency_threshold}',
+            f'adj_method_{self.adjacency_method}',
             f'{self.method}',
             f'p_{self.node_sample_ratio}',
             f'train_split_{self.train_val_test_split[0]}',
@@ -314,89 +319,15 @@ class HFOmicsDataset(InMemoryDataset):
     def select_nodes(
         self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = 'variance'
     ) -> np.ndarray:
-        """Select nodes based on feature importance or randomly."""
-        if method == 'variance':
-            # Variance-based filtering
-            variances = np.std(data, axis=0)
-            ranked_nodes = np.argsort(variances)[::-1]
-        elif method == 'correlation':
-            # Correlation-based filtering
-            correlations = np.abs(
-                np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
-            )
-            ranked_nodes = np.argsort(correlations)[::-1]
-        elif method == 'random':
-            # Random selection
-            ranked_nodes = np.random.permutation(data.shape[1])
-        else:
-            raise ValueError(f'Invalid method: {method}')
-
-        return ranked_nodes[:n_selected]
+        """Select nodes using a modular selector system."""
+        selector = get_selector(method)
+        return selector.select(data, targets, n_selected)
 
     def calculate_adjacency_matrix(self, node_features: pd.DataFrame) -> np.ndarray:
-        """Calculate adjacency matrix using WGCNA with soft-thresholding and binarization."""
-        # Use WGCNA to find optimal power for scale-free topology
-        soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features)
-        power = soft_threshold[0]
-
-        # Apply soft-thresholding
-        adjacency = PyWGCNA.WGCNA.adjacency(
-            node_features,
-            power=power,
-            adjacencyType='signed hybrid',
-        )
-
-        # logger.info(f'Original data shape: {node_features.shape}')
-        # logger.info(f'Data contains inf: {np.isinf(node_features.values).any()}')
-        # logger.info(f'Data contains NaN: {node_features.isnull().any().any()}')
-
-        # # Clean data more carefully
-        # node_features_clean = node_features.copy()
-
-        # # Replace infinite values with finite alternatives
-        # inf_mask = np.isinf(node_features_clean.values)
-        # if inf_mask.any():
-        #     logger.info(f'Replacing {inf_mask.sum()} infinite values')
-        #     # Replace +inf with max finite value, -inf with min finite value
-        #     finite_values = node_features_clean.values[~inf_mask]
-        #     if len(finite_values) > 0:
-        #         max_finite = np.max(finite_values)
-        #         min_finite = np.min(finite_values)
-        #         node_features_clean = node_features_clean.replace([np.inf], max_finite)
-        #         node_features_clean = node_features_clean.replace([-np.inf], min_finite)
-        #     else:
-        #         # If all values are infinite, replace with 0
-        #         node_features_clean = node_features_clean.replace([np.inf, -np.inf], 0)
-
-        # # Handle NaN values by filling with median of each column
-        # if node_features_clean.isnull().any().any():
-        #     logger.info('Filling NaN values with column medians')
-        #     node_features_clean = node_features_clean.fillna(node_features_clean.median())
-
-        # logger.info(f'Cleaned data shape: {node_features_clean.shape}')
-
-        # # Try WGCNA approach first
-        # try:
-        #     # Use WGCNA to find optimal power for scale-free topology
-        #     soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_clean)
-        #     power = soft_threshold[0]
-        #     logger.info(f'WGCNA selected power: {power}')
-
-        #     # Apply soft-thresholding
-        #     adjacency = PyWGCNA.WGCNA.adjacency(
-        #         node_features_clean,
-        #         power=power,
-        #         adjacencyType='signed hybrid',
-        #     )
-        # except Exception as e:
-        #     logger.warning(f'WGCNA failed: {e}. Falling back to correlation-based adjacency.')
-        #     # Fallback: use correlation-based adjacency
-        #     corr_matrix = node_features_clean.corr().values
-        #     # Convert correlation to adjacency using a fixed power
-        #     power = 6  # Default power for correlation-based networks
-        #     adjacency = np.power(np.abs(corr_matrix), power)
-        #     # Apply sign
-        #     adjacency = np.sign(corr_matrix) * adjacency
+        """Calculate adjacency matrix using a modular adjacency builder system."""
+        # Build continuous adjacency matrix using modular builder
+        adjacency_builder = get_adjacency_builder(self.adjacency_method)
+        adjacency = adjacency_builder.build(node_features)
 
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
@@ -531,6 +462,7 @@ class HFOmicsDataset(InMemoryDataset):
         return (
             f'HFOmicsDataset(data_name={self.data_name}, '
             f'adjacency_threshold={self.adjacency_threshold}, '
+            f'adjacency_method={self.adjacency_method}, '
             f'node_sample_ratio={self.node_sample_ratio}, '
             f'method={self.method}, '
             f'train_val_test_split={self.train_val_test_split})'
