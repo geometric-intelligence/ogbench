@@ -13,6 +13,7 @@ Usage:
 import argparse
 import itertools
 import json
+import multiprocessing
 import os
 import subprocess  # nosec B404
 import time
@@ -256,49 +257,72 @@ def run_training(
         return False, str(e), None
 
 
-def execute_run(config: RunConfig, dry_run: bool = False, n_threads: int = 1) -> dict[str, Any]:
+def execute_run(
+    config: RunConfig,
+    dry_run: bool = False,
+    n_threads: int = 1,
+    gpu_counts: list | None = None,
+    gpu_lock: Any = None,
+    n_gpus: int = 0,
+) -> dict[str, Any]:
     """Execute a single run configuration."""
-    print(f'[{config.run_id:04d}] {config.model} | seed={config.seed} | GPU={config.gpu_id} | CPUs={config.cpu_cores}')
+    gpu_id = config.gpu_id
+
+    # Dynamic GPU assignment if needed
+    if gpu_id is None and gpu_counts is not None and gpu_lock is not None and n_gpus > 0:
+        with gpu_lock:
+            gpu_id = min(range(n_gpus), key=lambda i: gpu_counts[i])
+            gpu_counts[gpu_id] += 1
+
+    print(
+        f'[{config.run_id:04d}] {config.model} | seed={config.seed} | GPU={gpu_id} | CPUs={config.cpu_cores}'
+    )
 
     start_time = time.time()
 
-    if dry_run:
-        n_params, error = dry_run_config(config.overrides)
-        success = n_params is not None
-        metrics = {'params': n_params} if success else None
-        error_msg = error
-    else:
-        success, error_msg, metrics = run_training(
-            config.overrides, config.timeout, config.gpu_id, n_threads, config.cpu_cores
-        )
+    try:
+        if dry_run:
+            n_params, error = dry_run_config(config.overrides)
+            success = n_params is not None
+            metrics = {'params': n_params} if success else None
+            error_msg = error
+        else:
+            success, error_msg, metrics = run_training(
+                config.overrides, config.timeout, gpu_id, n_threads, config.cpu_cores
+            )
 
-    elapsed = time.time() - start_time
+        elapsed = time.time() - start_time
 
-    result = {
-        'run_id': config.run_id,
-        'model': config.model,
-        'dataset': config.dataset,
-        'seed': config.seed,
-        'success': success,
-        'elapsed_time': elapsed,
-        'overrides': ' '.join(config.overrides),
-        'error': error_msg,
-        'gpu_id': config.gpu_id,
-        'cpu_cores': config.cpu_cores,
-        **config.hyperparams,
-    }
+        result = {
+            'run_id': config.run_id,
+            'model': config.model,
+            'dataset': config.dataset,
+            'seed': config.seed,
+            'success': success,
+            'elapsed_time': elapsed,
+            'overrides': ' '.join(config.overrides),
+            'error': error_msg,
+            'gpu_id': gpu_id,
+            'cpu_cores': config.cpu_cores,
+            **config.hyperparams,
+        }
 
-    if dry_run and metrics:
-        result['params'] = metrics.get('params')
-    elif metrics:
-        result.update(metrics)
+        if dry_run and metrics:
+            result['params'] = metrics.get('params')
+        elif metrics:
+            result.update(metrics)
 
-    status = 'OK' if success else 'FAIL'
-    print(f'[{config.run_id:04d}] {status} ({elapsed:.1f}s)')
-    if not success and error_msg:
-        print(f'         Error: {error_msg[:100]}...')
+        status = 'OK' if success else 'FAIL'
+        print(f'[{config.run_id:04d}] {status} ({elapsed:.1f}s)')
+        if not success and error_msg:
+            print(f'         Error: {error_msg[:100]}...')
 
-    return result
+        return result
+    finally:
+        # Release GPU when done
+        if gpu_id is not None and gpu_counts is not None and gpu_lock is not None:
+            with gpu_lock:
+                gpu_counts[gpu_id] -= 1
 
 
 def build_run_configs(
@@ -411,10 +435,7 @@ def build_run_configs(
                                         continue
                                     overrides.append(to_override(key, value))
 
-                                # Assign GPU round-robin
                                 gpu_id = None
-                                if parallel and not dry_run and n_gpus > 0:
-                                    gpu_id = (run_id - 1) % n_gpus
 
                                 # Assign CPU cores round-robin
                                 cpu_cores = None
@@ -470,10 +491,7 @@ def build_run_configs(
                     for key, value in hp_combo.items():
                         overrides.append(to_override(key, value))
 
-                    # Assign GPU round-robin
                     gpu_id = None
-                    if parallel and not dry_run and n_gpus > 0:
-                        gpu_id = (run_id - 1) % n_gpus
 
                     # Assign CPU cores round-robin
                     cpu_cores = None
@@ -533,22 +551,42 @@ def run_search(
     print(f'Seeds: {search_config.seeds}')
     print(f'Total runs: {len(configs)}')
     print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
-    print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, n_threads={n_threads}, n_cpus_per_job={n_cpus_per_job})')
+    if n_gpus > 0 and not dry_run:
+        jobs_per_gpu = n_jobs // n_gpus if n_jobs % n_gpus == 0 else f'~{n_jobs / n_gpus:.1f}'
+        print(
+            f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, {jobs_per_gpu} jobs/GPU, n_threads={n_threads}, n_cpus_per_job={n_cpus_per_job})'
+        )
+    else:
+        print(
+            f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, n_threads={n_threads}, n_cpus_per_job={n_cpus_per_job})'
+        )
     print(f'Output: {search_config.output_dir}')
     print('=' * 60)
 
     # Create output directory
     os.makedirs(search_config.output_dir, exist_ok=True)
 
+    # Set up shared GPU state for dynamic assignment
+    gpu_counts = None
+    gpu_lock = None
+    if n_gpus > 0 and not dry_run and parallel:
+        manager = multiprocessing.Manager()
+        gpu_counts = manager.list([0] * n_gpus)
+        gpu_lock = manager.Lock()
+
     # Execute runs
     if parallel and not dry_run and n_jobs > 1:
         print(f'\nRunning {len(configs)} configs in parallel...')
         results = Parallel(n_jobs=n_jobs, verbose=10)(
-            delayed(execute_run)(config, dry_run, n_threads) for config in configs
+            delayed(execute_run)(config, dry_run, n_threads, gpu_counts, gpu_lock, n_gpus)
+            for config in configs
         )
     else:
         print(f'\nRunning {len(configs)} configs sequentially...')
-        results = [execute_run(config, dry_run, n_threads) for config in configs]
+        results = [
+            execute_run(config, dry_run, n_threads, gpu_counts, gpu_lock, n_gpus)
+            for config in configs
+        ]
 
     # Save results
     df = pd.DataFrame(results)
