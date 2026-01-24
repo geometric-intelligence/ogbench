@@ -56,12 +56,15 @@ class DatasetContainer:
     # Raw data (before any preprocessing)
     X_train_raw: np.ndarray
     X_val_raw: np.ndarray
+    X_test_raw: np.ndarray
     y_train: np.ndarray
     y_val: np.ndarray
+    y_test: np.ndarray
 
     # Processed data (after imputation but before scaling - pipeline handles scaling)
     X_train_processed: np.ndarray
     X_val_processed: np.ndarray
+    X_test_processed: np.ndarray
 
     # Combined data for GridSearchCV
     X_combined: np.ndarray
@@ -74,17 +77,17 @@ class DatasetContainer:
     class_distribution: dict
     class_names: list[str] | None = None
 
-    def get_features_at_stage(self, stage: str) -> tuple[np.ndarray, np.ndarray]:
+    def get_features_at_stage(self, stage: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get features at a specific preprocessing stage.
 
         :param stage: 'raw' (before any preprocessing), 'processed' (after imputation but before
             scaling)
-        :return: Tuple of (X_train, X_val) at the specified stage
+        :return: Tuple of (X_train, X_val, X_test) at the specified stage
         """
         if stage == 'raw':
-            return self.X_train_raw, self.X_val_raw
+            return self.X_train_raw, self.X_val_raw, self.X_test_raw
         elif stage == 'processed':
-            return self.X_train_processed, self.X_val_processed
+            return self.X_train_processed, self.X_val_processed, self.X_test_processed
         else:
             raise ValueError(f'Unknown stage: {stage}')
 
@@ -92,10 +95,12 @@ class DatasetContainer:
         """Get class distribution information."""
         unique_train, counts_train = np.unique(self.y_train, return_counts=True)
         unique_val, counts_val = np.unique(self.y_val, return_counts=True)
+        unique_test, counts_test = np.unique(self.y_test, return_counts=True)
 
         return {
             'train': dict(zip(unique_train, counts_train, strict=True)),
             'val': dict(zip(unique_val, counts_val, strict=True)),
+            'test': dict(zip(unique_test, counts_test, strict=True)),
             'n_classes': len(np.unique(self.y_train)),
             'is_binary': len(np.unique(self.y_train)) == 2,
         }
@@ -283,22 +288,29 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
     y_train = targets[:train_idx]
     X_val = data.iloc[train_idx:val_idx].values
     y_val = targets[train_idx:val_idx]
+    X_test = data.iloc[val_idx:].values
+    y_test = targets[val_idx:]
 
-    logger.info(f'Train set: {X_train.shape}, Val set: {X_val.shape}')
+    logger.info(f'Train set: {X_train.shape}, Val set: {X_val.shape}, Test set: {X_test.shape}')
     unique_train, counts_train = np.unique(y_train, return_counts=True)
     unique_val, counts_val = np.unique(y_val, return_counts=True)
+    unique_test, counts_test = np.unique(y_test, return_counts=True)
     logger.info(
-        f'Class distribution - Train: {dict(zip(unique_train, counts_train, strict=True))}, Val: {dict(zip(unique_val, counts_val, strict=True))}'
+        f'Class distribution - Train: {dict(zip(unique_train, counts_train, strict=True))}, '
+        f'Val: {dict(zip(unique_val, counts_val, strict=True))}, '
+        f'Test: {dict(zip(unique_test, counts_test, strict=True))}'
     )
 
     # Keep raw data for plotting
     X_train_raw = X_train.copy()
     X_val_raw = X_val.copy()
+    X_test_raw = X_test.copy()
 
     # Impute missing values (using mean strategy like in HFOmicsDataset)
     imputer = SimpleImputer(strategy=cfg.dataset.loader.parameters.imputation_method)
     X_train_imputed = imputer.fit_transform(X_train)
     X_val_imputed = imputer.transform(X_val)
+    X_test_imputed = imputer.transform(X_test)
 
     # Combine train and val for GridSearchCV with custom split (use imputed but unscaled)
     X_combined = np.vstack([X_train_imputed, X_val_imputed])
@@ -307,18 +319,23 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
     # Get class distribution info
     unique_train, counts_train = np.unique(y_train, return_counts=True)
     unique_val, counts_val = np.unique(y_val, return_counts=True)
+    unique_test, counts_test = np.unique(y_test, return_counts=True)
     class_distribution = {
         'train': dict(zip(unique_train, counts_train, strict=True)),
         'val': dict(zip(unique_val, counts_val, strict=True)),
+        'test': dict(zip(unique_test, counts_test, strict=True)),
     }
 
     return DatasetContainer(
         X_train_raw=X_train_raw,
         X_val_raw=X_val_raw,
+        X_test_raw=X_test_raw,
         y_train=y_train,
         y_val=y_val,
+        y_test=y_test,
         X_train_processed=X_train_imputed,  # Now contains imputed but unscaled data
         X_val_processed=X_val_imputed,  # Now contains imputed but unscaled data
+        X_test_processed=X_test_imputed,  # Now contains imputed but unscaled data
         X_combined=X_combined,
         y_combined=y_combined,
         dataset_name=data_name,
@@ -333,23 +350,27 @@ def evaluate_and_log_metrics(
     pipeline: Pipeline,
     X_val: np.ndarray,
     y_val: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
     best_params: dict[str, Any],
     best_score: float | None,
-) -> dict[str, float]:
+) -> tuple[dict[str, float], dict[str, float]]:
     """Evaluate pipeline and log metrics to wandb.
 
     :param pipeline: Trained sklearn pipeline
     :param X_val: Validation features
     :param y_val: Validation targets
+    :param X_test: Test features
+    :param y_test: Test targets
     :param best_params: Best hyperparameters from grid search
     :param best_score: Best CV score from grid search
-    :return: Dictionary of validation metrics
+    :return: Tuple of (validation metrics, test metrics) dictionaries
     """
     # Evaluate on validation set
     logger.info('Evaluating on validation set...')
     y_val_pred = pipeline.predict(X_val)
 
-    # Get probabilities if available
+    # Get probabilities if available for validation
     y_val_proba = None
     if hasattr(pipeline, 'predict_proba'):
         y_val_proba_full = pipeline.predict_proba(X_val)
@@ -358,15 +379,36 @@ def evaluate_and_log_metrics(
     elif hasattr(pipeline, 'decision_function'):
         y_val_proba = pipeline.decision_function(X_val)
 
-    # Compute metrics
+    # Compute validation metrics
     val_metrics = compute_classification_metrics(y_val, y_val_pred, y_val_proba)
 
     logger.info('Validation Metrics:')
     for metric_name, metric_value in val_metrics.items():
         logger.info(f'  {metric_name}: {metric_value:.4f}')
 
+    # Evaluate on test set
+    logger.info('Evaluating on test set...')
+    y_test_pred = pipeline.predict(X_test)
+
+    # Get probabilities if available for test
+    y_test_proba = None
+    if hasattr(pipeline, 'predict_proba'):
+        y_test_proba_full = pipeline.predict_proba(X_test)
+        if y_test_proba_full.shape[1] == 2:  # Binary classification
+            y_test_proba = y_test_proba_full[:, 1]
+    elif hasattr(pipeline, 'decision_function'):
+        y_test_proba = pipeline.decision_function(X_test)
+
+    # Compute test metrics
+    test_metrics = compute_classification_metrics(y_test, y_test_pred, y_test_proba)
+
+    logger.info('Test Metrics:')
+    for metric_name, metric_value in test_metrics.items():
+        logger.info(f'  {metric_name}: {metric_value:.4f}')
+
     # Log to wandb
     wandb_metrics = {f'val/{k}': v for k, v in val_metrics.items()}
+    wandb_metrics.update({f'test/{k}': v for k, v in test_metrics.items()})
 
     if best_score is not None:
         wandb_metrics['train/best_cv_score'] = best_score
@@ -378,7 +420,7 @@ def evaluate_and_log_metrics(
 
     wandb.log(wandb_metrics)
 
-    return val_metrics
+    return val_metrics, test_metrics
 
 
 def build_pipeline(baseline_config: DictConfig, seed: int) -> Pipeline:
@@ -455,7 +497,7 @@ def generate_comprehensive_plots(
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     # Get imputed but unscaled features (let pipeline handle all transformations)
-    X_train_imputed, X_val_imputed = dataset.get_features_at_stage('processed')
+    X_train_imputed, X_val_imputed, _ = dataset.get_features_at_stage('processed')
 
     # Apply pipeline up to feature selection to get selected features
     if 'feature_selection' in [step[0] for step in pipeline.steps]:
@@ -530,7 +572,7 @@ def generate_comprehensive_plots(
 
     # 2. Raw Features Distribution (top row, right column)
     ax2 = fig.add_subplot(gs[0, 2])
-    X_train_raw, X_val_raw = dataset.get_features_at_stage('raw')
+    X_train_raw, X_val_raw, _ = dataset.get_features_at_stage('raw')
     n_features_to_plot = min(100, X_train_raw.shape[1])
     feature_indices = np.random.RandomState(42).choice(
         X_train_raw.shape[1], n_features_to_plot, replace=False
@@ -868,13 +910,20 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             best_score = None
 
         # Evaluate and log metrics
-        val_metrics = evaluate_and_log_metrics(
-            best_pipeline, dataset.X_val_processed, dataset.y_val, best_params, best_score
+        val_metrics, test_metrics = evaluate_and_log_metrics(
+            best_pipeline,
+            dataset.X_val_processed,
+            dataset.y_val,
+            dataset.X_test_processed,
+            dataset.y_test,
+            best_params,
+            best_score,
         )
 
         # Store results
         all_results[baseline_name] = {
             'val_metrics': val_metrics,
+            'test_metrics': test_metrics,
             'best_params': best_params,
             'best_cv_score': best_score,
         }
@@ -889,17 +938,18 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
 
     monitor_metric = cfg.dataset.parameters.get('monitor_metric', 'f1_weighted')
 
-    # Sort baselines by monitor metric
+    # Sort baselines by monitor metric (using validation for model selection)
     sorted_baselines = sorted(
         all_results.items(),
         key=lambda x: x[1]['val_metrics'].get(monitor_metric, 0),
         reverse=True,
     )
 
-    logger.info(f'Ranking by {monitor_metric}:')
+    logger.info(f'Ranking by val {monitor_metric}:')
     for rank, (name, results) in enumerate(sorted_baselines, 1):
-        metric_val = results['val_metrics'].get(monitor_metric, 0)
-        logger.info(f'{rank}. {name:30s} {metric_val:.4f}')
+        val_metric = results['val_metrics'].get(monitor_metric, 0)
+        test_metric = results['test_metrics'].get(monitor_metric, 0)
+        logger.info(f'{rank}. {name:30s} val: {val_metric:.4f}, test: {test_metric:.4f}')
 
     # Return best baseline results
     best_baseline_name, best_results = sorted_baselines[0]
@@ -930,6 +980,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     )
 
     metric_dict = {f'val/{k}': v for k, v in best_results['val_metrics'].items()}
+    metric_dict.update({f'test/{k}': v for k, v in best_results['test_metrics'].items()})
     object_dict = {
         'cfg': cfg,
         'all_results': all_results,
