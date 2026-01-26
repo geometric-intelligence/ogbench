@@ -39,7 +39,7 @@ dependencies=[
     "hydra-optuna-sweeper==1.2.0",
     "wandb",
     "fastmcp",
-    "einops==0.7.0",
+    "einops==0.8.2",
     "tabulate",
     "ipykernel",
     "notebook",
