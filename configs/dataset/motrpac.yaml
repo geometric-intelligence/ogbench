@@ -77,3 +77,37 @@ baselines:
         - 0.1
     scoring: f1_macro
     n_jobs: -1
+  elastic_net:
+    pipeline:
+      - name: feature_selection
+        _target_: sklearn.feature_selection.SelectKBest
+        score_func:
+          _target_: sklearn.feature_selection.f_classif
+        k: 100
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: elastic_net
+        _target_: sklearn.linear_model.LogisticRegression
+        penalty: elasticnet
+        solver: saga
+        class_weight: balanced
+        max_iter: 5000
+        random_state: ${seed}
+    param_grid:
+      feature_selection__k:
+        - 50
+        - 100
+        - 500
+      elastic_net__C:
+        - 0.001
+        - 0.01
+        - 0.1
+        - 1.0
+      elastic_net__l1_ratio:
+        - 0.0
+        - 0.1
+        - 0.3
+        - 0.5
+        - 0.7
+    scoring: f1_macro
+    n_jobs: -1
