@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Analyze dataset statistics across different parameters. Generates plots for all combinations
-of node_sample_ratio and sampling_method.
+"""Analyze dataset statistics across different parameters. Generates plots for all combinations of
+node_sample_ratio and sampling_method.
 
 Usage examples:
     python dataset_stats_analysis.py
