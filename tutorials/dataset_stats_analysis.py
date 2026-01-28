@@ -13,6 +13,7 @@ Usage examples:
 
 import csv
 import itertools
+import json
 import os
 import os.path as osp
 from typing import Any
@@ -235,6 +236,31 @@ def save_stats_to_csv(all_stats: list[dict[str, Any]], output_file: str) -> None
     print(f'Statistics saved to {output_file}')
 
 
+def save_stats_to_json_for_webapp(
+    all_stats: list[dict[str, Any]], output_file: str
+) -> None:
+    """Save statistics to JSON for webapp consumption.
+
+    The JSON format uses keys like "dataset|node_sample_ratio|method|adj_thresh"
+    for fast lookup in the webapp.
+    """
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+    result = {}
+    for stats in all_stats:
+        # Skip entries with errors
+        if 'error' in stats or stats.get('num_nodes') is None:
+            continue
+
+        key = f"{stats['dataset']}|{stats['node_sample_ratio']}|{stats['method']}|{stats['adj_thresh']}"
+        result[key] = stats
+
+    with open(output_file, 'w') as f:
+        json.dump(result, f, indent=2)
+
+    print(f'Webapp JSON saved to {output_file}')
+
+
 def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
     """Create plots for a specific dataset."""
     try:
@@ -351,6 +377,9 @@ def main():
         f'Total combinations: {len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds)}'
     )
 
+    # Collect all stats across all datasets for webapp JSON export
+    all_datasets_stats = []
+
     # Process each dataset
     for dataset_name in datasets:
         print(f"\n{'='*50}")
@@ -362,6 +391,9 @@ def main():
             dataset_name, node_sample_ratios, sampling_methods, adj_thresholds, n_jobs
         )
 
+        # Collect for webapp JSON
+        all_datasets_stats.extend(all_stats)
+
         # Save to CSV
         output_file = f'./stats/{dataset_name}/graph_stats_comprehensive.csv'
         save_stats_to_csv(all_stats, output_file)
@@ -369,6 +401,12 @@ def main():
         # Create plots (unless skipped)
         if not args.skip_plots:
             create_plots_for_dataset(dataset_name, output_file)
+
+    # Save aggregated stats to webapp JSON
+    webapp_json_path = os.path.join(
+        os.path.dirname(__file__), '..', 'webapp', 'public', 'data', 'stats.json'
+    )
+    save_stats_to_json_for_webapp(all_datasets_stats, webapp_json_path)
 
     print('\nAnalysis complete!')
     print('Check the ./stats/ and ./plots/ directories for results.')
