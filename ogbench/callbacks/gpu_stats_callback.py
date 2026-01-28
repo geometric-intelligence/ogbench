@@ -1,5 +1,6 @@
 """GPU statistics callback for logging peak memory and utilization to wandb."""
 
+import contextlib
 import os
 
 import lightning.pytorch as pl
@@ -51,27 +52,23 @@ class GPUStatsCallback(pl.Callback):
     def _shutdown_pynvml(self):
         """Shutdown pynvml."""
         if self.pynvml_available:
-            try:
+            with contextlib.suppress(Exception):
                 import pynvml
 
                 pynvml.nvmlShutdown()
-            except Exception:
-                pass
 
     def _sample_gpu_utilization(self):
         """Sample current GPU utilization and update peak if higher."""
         if not self.pynvml_available or self.nvml_handle is None:
             return
 
-        try:
+        with contextlib.suppress(Exception):
             import pynvml
 
             utilization = pynvml.nvmlDeviceGetUtilizationRates(self.nvml_handle)
             current_util = utilization.gpu
             if current_util > self.peak_utilization:
                 self.peak_utilization = current_util
-        except Exception:
-            pass
 
     def on_train_start(self, trainer, pl_module):
         """Reset GPU memory stats and initialize utilization tracking.
