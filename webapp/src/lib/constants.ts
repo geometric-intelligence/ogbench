@@ -32,8 +32,8 @@ export const MODEL_ORDER = [
   'Random',
 ];
 
-export const VALID_RATIOS = [0.5, 0.6, 0.7, 0.8, 0.9];
-export const VALID_METHODS = ['variance', 'correlation', 'random'] as const;
+export const VALID_RATIOS = [0.5, 0.6, 0.7, 0.8, 0.9] as const;
+export const VALID_METHODS = ['variance', 'correlation', 'distance_correlation', 'random'] as const;
 export const VALID_THRESHOLDS = [0.02, 0.1, 0.2, 0.3, 0.4, 0.5];
 
 export const CATEGORY_COLORS: Record<ModelCategory, string> = {
@@ -43,13 +43,13 @@ export const CATEGORY_COLORS: Record<ModelCategory, string> = {
 };
 
 export const METRIC_LABELS: Record<string, string> = {
-  n_nodes: 'Graph Size (Nodes)',
-  n_edges: 'Graph Connectivity (Edges)',
-  mean_degree: 'Average Node Degree',
-  density: 'Graph Density (%)',
-  avg_clustering: 'Avg Clustering Coefficient',
-  largest_cc_ratio: 'Largest CC / Total Nodes (%)',
-  avg_path_length: 'Avg Shortest Path Length',
-  n_components: 'Connected Components',
-  std_degree: 'Degree Distribution Std Dev',
+  num_nodes: 'Number of Nodes',
+  num_edges: 'Number of Edges',
+  avg_degree: 'Average Node Degree',
+  density_pct: 'Graph Density (%)',
+  avg_clustering_coeff: 'Average Clustering Coefficient',
+  largest_cc_ratio_pct: 'Largest Connected Component (%)',
+  avg_shortest_path_length: 'Average Shortest Path Length',
+  num_connected_components: 'Connected Components',
+  degree_std: 'Degree Standard Deviation',
 };

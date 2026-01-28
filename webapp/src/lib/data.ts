@@ -99,15 +99,15 @@ export function getStats(
 
 export function computeMetricMaxValues(stats: Record<string, GraphStats>): Record<string, number> {
   const metrics = [
-    'n_nodes',
-    'n_edges',
-    'mean_degree',
-    'density',
-    'avg_clustering',
-    'largest_cc_ratio',
-    'avg_path_length',
-    'n_components',
-    'std_degree',
+    'num_nodes',
+    'num_edges',
+    'avg_degree',
+    'density_pct',
+    'avg_clustering_coeff',
+    'largest_cc_ratio_pct',
+    'avg_shortest_path_length',
+    'num_connected_components',
+    'degree_std',
   ];
 
   const maxValues: Record<string, number> = {};

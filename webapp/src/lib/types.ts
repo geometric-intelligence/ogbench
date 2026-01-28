@@ -12,15 +12,15 @@ export interface ResultEntry {
 }
 
 export interface GraphStats {
-  n_nodes: number;
-  n_edges: number;
-  density: number;
-  mean_degree: number;
-  std_degree: number;
-  n_components: number;
-  largest_cc_ratio: number;
-  avg_clustering: number;
-  avg_path_length: number;
+  num_nodes: number;
+  num_edges: number;
+  density_pct: number;
+  avg_degree: number;
+  degree_std: number;
+  num_connected_components: number;
+  largest_cc_ratio_pct: number;
+  avg_clustering_coeff: number;
+  avg_shortest_path_length: number;
   dataset: string;
 }
 
@@ -46,4 +46,4 @@ export interface DatasetInfo {
 
 export type DatasetName = 'motrpac' | 'addneuromed' | 'parkinsons';
 
-export type NodeSelectionMethod = 'variance' | 'correlation' | 'random';
+export type NodeSelectionMethod = 'variance' | 'correlation' | 'distance_correlation' | 'random';
