@@ -1,7 +1,7 @@
 import type { DatasetInfo, DatasetName, ModelCategory, RankingMetric, DisplayMetric } from './types';
 
 export const DATASETS: Record<DatasetName, DatasetInfo> = {
-  motrpac: { fullName: 'MotrPac', color: '#3b82f6', emoji: '🧬' },
+  motrpac: { fullName: 'Heritage', color: '#3b82f6', emoji: '🧬' },
   addneuromed: { fullName: 'AddNeuroMed', color: '#f97316', emoji: '🧠' },
   parkinsons: { fullName: "Parkinson's", color: '#22c55e', emoji: '🔬' },
 };
@@ -22,18 +22,35 @@ export const MODEL_CATEGORIES: Record<string, ModelCategory> = {
   SVM: 'baseline',
 };
 
+// Order for displaying models (non-baseline models for bar charts)
 export const MODEL_ORDER = [
-  'SVM',
-  'ElasticNet',
   'MLP',
-  'ChebNet',
-  'GATv4',
-  'GATv2',
   'GIN',
   'GCN',
+  'GATv2',
   'GraphSAGE',
   'SAGN',
+  'ChebNet',
+  'GATv4',
 ];
+
+// Baseline models shown as horizontal lines
+export const BASELINE_MODELS = ['ElasticNet', 'SVM'];
+
+// Colors for each model (matching reference colormap exactly)
+export const MODEL_COLORS: Record<string, string> = {
+  MLP: '#6baed6',       // light blue
+  GIN: '#e41a1c',       // red
+  GCN: '#ff7f00',       // orange
+  GATv2: '#b5b534',     // olive/yellow-green
+  GraphSAGE: '#66c2a5', // teal/cyan
+  SAGN: '#984ea3',      // purple/violet
+  ChebNet: '#4d9221',   // dark/forest green
+  GATv4: '#a6d96a',     // light green
+  // Baselines
+  ElasticNet: '#000000', // black (dashed line)
+  SVM: '#000000',        // black (dotted line)
+};
 
 export const VALID_RATIOS = [0.3, 0.5, 0.8, 1.0] as const;
 export const VALID_METHODS = ['variance', 'correlation', 'distance_correlation', 'random'] as const;

@@ -27,7 +27,7 @@ function getRankingMetricValue(entry: ResultEntry, metric: RankingMetric): { val
 }
 
 // Get the value and std fields for a display metric
-function getDisplayMetricValue(entry: ResultEntry, metric: DisplayMetric): { value: number; std: number } {
+export function getDisplayMetricValue(entry: ResultEntry, metric: DisplayMetric): { value: number; std: number } {
   switch (metric) {
     case 'test_accuracy':
       return { value: entry.test_accuracy, std: entry.test_accuracy_std };
@@ -182,12 +182,17 @@ export function computeMetricMaxValues(stats: Record<string, GraphStats>): Recor
   return maxValues;
 }
 
+export interface ModelDataByDataset {
+  value: number;
+  std: number;
+}
+
 export function getModelsByDataset(
   results: ResultEntry[],
   modelOrder: string[],
   displayMetric: DisplayMetric = 'test_accuracy'
-): Record<DatasetName, Record<string, number>> {
-  const byDataset: Record<DatasetName, Record<string, number[]>> = {
+): Record<DatasetName, Record<string, ModelDataByDataset>> {
+  const byDataset: Record<DatasetName, Record<string, { values: number[]; stds: number[] }>> = {
     motrpac: {},
     addneuromed: {},
     parkinsons: {},
@@ -195,12 +200,13 @@ export function getModelsByDataset(
 
   for (const r of results) {
     const ds = r.dataset as DatasetName;
-    if (!byDataset[ds][r.model]) byDataset[ds][r.model] = [];
-    const { value } = getDisplayMetricValue(r, displayMetric);
-    byDataset[ds][r.model].push(value);
+    if (!byDataset[ds][r.model]) byDataset[ds][r.model] = { values: [], stds: [] };
+    const { value, std } = getDisplayMetricValue(r, displayMetric);
+    byDataset[ds][r.model].values.push(value);
+    byDataset[ds][r.model].stds.push(std);
   }
 
-  const result: Record<DatasetName, Record<string, number>> = {
+  const result: Record<DatasetName, Record<string, ModelDataByDataset>> = {
     motrpac: {},
     addneuromed: {},
     parkinsons: {},
@@ -208,9 +214,12 @@ export function getModelsByDataset(
 
   for (const ds of ['motrpac', 'addneuromed', 'parkinsons'] as DatasetName[]) {
     for (const model of modelOrder) {
-      const vals = byDataset[ds][model];
-      if (vals && vals.length > 0) {
-        result[ds][model] = mean(vals);
+      const data = byDataset[ds][model];
+      if (data && data.values.length > 0) {
+        result[ds][model] = {
+          value: mean(data.values),
+          std: mean(data.stds), // pooled std approximation
+        };
       }
     }
   }

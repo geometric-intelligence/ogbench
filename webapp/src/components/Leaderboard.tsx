@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 // Dynamically import Plotly to avoid SSR issues
 const Plot = lazy(() => import('react-plotly.js'));
 import type { ResultEntry, ModelCategory, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
-import { DATASETS, MODEL_CATEGORIES, MODEL_ORDER, CATEGORY_COLORS, RANKING_METRICS, DISPLAY_METRICS } from '../lib/constants';
+import { DATASETS, MODEL_CATEGORIES, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS } from '../lib/constants';
 import { computeLeaderboard, filterResults, getModelsByDataset } from '../lib/data';
 
 export default function Leaderboard() {
@@ -46,46 +46,74 @@ export default function Leaderboard() {
       ? 'Aggregated across all datasets and graph configurations'
       : `Results for ${DATASETS[datasetFilter].fullName} dataset`;
 
-  // Performance chart data - uses display metric
-  const performanceChartData = useMemo(() => {
-    const sorted = [...leaderboard].sort((a, b) => a.displayValue - b.displayValue);
-    return {
-      x: sorted.map((e) => e.displayValue),
-      y: sorted.map((e) => e.model),
-      colors: sorted.map((e) => CATEGORY_COLORS[e.category]),
-      text: sorted.map((e) => `${(e.displayValue * 100).toFixed(1)}%`),
-    };
-  }, [leaderboard]);
+  // Get all models data by dataset for the faceted chart
+  const allModelsData = useMemo(() => {
+    // Include both MODEL_ORDER and BASELINE_MODELS
+    const allModels = [...MODEL_ORDER, ...BASELINE_MODELS];
+    return getModelsByDataset(results, allModels, displayMetric);
+  }, [results, displayMetric]);
 
-  // Rank vs Display scatter chart data
-  const rankVsDisplayData = useMemo(() => {
-    // Only include non-baseline models for this chart
-    const nonBaselines = leaderboard.filter((e) => !e.isBaseline);
-    return {
-      x: nonBaselines.map((e) => e.rankValue),
-      y: nonBaselines.map((e) => e.displayValue),
-      text: nonBaselines.map((e) => e.model),
-      colors: nonBaselines.map((e) => CATEGORY_COLORS[e.category]),
-    };
-  }, [leaderboard]);
+  // Get baseline values for horizontal lines (averaged across all data)
+  const baselineValues = useMemo(() => {
+    const baselines: Record<string, { value: number; std: number }> = {};
+    for (const model of BASELINE_MODELS) {
+      const entries = results.filter((r) => r.model === model);
+      if (entries.length > 0) {
+        // For baselines, get the display metric value
+        let value = 0;
+        let std = 0;
+        if (displayMetric === 'test_accuracy') {
+          value = entries.reduce((sum, e) => sum + e.test_accuracy, 0) / entries.length;
+          std = entries.reduce((sum, e) => sum + e.test_accuracy_std, 0) / entries.length;
+        } else if (displayMetric === 'test_f1_macro') {
+          value = entries.reduce((sum, e) => sum + e.test_f1_macro, 0) / entries.length;
+          std = entries.reduce((sum, e) => sum + e.test_f1_macro_std, 0) / entries.length;
+        } else if (displayMetric === 'auroc') {
+          value = entries.reduce((sum, e) => sum + e.auroc, 0) / entries.length;
+          std = entries.reduce((sum, e) => sum + e.auroc_std, 0) / entries.length;
+        }
+        baselines[model] = { value, std };
+      }
+    }
+    return baselines;
+  }, [results, displayMetric]);
 
-  // Dataset comparison data
-  const datasetComparisonData = useMemo(() => {
-    const modelData = getModelsByDataset(results, MODEL_ORDER, displayMetric);
-    const filteredModels =
-      modelCategory === 'all'
-        ? MODEL_ORDER
-        : MODEL_ORDER.filter((m) => MODEL_CATEGORIES[m] === modelCategory);
-
-    return {
-      models: filteredModels,
-      datasets: (['motrpac', 'addneuromed', 'parkinsons'] as DatasetName[]).map((ds) => ({
-        name: `${DATASETS[ds].emoji} ${DATASETS[ds].fullName}`,
-        color: DATASETS[ds].color,
-        values: filteredModels.map((m) => modelData[ds][m] || null),
-      })),
+  // Get baseline values per dataset for faceted chart
+  const baselinesByDataset = useMemo(() => {
+    const baselines: Record<DatasetName, Record<string, { value: number; std: number }>> = {
+      motrpac: {},
+      addneuromed: {},
+      parkinsons: {},
     };
-  }, [results, modelCategory, displayMetric]);
+    
+    for (const ds of ['motrpac', 'addneuromed', 'parkinsons'] as DatasetName[]) {
+      for (const model of BASELINE_MODELS) {
+        const entries = results.filter((r) => r.model === model && r.dataset === ds);
+        if (entries.length > 0) {
+          let value = 0;
+          let std = 0;
+          if (displayMetric === 'test_accuracy') {
+            value = entries.reduce((sum, e) => sum + e.test_accuracy, 0) / entries.length;
+            std = entries.reduce((sum, e) => sum + e.test_accuracy_std, 0) / entries.length;
+          } else if (displayMetric === 'test_f1_macro') {
+            value = entries.reduce((sum, e) => sum + e.test_f1_macro, 0) / entries.length;
+            std = entries.reduce((sum, e) => sum + e.test_f1_macro_std, 0) / entries.length;
+          } else if (displayMetric === 'auroc') {
+            value = entries.reduce((sum, e) => sum + e.auroc, 0) / entries.length;
+            std = entries.reduce((sum, e) => sum + e.auroc_std, 0) / entries.length;
+          }
+          baselines[ds][model] = { value, std };
+        }
+      }
+    }
+    return baselines;
+  }, [results, displayMetric]);
+
+  // Filter models based on category selection
+  const filteredModels = useMemo(() => {
+    if (modelCategory === 'all') return MODEL_ORDER;
+    return MODEL_ORDER.filter((m) => MODEL_CATEGORIES[m] === modelCategory);
+  }, [modelCategory]);
 
   // Get label for the display metric
   const displayMetricLabel = DISPLAY_METRICS[displayMetric];
@@ -97,6 +125,263 @@ export default function Leaderboard() {
         <div className="text-text-muted">Loading data...</div>
       </div>
     );
+  }
+
+  // Build faceted chart data (one subplot per dataset)
+  const datasets: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons'];
+  const facetedChartData: Plotly.Data[] = [];
+  const facetedAnnotations: Partial<Plotly.Annotations>[] = [];
+
+  // Create bar traces for each dataset
+  datasets.forEach((ds, dsIdx) => {
+    const xAxisId = dsIdx === 0 ? 'x' : `x${dsIdx + 1}`;
+    const yAxisId = dsIdx === 0 ? 'y' : `y${dsIdx + 1}`;
+    
+    const values: number[] = [];
+    const errors: number[] = [];
+    const colors: string[] = [];
+    const textLabels: string[] = [];
+    
+    for (const model of filteredModels) {
+      const data = allModelsData[ds][model];
+      if (data) {
+        values.push(data.value);
+        errors.push(data.std);
+        colors.push(MODEL_COLORS[model] || '#888888');
+        textLabels.push(`${(data.value * 100).toFixed(1)}%`);
+      } else {
+        values.push(0);
+        errors.push(0);
+        colors.push('#888888');
+        textLabels.push('');
+      }
+    }
+
+    facetedChartData.push({
+      type: 'bar',
+      name: DATASETS[ds].fullName,
+      x: filteredModels,
+      y: values,
+      error_y: {
+        type: 'data',
+        array: errors,
+        visible: true,
+        color: '#333333',
+        thickness: 1.5,
+        width: 4,
+      },
+      marker: { color: colors },
+      text: textLabels,
+      textposition: 'outside',
+      textfont: { family: 'JetBrains Mono', size: 10, color: '#0f172a' },
+      showlegend: false,
+      xaxis: xAxisId,
+      yaxis: yAxisId,
+    } as Plotly.Data);
+
+    // Add horizontal lines for baselines
+    const baselineData = baselinesByDataset[ds];
+    
+    // ElasticNet line (dashed)
+    if (baselineData.ElasticNet) {
+      facetedChartData.push({
+        type: 'scatter',
+        mode: 'lines',
+        name: dsIdx === 0 ? 'Elastic Net' : undefined,
+        x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
+        y: [baselineData.ElasticNet.value, baselineData.ElasticNet.value],
+        line: { color: '#000000', width: 2, dash: 'dash' },
+        showlegend: dsIdx === 0,
+        legendgroup: 'ElasticNet',
+        xaxis: xAxisId,
+        yaxis: yAxisId,
+        hoverinfo: 'name+y',
+      } as Plotly.Data);
+    }
+
+    // SVM line (dotted)
+    if (baselineData.SVM) {
+      facetedChartData.push({
+        type: 'scatter',
+        mode: 'lines',
+        name: dsIdx === 0 ? 'SVM' : undefined,
+        x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
+        y: [baselineData.SVM.value, baselineData.SVM.value],
+        line: { color: '#000000', width: 2, dash: 'dot' },
+        showlegend: dsIdx === 0,
+        legendgroup: 'SVM',
+        xaxis: xAxisId,
+        yaxis: yAxisId,
+        hoverinfo: 'name+y',
+      } as Plotly.Data);
+    }
+
+    // Add subplot title annotation with emoji
+    const colCenters = [0.16, 0.5, 0.84];
+    facetedAnnotations.push({
+      text: `<b>${DATASETS[ds].emoji} ${DATASETS[ds].fullName}</b>`,
+      xref: 'paper',
+      yref: 'paper',
+      x: colCenters[dsIdx],
+      y: 1.08,
+      showarrow: false,
+      font: { size: 14, color: '#1e293b', family: 'DM Sans' },
+      xanchor: 'center',
+      yanchor: 'bottom',
+    });
+  });
+
+  // Compute y-axis range for faceted chart - tighter range to show differences
+  const allValuesWithError = datasets.flatMap((ds) =>
+    filteredModels.map((m) => {
+      const data = allModelsData[ds][m];
+      return data ? data.value + data.std : 0;
+    })
+  );
+  const allValuesOnly = datasets.flatMap((ds) =>
+    filteredModels.map((m) => {
+      const data = allModelsData[ds][m];
+      return data ? data.value : 0;
+    }).filter((v) => v > 0)
+  );
+  const baselineVals = Object.values(baselineValues).map((b) => b.value).filter((v) => v > 0);
+  const maxValue = Math.max(...allValuesWithError, ...baselineVals);
+  const minValue = Math.min(...allValuesOnly, ...baselineVals);
+  // Tight range: start 5% below minimum, end 10% above max (for text labels)
+  const yRange = [Math.max(0, minValue - 0.08), Math.min(1, maxValue + 0.12)];
+
+  // Build faceted chart layout
+  const facetedLayout: Partial<Plotly.Layout> = {
+    height: 400,
+    font: { family: 'DM Sans', size: 12, color: '#0f172a' },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: '#ffffff',
+    margin: { l: 60, r: 20, t: 60, b: 80 },
+    annotations: facetedAnnotations,
+    legend: {
+      orientation: 'h',
+      yanchor: 'bottom',
+      y: 1.15,
+      xanchor: 'center',
+      x: 0.5,
+      bgcolor: 'rgba(0,0,0,0)',
+    },
+    grid: {
+      rows: 1,
+      columns: 3,
+      pattern: 'independent',
+      xgap: 0.08,
+    },
+    xaxis: {
+      showgrid: false,
+      tickangle: -45,
+      tickfont: { size: 10, color: '#475569' },
+      fixedrange: true,
+    },
+    xaxis2: {
+      showgrid: false,
+      tickangle: -45,
+      tickfont: { size: 10, color: '#475569' },
+      fixedrange: true,
+    },
+    xaxis3: {
+      showgrid: false,
+      tickangle: -45,
+      tickfont: { size: 10, color: '#475569' },
+      fixedrange: true,
+    },
+    yaxis: {
+      title: { text: displayMetricLabel, font: { size: 12 } },
+      showgrid: true,
+      gridcolor: 'rgba(226,232,240,0.8)',
+      tickformat: '.0%',
+      tickfont: { size: 11, color: '#475569' },
+      fixedrange: true,
+      range: yRange,
+    },
+    yaxis2: {
+      showgrid: true,
+      gridcolor: 'rgba(226,232,240,0.8)',
+      tickformat: '.0%',
+      tickfont: { size: 11, color: '#475569' },
+      fixedrange: true,
+      range: yRange,
+    },
+    yaxis3: {
+      showgrid: true,
+      gridcolor: 'rgba(226,232,240,0.8)',
+      tickformat: '.0%',
+      tickfont: { size: 11, color: '#475569' },
+      fixedrange: true,
+      range: yRange,
+    },
+  };
+
+  // Build dataset comparison chart data (grouped bars with error bars and baseline lines)
+  const datasetComparisonData: Plotly.Data[] = [];
+  
+  // Add bar traces for each dataset
+  datasets.forEach((ds) => {
+    const values: (number | null)[] = [];
+    const errors: number[] = [];
+    const textLabels: string[] = [];
+    
+    for (const model of filteredModels) {
+      const data = allModelsData[ds][model];
+      if (data && data.value > 0) {
+        values.push(data.value);
+        errors.push(data.std);
+        textLabels.push(`${(data.value * 100).toFixed(1)}%`);
+      } else {
+        values.push(null);
+        errors.push(0);
+        textLabels.push('');
+      }
+    }
+
+    datasetComparisonData.push({
+      type: 'bar',
+      name: `${DATASETS[ds].emoji} ${DATASETS[ds].fullName}`,
+      x: filteredModels,
+      y: values,
+      error_y: {
+        type: 'data',
+        array: errors,
+        visible: true,
+        color: '#333333',
+        thickness: 1.5,
+        width: 3,
+      },
+      marker: { color: DATASETS[ds].color },
+      text: textLabels,
+      textposition: 'outside',
+      textfont: { family: 'JetBrains Mono', size: 9 },
+    } as Plotly.Data);
+  });
+
+  // Add horizontal lines for baselines (ElasticNet - dashed, SVM - dotted)
+  if (baselineValues.ElasticNet) {
+    datasetComparisonData.push({
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Elastic Net',
+      x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
+      y: [baselineValues.ElasticNet.value, baselineValues.ElasticNet.value],
+      line: { color: '#000000', width: 2, dash: 'dash' },
+      hoverinfo: 'name+y',
+    } as Plotly.Data);
+  }
+
+  if (baselineValues.SVM) {
+    datasetComparisonData.push({
+      type: 'scatter',
+      mode: 'lines',
+      name: 'SVM',
+      x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
+      y: [baselineValues.SVM.value, baselineValues.SVM.value],
+      line: { color: '#000000', width: 2, dash: 'dot' },
+      hoverinfo: 'name+y',
+    } as Plotly.Data);
   }
 
   return (
@@ -200,7 +485,19 @@ export default function Leaderboard() {
                   >
                     {entry.rank}
                   </td>
-                  <td className="model-cell">{entry.model}</td>
+                  <td className="model-cell">
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '2px',
+                        backgroundColor: MODEL_COLORS[entry.model] || '#888',
+                        marginRight: '8px',
+                      }}
+                    />
+                    {entry.model}
+                  </td>
                   <td className={`category-${entry.category}`}>{entry.category}</td>
                   <td className="mono-cell">
                     {entry.isBaseline ? (
@@ -227,118 +524,41 @@ export default function Leaderboard() {
         )}
       </div>
 
-      {/* Charts Grid */}
-      <div className="charts-grid">
-        <div className="chart-card">
-          <div className="chart-title">{displayMetricLabel} by Model</div>
-          <Plot
-            data={[
-              {
-                type: 'bar',
-                orientation: 'h',
-                x: performanceChartData.x,
-                y: performanceChartData.y,
-                marker: { color: performanceChartData.colors },
-                text: performanceChartData.text,
-                textposition: 'outside',
-                textfont: { family: 'JetBrains Mono', size: 12, color: '#0f172a' },
-                cliponaxis: false,
-              },
-            ]}
-            layout={{
-              xaxis: {
-                title: { text: displayMetricLabel },
-                tickformat: '.0%',
-                gridcolor: '#e2e8f0',
-                range: [0, 1],
-              },
-              yaxis: { gridcolor: '#e2e8f0' },
-              plot_bgcolor: '#ffffff',
-              paper_bgcolor: 'rgba(0,0,0,0)',
-              font: { family: 'DM Sans', color: '#0f172a' },
-              margin: { l: 100, r: 80, t: 20, b: 40 },
-              height: 400,
-            }}
-            config={{ displayModeBar: false }}
-            style={{ width: '100%', height: '400px' }}
-          />
-        </div>
-
-        <div className="chart-card">
-          <div className="chart-title">{rankMetricLabel} vs {displayMetricLabel}</div>
-          <Plot
-            data={[
-              {
-                type: 'scatter',
-                mode: 'text+markers' as const,
-                x: rankVsDisplayData.x,
-                y: rankVsDisplayData.y,
-                text: rankVsDisplayData.text,
-                textposition: 'top center',
-                textfont: { family: 'DM Sans', size: 11, color: '#0f172a' },
-                marker: {
-                  size: 20,
-                  color: rankVsDisplayData.colors,
-                  line: { width: 2, color: '#ffffff' },
-                },
-              },
-            ]}
-            layout={{
-              xaxis: {
-                title: { text: rankMetricLabel },
-                tickformat: '.0%',
-                gridcolor: '#e2e8f0',
-              },
-              yaxis: {
-                title: { text: displayMetricLabel },
-                tickformat: '.0%',
-                gridcolor: '#e2e8f0',
-              },
-              plot_bgcolor: '#ffffff',
-              paper_bgcolor: 'rgba(0,0,0,0)',
-              font: { family: 'DM Sans', color: '#0f172a' },
-              margin: { l: 60, r: 40, t: 40, b: 60 },
-              height: 400,
-              showlegend: false,
-            }}
-            config={{ displayModeBar: false }}
-            style={{ width: '100%', height: '400px' }}
-          />
-        </div>
+      {/* Faceted Bar Chart - Performance by Dataset */}
+      <div className="chart-card" style={{ marginTop: '24px' }}>
+        <div className="chart-title">Best Overall Model Performance by {displayMetricLabel}</div>
+        <Plot
+          data={facetedChartData}
+          layout={facetedLayout}
+          config={{ displayModeBar: false, responsive: true }}
+          style={{ width: '100%', height: '400px' }}
+        />
       </div>
 
       {/* Dataset Comparison Chart */}
       <div className="chart-card" style={{ marginTop: '24px' }}>
         <div className="chart-title">{displayMetricLabel} Across Datasets</div>
         <Plot
-          data={datasetComparisonData.datasets.map((ds) => ({
-            type: 'bar' as const,
-            name: ds.name,
-            x: datasetComparisonData.models,
-            y: ds.values,
-            marker: { color: ds.color },
-            text: ds.values.map((v) => (v !== null ? `${(v * 100).toFixed(1)}%` : '')),
-            textposition: 'outside' as const,
-            textfont: { family: 'JetBrains Mono', size: 10 },
-          }))}
+          data={datasetComparisonData}
           layout={{
             barmode: 'group',
             xaxis: {
               gridcolor: '#e2e8f0',
               categoryorder: 'array',
-              categoryarray: datasetComparisonData.models,
+              categoryarray: filteredModels,
+              tickangle: -45,
             },
             yaxis: {
               title: { text: displayMetricLabel },
               tickformat: '.0%',
               gridcolor: '#e2e8f0',
-              range: [0, 1],
+              range: yRange, // Use same tight range as faceted chart
             },
             plot_bgcolor: '#ffffff',
             paper_bgcolor: 'rgba(0,0,0,0)',
             font: { family: 'DM Sans', color: '#0f172a' },
-            margin: { l: 60, r: 40, t: 20, b: 60 },
-            height: 350,
+            margin: { l: 60, r: 40, t: 20, b: 80 },
+            height: 400,
             legend: {
               orientation: 'h',
               yanchor: 'bottom',
@@ -349,7 +569,7 @@ export default function Leaderboard() {
             },
           }}
           config={{ displayModeBar: false }}
-          style={{ width: '100%', height: '350px' }}
+          style={{ width: '100%', height: '400px' }}
         />
       </div>
     </div>
