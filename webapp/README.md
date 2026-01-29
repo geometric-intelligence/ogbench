@@ -102,6 +102,7 @@ python precompute_stats.py
 ```
 
 This will:
+
 1. Download datasets from HuggingFace (`<anonymous>/bgbench`)
 2. Compute graph statistics for all 324 combinations:
    - 3 datasets × 6 ratios × 3 methods × 6 thresholds
@@ -109,12 +110,12 @@ This will:
 
 **Parameters computed:**
 
-| Parameter | Values |
-|-----------|--------|
-| Datasets | `motrpac`, `addneuromed`, `parkinsons` |
-| Node sample ratios | 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 |
-| Selection methods | `variance`, `correlation`, `random` |
-| Adjacency thresholds | 0.02, 0.1, 0.2, 0.3, 0.4, 0.5 |
+| Parameter            | Values                                 |
+| -------------------- | -------------------------------------- |
+| Datasets             | `motrpac`, `addneuromed`, `parkinsons` |
+| Node sample ratios   | 0.5, 0.6, 0.7, 0.8, 0.9, 1.0           |
+| Selection methods    | `variance`, `correlation`, `random`    |
+| Adjacency thresholds | 0.02, 0.1, 0.2, 0.3, 0.4, 0.5          |
 
 **Metrics computed per graph:**
 
@@ -173,12 +174,14 @@ This will:
 ### How to Update
 
 1. **Replace the JSON files** in `public/data/`:
+
    ```bash
    cp /path/to/new/results.json public/data/results.json
    cp /path/to/new/stats.json public/data/stats.json
    ```
 
 2. **Rebuild and deploy**:
+
    ```bash
    make deploy
    ```
@@ -189,6 +192,7 @@ Results key: `{dataset}|{ratio}|{method}|{threshold}|{model}`
 Stats key: `{dataset}|{ratio}|{method}|{threshold}`
 
 Where:
+
 - `dataset`: `motrpac`, `addneuromed`, or `parkinsons`
 - `ratio`: node sample ratio (0.5–0.9)
 - `method`: `variance`, `correlation`, or `random`
