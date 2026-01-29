@@ -18,7 +18,7 @@ def flatten_dict(d: dict[str, Any], parent_key: str = '', sep: str = '_') -> dic
 
 def main() -> None:
     api = wandb.Api()
-    runs = api.runs('johmathe/biggraphbench')
+    runs = api.runs('<anonymous>/biggraphbench')
 
     summary_list: list[dict[str, Any]] = []
     config_list: list[dict[str, Any]] = []

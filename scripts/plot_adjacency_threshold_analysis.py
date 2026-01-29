@@ -49,7 +49,7 @@ DATASETS = {
     },
 }
 
-HF_REPO_ID = 'geometric-intelligence/bgbench'
+HF_REPO_ID = '<anonymous>/bgbench'
 
 
 def load_and_preprocess_dataset(

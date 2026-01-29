@@ -94,9 +94,8 @@ all = ["ogbench[dev, doc]"]
 [project.scripts]
 ogbench-train = "ogbench.run:main"
 
-[project.urls]
-homepage="https://geometric-intelligence.github.io/bgbench/index.html"
-repository="https://github.com/geometric-intelligence/bgbench"
+# [project.urls]
+# homepage and repository URLs removed for anonymous review
 
 [tool.ruff]
 line-length = 99

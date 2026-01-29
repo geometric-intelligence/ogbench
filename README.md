@@ -1,7 +1,3 @@
-[![Code Quality](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml)
-[![Dependencies](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates)
-[![Tests](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml)
-
 # Big Graph Bench (BGBench)
 
 A comprehensive benchmarking framework for Graph Neural Networks (GNNs) on omics datasets for classification tasks. This repository provides standardized datasets, preprocessing pipelines, and evaluation metrics to enable fair comparison of different GNN architectures on biological data.
@@ -24,7 +20,7 @@ The easiest way to set up BGBench is using the provided environment setup script
 
 ```bash
 # Clone the repository
-git clone git@github.com:geometric-intelligence/bgbench.git
+git clone <anonymous-repo>
 cd bgbench
 
 # Run the automated setup script
@@ -44,7 +40,7 @@ If you prefer manual setup:
 
 ```bash
 # Clone the repository
-git clone git@github.com:geometric-intelligence/bgbench.git
+git clone <anonymous-repo>
 cd bgbench
 
 # Create conda environment
@@ -91,7 +87,7 @@ BGBench includes three curated omics datasets for graph-based classification:
 
 ### Dataset Storage and Access
 
-All datasets are stored on Hugging Face Hub at `geometric-intelligence/bgbench` and automatically downloaded when needed. The datasets are preprocessed and stored in Parquet format for efficient loading.
+All datasets are stored on Hugging Face Hub at `<anonymous>/bgbench` and automatically downloaded when needed. The datasets are preprocessed and stored in Parquet format for efficient loading.
 
 ## Dataset Preprocessing
 
@@ -392,9 +388,9 @@ If you use BGBench in your research, please cite:
 ```bibtex
 @software{bgbench2024,
   title={Big Graph Bench: A Benchmarking Framework for Graph Neural Networks on Omics Data},
-  author={Geometric Intelligence Team},
+  author={Anonymous Authors},
   year={2024},
-  url={https://github.com/geometric-intelligence/bgbench}
+  url={<anonymous-repo>}
 }
 ```
 

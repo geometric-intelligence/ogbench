@@ -102,7 +102,7 @@ python precompute_stats.py
 ```
 
 This will:
-1. Download datasets from HuggingFace (`geometric-intelligence/bgbench`)
+1. Download datasets from HuggingFace (`<anonymous>/bgbench`)
 2. Compute graph statistics for all 324 combinations:
    - 3 datasets × 6 ratios × 3 methods × 6 thresholds
 3. Save results to `public/data/stats.json`

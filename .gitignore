@@ -192,3 +192,9 @@ logs/
 *.parquet
 datasets/
 run_data/
+
+# Anonymization: exclude files with identifying info for ICML submission
+search_results/
+outputs/
+wandb_analysis_report.md
+.cursor/

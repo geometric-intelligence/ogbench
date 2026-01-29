@@ -79,7 +79,7 @@ def upload_to_huggingface(
     """
     try:
         api = huggingface_hub.HfApi()
-        repo_id = 'geometric-intelligence/bgbench'
+        repo_id = '<anonymous>/bgbench'
 
         # Create repository if it doesn't exist
         try:

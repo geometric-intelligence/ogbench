@@ -41,7 +41,7 @@ DATASETS = {
     },
 }
 
-HF_REPO_ID = 'geometric-intelligence/bgbench'
+HF_REPO_ID = '<anonymous>/bgbench'
 
 # Parameter grids
 NODE_SAMPLE_RATIOS = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]

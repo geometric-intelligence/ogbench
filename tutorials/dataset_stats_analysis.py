@@ -39,7 +39,7 @@ def load_dataset(
 
     if node_sample_ratio == 'full':
         dataset = HFOmicsDataset(
-            root='/home/johmathe/bgbench/run_data/omics',
+            root='./run_data/omics',
             data_name=dataset_name,
             method=method,
             adjacency_threshold=adj_thresh,
@@ -49,7 +49,7 @@ def load_dataset(
         )
     else:
         dataset = HFOmicsDataset(
-            root='/home/johmathe/bgbench/run_data/omics',
+            root='./run_data/omics',
             data_name=dataset_name,
             method=method,
             adjacency_threshold=adj_thresh,
@@ -85,7 +85,7 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
             graph.add_nodes_from(range(num_nodes))
             graph.add_edges_from(edge_list)
         else:
-            root = '/home/johmathe/bgbench/run_data/omics/'
+            root = './run_data/omics/'
             name = osp.join(
                 root,
                 f'{dataset.data_name}',

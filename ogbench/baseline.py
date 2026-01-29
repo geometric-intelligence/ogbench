@@ -171,7 +171,7 @@ def load_metadata(data_name: str, cfg: DictConfig) -> dict[str, Any] | None:
     # Download from HuggingFace
     try:
         logger.info('Downloading metadata from HuggingFace...')
-        hf_repo_id = 'geometric-intelligence/bgbench'
+        hf_repo_id = '<anonymous>/bgbench'
         revision = cfg.dataset.loader.parameters.get('revision', 'e1631e8')
 
         metadata_file = hf_hub_download(  # nosec
@@ -248,7 +248,7 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         # Download from HuggingFace
         logger.info('Downloading from HuggingFace...')
 
-        hf_repo_id = 'geometric-intelligence/bgbench'
+        hf_repo_id = '<anonymous>/bgbench'
         revision = cfg.dataset.loader.parameters.get('revision', 'e1631e8')
 
         data_file = hf_hub_download(  # nosec
