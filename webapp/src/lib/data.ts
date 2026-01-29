@@ -1,17 +1,55 @@
-import type { ResultEntry, GraphStats, LeaderboardEntry, ModelCategory, DatasetName } from './types';
+import type { ResultEntry, GraphStats, LeaderboardEntry, ModelCategory, DatasetName, RankingMetric, DisplayMetric } from './types';
 import { MODEL_CATEGORIES } from './constants';
 
-// Standard deviation helper
-function std(arr: number[]): number {
+// Helper to compute mean of array
+function mean(arr: number[]): number {
   if (arr.length === 0) return 0;
-  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-  const variance = arr.reduce((sum, val) => sum + (val - mean) ** 2, 0) / arr.length;
-  return Math.sqrt(variance);
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 
+// Helper to compute pooled standard deviation from individual stds
+function pooledStd(stds: number[]): number {
+  if (stds.length === 0) return 0;
+  // For simplicity, use mean of stds (approximation)
+  return mean(stds);
+}
+
+// Get the value and std fields for a ranking metric
+function getRankingMetricValue(entry: ResultEntry, metric: RankingMetric): { value: number; std: number } {
+  switch (metric) {
+    case 'val_accuracy':
+      return { value: entry.val_accuracy, std: entry.val_accuracy_std };
+    case 'val_f1_macro':
+      return { value: entry.val_f1_macro, std: entry.val_f1_macro_std };
+    default:
+      return { value: entry.val_accuracy, std: entry.val_accuracy_std };
+  }
+}
+
+// Get the value and std fields for a display metric
+function getDisplayMetricValue(entry: ResultEntry, metric: DisplayMetric): { value: number; std: number } {
+  switch (metric) {
+    case 'test_accuracy':
+      return { value: entry.test_accuracy, std: entry.test_accuracy_std };
+    case 'test_f1_macro':
+      return { value: entry.test_f1_macro, std: entry.test_f1_macro_std };
+    case 'auroc':
+      return { value: entry.auroc, std: entry.auroc_std };
+    default:
+      return { value: entry.test_accuracy, std: entry.test_accuracy_std };
+  }
+}
+
+/**
+ * Compute leaderboard with dual-metric support
+ * @param results - Array of result entries
+ * @param rankBy - Metric used to rank/order models (validation metrics)
+ * @param displayMetric - Metric displayed in the leaderboard (test metrics)
+ */
 export function computeLeaderboard(
   results: ResultEntry[],
-  sortMetric: 'test_accuracy' | 'f1_macro' | 'runtime' = 'test_accuracy'
+  rankBy: RankingMetric = 'val_accuracy',
+  displayMetric: DisplayMetric = 'test_accuracy'
 ): LeaderboardEntry[] {
   // Group by model
   const byModel: Record<string, ResultEntry[]> = {};
@@ -20,33 +58,57 @@ export function computeLeaderboard(
     byModel[r.model].push(r);
   }
 
-  // Compute aggregates
+  // Compute aggregates for each model
   const aggregates: LeaderboardEntry[] = Object.entries(byModel).map(([model, entries]) => {
-    const accuracies = entries.map((e) => e.test_accuracy);
-    const f1s = entries.map((e) => e.f1_macro);
-    const runtimes = entries.map((e) => e.runtime_seconds);
+    const isBaseline = entries.some((e) => e.readout === 'baseline');
+    
+    // Extract ranking metric values
+    const rankValues = entries.map((e) => getRankingMetricValue(e, rankBy));
+    const rankMean = mean(rankValues.map((v) => v.value));
+    const rankStdPooled = pooledStd(rankValues.map((v) => v.std));
+    
+    // Extract display metric values
+    const displayValues = entries.map((e) => getDisplayMetricValue(e, displayMetric));
+    const displayMean = mean(displayValues.map((v) => v.value));
+    const displayStdPooled = pooledStd(displayValues.map((v) => v.std));
+    
+    // Extract all test metrics for charts
+    const testAccuracies = entries.map((e) => e.test_accuracy);
+    const testAccuracyStds = entries.map((e) => e.test_accuracy_std);
+    const testF1Macros = entries.map((e) => e.test_f1_macro);
+    const testF1MacroStds = entries.map((e) => e.test_f1_macro_std);
+    const aurocs = entries.map((e) => e.auroc);
+    const aurocStds = entries.map((e) => e.auroc_std);
 
     return {
       rank: 0,
       model,
       category: MODEL_CATEGORIES[model] || 'baseline',
-      accuracy: accuracies.reduce((a, b) => a + b, 0) / accuracies.length,
-      accStd: std(accuracies),
-      f1Macro: f1s.reduce((a, b) => a + b, 0) / f1s.length,
-      f1Std: std(f1s),
-      avgRuntime: runtimes.reduce((a, b) => a + b, 0) / runtimes.length,
-      totalRuntime: runtimes.reduce((a, b) => a + b, 0),
+      rankValue: rankMean,
+      rankStd: rankStdPooled,
+      displayValue: displayMean,
+      displayStd: displayStdPooled,
+      testAccuracy: mean(testAccuracies),
+      testAccuracyStd: pooledStd(testAccuracyStds),
+      testF1Macro: mean(testF1Macros),
+      testF1MacroStd: pooledStd(testF1MacroStds),
+      auroc: mean(aurocs),
+      aurocStd: pooledStd(aurocStds),
+      isBaseline,
     };
   });
 
-  // Sort
-  if (sortMetric === 'test_accuracy') {
-    aggregates.sort((a, b) => b.accuracy - a.accuracy);
-  } else if (sortMetric === 'f1_macro') {
-    aggregates.sort((a, b) => b.f1Macro - a.f1Macro);
-  } else {
-    aggregates.sort((a, b) => a.avgRuntime - b.avgRuntime);
-  }
+  // Sort by ranking metric (descending - higher is better)
+  // Baselines go to the end since they don't have validation metrics
+  aggregates.sort((a, b) => {
+    // Baselines sort by display metric since they don't have rank metrics
+    if (a.isBaseline && b.isBaseline) {
+      return b.displayValue - a.displayValue;
+    }
+    if (a.isBaseline) return 1; // a goes after b
+    if (b.isBaseline) return -1; // b goes after a
+    return b.rankValue - a.rankValue;
+  });
 
   // Assign ranks
   aggregates.forEach((entry, idx) => {
@@ -122,7 +184,8 @@ export function computeMetricMaxValues(stats: Record<string, GraphStats>): Recor
 
 export function getModelsByDataset(
   results: ResultEntry[],
-  modelOrder: string[]
+  modelOrder: string[],
+  displayMetric: DisplayMetric = 'test_accuracy'
 ): Record<DatasetName, Record<string, number>> {
   const byDataset: Record<DatasetName, Record<string, number[]>> = {
     motrpac: {},
@@ -133,7 +196,8 @@ export function getModelsByDataset(
   for (const r of results) {
     const ds = r.dataset as DatasetName;
     if (!byDataset[ds][r.model]) byDataset[ds][r.model] = [];
-    byDataset[ds][r.model].push(r.test_accuracy);
+    const { value } = getDisplayMetricValue(r, displayMetric);
+    byDataset[ds][r.model].push(value);
   }
 
   const result: Record<DatasetName, Record<string, number>> = {
@@ -146,7 +210,7 @@ export function getModelsByDataset(
     for (const model of modelOrder) {
       const vals = byDataset[ds][model];
       if (vals && vals.length > 0) {
-        result[ds][model] = vals.reduce((a, b) => a + b, 0) / vals.length;
+        result[ds][model] = mean(vals);
       }
     }
   }

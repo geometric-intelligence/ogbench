@@ -2,16 +2,18 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 
 // Dynamically import Plotly to avoid SSR issues
 const Plot = lazy(() => import('react-plotly.js'));
-import type { ResultEntry, ModelCategory, DatasetName } from '../lib/types';
-import { DATASETS, MODEL_CATEGORIES, MODEL_ORDER, CATEGORY_COLORS } from '../lib/constants';
+import type { ResultEntry, ModelCategory, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
+import { DATASETS, MODEL_CATEGORIES, MODEL_ORDER, CATEGORY_COLORS, RANKING_METRICS, DISPLAY_METRICS } from '../lib/constants';
 import { computeLeaderboard, filterResults, getModelsByDataset } from '../lib/data';
 
 export default function Leaderboard() {
   const [results, setResults] = useState<ResultEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [datasetFilter, setDatasetFilter] = useState<DatasetName | 'all'>('all');
-  const [sortMetric, setSortMetric] = useState<'test_accuracy' | 'f1_macro' | 'runtime'>('test_accuracy');
   const [modelCategory, setModelCategory] = useState<ModelCategory | 'all'>('all');
+  // New dual-metric selection
+  const [rankBy, setRankBy] = useState<RankingMetric>('val_f1_macro');
+  const [displayMetric, setDisplayMetric] = useState<DisplayMetric>('test_f1_macro');
 
   // Load data on mount
   useEffect(() => {
@@ -35,8 +37,8 @@ export default function Leaderboard() {
   );
 
   const leaderboard = useMemo(
-    () => computeLeaderboard(filteredResults, sortMetric),
-    [filteredResults, sortMetric]
+    () => computeLeaderboard(filteredResults, rankBy, displayMetric),
+    [filteredResults, rankBy, displayMetric]
   );
 
   const subtitle =
@@ -44,30 +46,32 @@ export default function Leaderboard() {
       ? 'Aggregated across all datasets and graph configurations'
       : `Results for ${DATASETS[datasetFilter].fullName} dataset`;
 
-  // Performance chart data
+  // Performance chart data - uses display metric
   const performanceChartData = useMemo(() => {
-    const sorted = [...leaderboard].sort((a, b) => a.accuracy - b.accuracy);
+    const sorted = [...leaderboard].sort((a, b) => a.displayValue - b.displayValue);
     return {
-      x: sorted.map((e) => e.accuracy),
+      x: sorted.map((e) => e.displayValue),
       y: sorted.map((e) => e.model),
       colors: sorted.map((e) => CATEGORY_COLORS[e.category]),
-      text: sorted.map((e) => `${(e.accuracy * 100).toFixed(1)}%`),
+      text: sorted.map((e) => `${(e.displayValue * 100).toFixed(1)}%`),
     };
   }, [leaderboard]);
 
-  // Tradeoff chart data
-  const tradeoffChartData = useMemo(() => {
+  // Rank vs Display scatter chart data
+  const rankVsDisplayData = useMemo(() => {
+    // Only include non-baseline models for this chart
+    const nonBaselines = leaderboard.filter((e) => !e.isBaseline);
     return {
-      x: leaderboard.map((e) => e.avgRuntime),
-      y: leaderboard.map((e) => e.accuracy),
-      text: leaderboard.map((e) => e.model),
-      colors: leaderboard.map((e) => CATEGORY_COLORS[e.category]),
+      x: nonBaselines.map((e) => e.rankValue),
+      y: nonBaselines.map((e) => e.displayValue),
+      text: nonBaselines.map((e) => e.model),
+      colors: nonBaselines.map((e) => CATEGORY_COLORS[e.category]),
     };
   }, [leaderboard]);
 
   // Dataset comparison data
   const datasetComparisonData = useMemo(() => {
-    const modelData = getModelsByDataset(results, MODEL_ORDER);
+    const modelData = getModelsByDataset(results, MODEL_ORDER, displayMetric);
     const filteredModels =
       modelCategory === 'all'
         ? MODEL_ORDER
@@ -81,7 +85,11 @@ export default function Leaderboard() {
         values: filteredModels.map((m) => modelData[ds][m] || null),
       })),
     };
-  }, [results, modelCategory]);
+  }, [results, modelCategory, displayMetric]);
+
+  // Get label for the display metric
+  const displayMetricLabel = DISPLAY_METRICS[displayMetric];
+  const rankMetricLabel = RANKING_METRICS[rankBy];
 
   if (loading) {
     return (
@@ -112,20 +120,6 @@ export default function Leaderboard() {
           </div>
 
           <div className="control-group">
-            <div className="control-label">Sort By</div>
-            <select
-              value={sortMetric}
-              onChange={(e) =>
-                setSortMetric(e.target.value as 'test_accuracy' | 'f1_macro' | 'runtime')
-              }
-            >
-              <option value="test_accuracy">🎯 Test Accuracy</option>
-              <option value="f1_macro">📈 F1 Macro</option>
-              <option value="runtime">⏱️ Runtime</option>
-            </select>
-          </div>
-
-          <div className="control-group">
             <div className="control-label">Model Category</div>
             <select
               value={modelCategory}
@@ -135,6 +129,34 @@ export default function Leaderboard() {
               <option value="gnn">🌐 GNN Models Only</option>
               <option value="neural">🧠 Neural Networks Only</option>
               <option value="baseline">📉 Baselines Only</option>
+            </select>
+          </div>
+
+          <div className="control-group">
+            <div className="control-label">Rank Models By</div>
+            <select
+              value={rankBy}
+              onChange={(e) => setRankBy(e.target.value as RankingMetric)}
+            >
+              {Object.entries(RANKING_METRICS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  📊 {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="control-group">
+            <div className="control-label">Display Metric</div>
+            <select
+              value={displayMetric}
+              onChange={(e) => setDisplayMetric(e.target.value as DisplayMetric)}
+            >
+              {Object.entries(DISPLAY_METRICS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  🎯 {label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -147,7 +169,9 @@ export default function Leaderboard() {
             <span style={{ fontSize: '1.2rem' }}>🏆</span>
             <span>Leaderboard Rankings</span>
           </div>
-          <div style={{ color: '#64748b', fontSize: '0.85rem' }}>{subtitle}</div>
+          <div style={{ color: '#64748b', fontSize: '0.85rem' }}>
+            {subtitle} — Ranked by {rankMetricLabel}, displaying {displayMetricLabel}
+          </div>
         </div>
 
         {leaderboard.length === 0 ? (
@@ -161,9 +185,8 @@ export default function Leaderboard() {
                 <th>Rank</th>
                 <th>Model</th>
                 <th>Category</th>
-                <th>Test Accuracy</th>
-                <th>F1 Macro</th>
-                <th>Avg Runtime</th>
+                <th>{rankMetricLabel} (rank)</th>
+                <th>{displayMetricLabel} (display)</th>
               </tr>
             </thead>
             <tbody>
@@ -180,12 +203,23 @@ export default function Leaderboard() {
                   <td className="model-cell">{entry.model}</td>
                   <td className={`category-${entry.category}`}>{entry.category}</td>
                   <td className="mono-cell">
-                    {(entry.accuracy * 100).toFixed(1)}% ± {(entry.accStd * 100).toFixed(1)}%
+                    {entry.isBaseline ? (
+                      <span style={{ color: '#94a3b8' }}>N/A</span>
+                    ) : (
+                      <>
+                        {(entry.rankValue * 100).toFixed(1)}%
+                        {entry.rankStd > 0 && (
+                          <span style={{ color: '#94a3b8' }}> ± {(entry.rankStd * 100).toFixed(1)}%</span>
+                        )}
+                      </>
+                    )}
                   </td>
                   <td className="mono-cell">
-                    {(entry.f1Macro * 100).toFixed(1)}% ± {(entry.f1Std * 100).toFixed(1)}%
+                    {(entry.displayValue * 100).toFixed(1)}%
+                    {entry.displayStd > 0 && (
+                      <span style={{ color: '#94a3b8' }}> ± {(entry.displayStd * 100).toFixed(1)}%</span>
+                    )}
                   </td>
-                  <td className="mono-cell">{entry.avgRuntime.toFixed(1)}s</td>
                 </tr>
               ))}
             </tbody>
@@ -196,7 +230,7 @@ export default function Leaderboard() {
       {/* Charts Grid */}
       <div className="charts-grid">
         <div className="chart-card">
-          <div className="chart-title">Performance by Model</div>
+          <div className="chart-title">{displayMetricLabel} by Model</div>
           <Plot
             data={[
               {
@@ -213,7 +247,7 @@ export default function Leaderboard() {
             ]}
             layout={{
               xaxis: {
-                title: { text: 'Test Accuracy' },
+                title: { text: displayMetricLabel },
                 tickformat: '.0%',
                 gridcolor: '#e2e8f0',
                 range: [0, 1],
@@ -231,32 +265,32 @@ export default function Leaderboard() {
         </div>
 
         <div className="chart-card">
-          <div className="chart-title">Accuracy vs Runtime Trade-off</div>
+          <div className="chart-title">{rankMetricLabel} vs {displayMetricLabel}</div>
           <Plot
             data={[
               {
                 type: 'scatter',
                 mode: 'text+markers' as const,
-                x: tradeoffChartData.x,
-                y: tradeoffChartData.y,
-                text: tradeoffChartData.text,
+                x: rankVsDisplayData.x,
+                y: rankVsDisplayData.y,
+                text: rankVsDisplayData.text,
                 textposition: 'top center',
                 textfont: { family: 'DM Sans', size: 11, color: '#0f172a' },
                 marker: {
                   size: 20,
-                  color: tradeoffChartData.colors,
+                  color: rankVsDisplayData.colors,
                   line: { width: 2, color: '#ffffff' },
                 },
               },
             ]}
             layout={{
               xaxis: {
-                title: { text: 'Average Runtime (seconds)' },
+                title: { text: rankMetricLabel },
+                tickformat: '.0%',
                 gridcolor: '#e2e8f0',
-                type: 'log',
               },
               yaxis: {
-                title: { text: 'Test Accuracy' },
+                title: { text: displayMetricLabel },
                 tickformat: '.0%',
                 gridcolor: '#e2e8f0',
               },
@@ -275,7 +309,7 @@ export default function Leaderboard() {
 
       {/* Dataset Comparison Chart */}
       <div className="chart-card" style={{ marginTop: '24px' }}>
-        <div className="chart-title">Performance Across Datasets</div>
+        <div className="chart-title">{displayMetricLabel} Across Datasets</div>
         <Plot
           data={datasetComparisonData.datasets.map((ds) => ({
             type: 'bar' as const,
@@ -295,7 +329,7 @@ export default function Leaderboard() {
               categoryarray: datasetComparisonData.models,
             },
             yaxis: {
-              title: { text: 'Test Accuracy' },
+              title: { text: displayMetricLabel },
               tickformat: '.0%',
               gridcolor: '#e2e8f0',
               range: [0, 1],
