@@ -66,10 +66,10 @@ export const METHOD_LABELS: Record<string, string> = {
 
 // Display labels for sample-node ratios
 export const RATIO_LABELS: Record<number, string> = {
-  0.3: '30%',
-  0.5: '50%',
-  0.8: '80%',
-  1.0: '100%',
+  0.3: '0.3',
+  0.5: '0.5',
+  0.8: '0.8',
+  1.0: '1.0',
 };
 
 // For Explorer component (may not have all combinations)

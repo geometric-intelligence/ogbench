@@ -31,10 +31,16 @@ export default function Leaderboard() {
       });
   }, []);
 
-  // Compute filtered results and leaderboard
+  // Compute filtered results for leaderboard (respects all filters including dataset)
   const filteredResults = useMemo(
     () => filterResults(results, datasetFilter, methodFilter, ratioFilter),
     [results, datasetFilter, methodFilter, ratioFilter]
+  );
+
+  // Compute filtered results for chart (always shows all datasets, but respects method/ratio filters)
+  const chartFilteredResults = useMemo(
+    () => filterResults(results, 'all', methodFilter, ratioFilter),
+    [results, methodFilter, ratioFilter]
   );
 
   const leaderboard = useMemo(
@@ -59,12 +65,12 @@ export default function Leaderboard() {
     return parts.join(' • ');
   }, [datasetFilter, methodFilter, ratioFilter]);
 
-  // Get all models data by dataset for the faceted chart (use filtered results)
+  // Get all models data by dataset for the faceted chart (always shows all datasets)
   const allModelsData = useMemo(() => {
     // Include both MODEL_ORDER and BASELINE_MODELS
     const allModels = [...MODEL_ORDER, ...BASELINE_MODELS];
-    return getModelsByDataset(filteredResults, allModels, displayMetric);
-  }, [filteredResults, displayMetric]);
+    return getModelsByDataset(chartFilteredResults, allModels, displayMetric);
+  }, [chartFilteredResults, displayMetric]);
 
   // Get baseline values for horizontal lines (averaged across all data)
   const baselineValues = useMemo(() => {
@@ -128,6 +134,29 @@ export default function Leaderboard() {
   // Get label for the display metric
   const displayMetricLabel = DISPLAY_METRICS[displayMetric];
   const rankMetricLabel = RANKING_METRICS[rankBy];
+
+  // Build dynamic chart title based on filters
+  const chartTitle = useMemo(() => {
+    // Base: "{Display Metric} of Best Models"
+    let title = `${displayMetricLabel} of Best Models`;
+    
+    // Add ranking criteria
+    title += ` (Ranked by ${rankMetricLabel})`;
+    
+    // Add method filter info
+    if (methodFilter !== 'all') {
+      title += ` using ${METHOD_LABELS[methodFilter]} Selection`;
+    } else {
+      title += ` across All Selection Methods`;
+    }
+    
+    // Add ratio filter info
+    if (ratioFilter !== 'all') {
+      title += ` at ${RATIO_LABELS[ratioFilter]} Sample-to-Node Ratio`;
+    }
+    
+    return title;
+  }, [displayMetricLabel, rankMetricLabel, methodFilter, ratioFilter]);
 
   if (loading) {
     return (
@@ -491,7 +520,7 @@ export default function Leaderboard() {
 
       {/* Faceted Bar Chart - Performance by Dataset */}
       <div className="chart-card" style={{ marginTop: '24px' }}>
-        <div className="chart-title">Best Overall Model Performance by {displayMetricLabel}</div>
+        <div className="chart-title">{chartTitle}</div>
         <Plot
           data={facetedChartData}
           layout={facetedLayout}
