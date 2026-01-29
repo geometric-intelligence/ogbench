@@ -66,6 +66,8 @@ export type DatasetName = 'motrpac' | 'addneuromed' | 'parkinsons';
 
 export type NodeSelectionMethod = 'variance' | 'correlation' | 'distance_correlation' | 'random';
 
+export type SampleNodeRatio = 0.3 | 0.5 | 0.8 | 1.0;
+
 // Metrics for ranking models (validation or test metrics)
 export type RankingMetric = 'val_accuracy' | 'val_f1_macro' | 'test_accuracy' | 'test_f1_macro' | 'auroc';
 

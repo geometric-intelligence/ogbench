@@ -2,16 +2,17 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 
 // Dynamically import Plotly to avoid SSR issues
 const Plot = lazy(() => import('react-plotly.js'));
-import type { ResultEntry, ModelCategory, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
-import { DATASETS, MODEL_CATEGORIES, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS } from '../lib/constants';
+import type { ResultEntry, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
+import { DATASETS, MODEL_CATEGORIES, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS } from '../lib/constants';
 import { computeLeaderboard, filterResults, getModelsByDataset } from '../lib/data';
 
 export default function Leaderboard() {
   const [results, setResults] = useState<ResultEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [datasetFilter, setDatasetFilter] = useState<DatasetName | 'all'>('all');
-  const [modelCategory, setModelCategory] = useState<ModelCategory | 'all'>('all');
-  // New dual-metric selection
+  const [methodFilter, setMethodFilter] = useState<string | 'all'>('all');
+  const [ratioFilter, setRatioFilter] = useState<number | 'all'>('all');
+  // Dual-metric selection
   const [rankBy, setRankBy] = useState<RankingMetric>('val_f1_macro');
   const [displayMetric, setDisplayMetric] = useState<DisplayMetric>('test_f1_macro');
 
@@ -32,8 +33,8 @@ export default function Leaderboard() {
 
   // Compute filtered results and leaderboard
   const filteredResults = useMemo(
-    () => filterResults(results, datasetFilter, modelCategory),
-    [results, datasetFilter, modelCategory]
+    () => filterResults(results, datasetFilter, methodFilter, ratioFilter),
+    [results, datasetFilter, methodFilter, ratioFilter]
   );
 
   const leaderboard = useMemo(
@@ -41,17 +42,29 @@ export default function Leaderboard() {
     [filteredResults, rankBy, displayMetric]
   );
 
-  const subtitle =
-    datasetFilter === 'all'
-      ? 'Aggregated across all datasets and graph configurations'
-      : `Results for ${DATASETS[datasetFilter].fullName} dataset`;
+  // Build subtitle based on filters
+  const subtitle = useMemo(() => {
+    const parts: string[] = [];
+    if (datasetFilter === 'all') {
+      parts.push('All datasets');
+    } else {
+      parts.push(DATASETS[datasetFilter].fullName);
+    }
+    if (methodFilter !== 'all') {
+      parts.push(METHOD_LABELS[methodFilter]);
+    }
+    if (ratioFilter !== 'all') {
+      parts.push(`${RATIO_LABELS[ratioFilter]} nodes`);
+    }
+    return parts.join(' • ');
+  }, [datasetFilter, methodFilter, ratioFilter]);
 
-  // Get all models data by dataset for the faceted chart
+  // Get all models data by dataset for the faceted chart (use filtered results)
   const allModelsData = useMemo(() => {
     // Include both MODEL_ORDER and BASELINE_MODELS
     const allModels = [...MODEL_ORDER, ...BASELINE_MODELS];
-    return getModelsByDataset(results, allModels, displayMetric);
-  }, [results, displayMetric]);
+    return getModelsByDataset(filteredResults, allModels, displayMetric);
+  }, [filteredResults, displayMetric]);
 
   // Get baseline values for horizontal lines (averaged across all data)
   const baselineValues = useMemo(() => {
@@ -109,11 +122,8 @@ export default function Leaderboard() {
     return baselines;
   }, [results, displayMetric]);
 
-  // Filter models based on category selection
-  const filteredModels = useMemo(() => {
-    if (modelCategory === 'all') return MODEL_ORDER;
-    return MODEL_ORDER.filter((m) => MODEL_CATEGORIES[m] === modelCategory);
-  }, [modelCategory]);
+  // All models to display (no category filter)
+  const filteredModels = MODEL_ORDER;
 
   // Get label for the display metric
   const displayMetricLabel = DISPLAY_METRICS[displayMetric];
@@ -340,15 +350,35 @@ export default function Leaderboard() {
           </div>
 
           <div className="control-group">
-            <div className="control-label">Model Category</div>
+            <div className="control-label">Node Selection Method</div>
             <select
-              value={modelCategory}
-              onChange={(e) => setModelCategory(e.target.value as ModelCategory | 'all')}
+              value={methodFilter}
+              onChange={(e) => setMethodFilter(e.target.value as string | 'all')}
             >
-              <option value="all">🔷 All Models</option>
-              <option value="gnn">🌐 GNN Models Only</option>
-              <option value="neural">🧠 Neural Networks Only</option>
-              <option value="baseline">📉 Baselines Only</option>
+              <option value="all">🔀 All Methods</option>
+              {VALID_METHODS.map((method) => (
+                <option key={method} value={method}>
+                  🔹 {METHOD_LABELS[method]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="control-group">
+            <div className="control-label">Sample-Node Ratio</div>
+            <select
+              value={ratioFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setRatioFilter(val === 'all' ? 'all' : parseFloat(val));
+              }}
+            >
+              <option value="all">📏 All Ratios</option>
+              {VALID_RATIOS.map((ratio) => (
+                <option key={ratio} value={ratio}>
+                  📐 {RATIO_LABELS[ratio]}
+                </option>
+              ))}
             </select>
           </div>
 

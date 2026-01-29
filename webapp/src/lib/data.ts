@@ -127,7 +127,8 @@ export function computeLeaderboard(
 export function filterResults(
   results: ResultEntry[],
   dataset: DatasetName | 'all',
-  category: ModelCategory | 'all'
+  method: string | 'all' = 'all',
+  ratio: number | 'all' = 'all'
 ): ResultEntry[] {
   let filtered = results;
 
@@ -135,11 +136,14 @@ export function filterResults(
     filtered = filtered.filter((r) => r.dataset === dataset);
   }
 
-  if (category !== 'all') {
-    const modelsInCategory = Object.entries(MODEL_CATEGORIES)
-      .filter(([_, cat]) => cat === category)
-      .map(([model]) => model);
-    filtered = filtered.filter((r) => modelsInCategory.includes(r.model));
+  if (method !== 'all') {
+    // Filter by method, but keep baselines (they don't have a method)
+    filtered = filtered.filter((r) => r.method === method || r.method === 'baseline');
+  }
+
+  if (ratio !== 'all') {
+    // Filter by ratio, but keep baselines (they don't have a ratio)
+    filtered = filtered.filter((r) => r.node_sample_ratio === ratio || r.node_sample_ratio === 0.0);
   }
 
   return filtered;
