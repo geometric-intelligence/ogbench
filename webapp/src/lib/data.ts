@@ -48,9 +48,12 @@ export function getDisplayMetricValue(entry: ResultEntry, metric: DisplayMetric)
 
 /**
  * Compute leaderboard with dual-metric support
+ * For each model, selects the BEST configuration (highest ranking metric value)
+ * rather than averaging across all configurations.
+ * 
  * @param results - Array of result entries
- * @param rankBy - Metric used to rank/order models (validation metrics)
- * @param displayMetric - Metric displayed in the leaderboard (test metrics)
+ * @param rankBy - Metric used to rank/order models and select best config
+ * @param displayMetric - Metric displayed in the leaderboard (from the best config)
  */
 export function computeLeaderboard(
   results: ResultEntry[],
@@ -64,42 +67,40 @@ export function computeLeaderboard(
     byModel[r.model].push(r);
   }
 
-  // Compute aggregates for each model
+  // For each model, find the BEST configuration (highest ranking metric)
   const aggregates: LeaderboardEntry[] = Object.entries(byModel).map(([model, entries]) => {
     const isBaseline = entries.some((e) => e.readout === 'baseline');
     
-    // Extract ranking metric values
-    const rankValues = entries.map((e) => getRankingMetricValue(e, rankBy));
-    const rankMean = mean(rankValues.map((v) => v.value));
-    const rankStdPooled = pooledStd(rankValues.map((v) => v.std));
+    // Find the entry with the highest ranking metric value
+    let bestEntry = entries[0];
+    let bestRankValue = getRankingMetricValue(bestEntry, rankBy).value;
     
-    // Extract display metric values
-    const displayValues = entries.map((e) => getDisplayMetricValue(e, displayMetric));
-    const displayMean = mean(displayValues.map((v) => v.value));
-    const displayStdPooled = pooledStd(displayValues.map((v) => v.std));
+    for (const entry of entries) {
+      const rankValue = getRankingMetricValue(entry, rankBy).value;
+      if (rankValue > bestRankValue) {
+        bestEntry = entry;
+        bestRankValue = rankValue;
+      }
+    }
     
-    // Extract all test metrics for charts
-    const testAccuracies = entries.map((e) => e.test_accuracy);
-    const testAccuracyStds = entries.map((e) => e.test_accuracy_std);
-    const testF1Macros = entries.map((e) => e.test_f1_macro);
-    const testF1MacroStds = entries.map((e) => e.test_f1_macro_std);
-    const aurocs = entries.map((e) => e.auroc);
-    const aurocStds = entries.map((e) => e.auroc_std);
+    // Use the best entry's values for both ranking and display
+    const rankMetric = getRankingMetricValue(bestEntry, rankBy);
+    const displayMetricVal = getDisplayMetricValue(bestEntry, displayMetric);
 
     return {
       rank: 0,
       model,
       category: MODEL_CATEGORIES[model] || 'baseline',
-      rankValue: rankMean,
-      rankStd: rankStdPooled,
-      displayValue: displayMean,
-      displayStd: displayStdPooled,
-      testAccuracy: mean(testAccuracies),
-      testAccuracyStd: pooledStd(testAccuracyStds),
-      testF1Macro: mean(testF1Macros),
-      testF1MacroStd: pooledStd(testF1MacroStds),
-      auroc: mean(aurocs),
-      aurocStd: pooledStd(aurocStds),
+      rankValue: rankMetric.value,
+      rankStd: rankMetric.std,
+      displayValue: displayMetricVal.value,
+      displayStd: displayMetricVal.std,
+      testAccuracy: bestEntry.test_accuracy,
+      testAccuracyStd: bestEntry.test_accuracy_std,
+      testF1Macro: bestEntry.test_f1_macro,
+      testF1MacroStd: bestEntry.test_f1_macro_std,
+      auroc: bestEntry.auroc,
+      aurocStd: bestEntry.auroc_std,
       isBaseline,
     };
   });
@@ -197,12 +198,27 @@ export interface ModelDataByDataset {
   std: number;
 }
 
+/**
+ * Get model performance data by dataset for charts.
+ * For each model+dataset combination, selects the BEST configuration
+ * (highest ranking metric value) rather than averaging.
+ * 
+ * @param results - Array of result entries
+ * @param modelOrder - Order of models to include
+ * @param displayMetric - Metric to display in the chart
+ * @param rankBy - Metric used to select the best configuration (defaults to displayMetric)
+ */
 export function getModelsByDataset(
   results: ResultEntry[],
   modelOrder: string[],
-  displayMetric: DisplayMetric = 'test_accuracy'
+  displayMetric: DisplayMetric = 'test_accuracy',
+  rankBy?: RankingMetric
 ): Record<DatasetName, Record<string, ModelDataByDataset>> {
-  const byDataset: Record<DatasetName, Record<string, { values: number[]; stds: number[] }>> = {
+  // Use displayMetric as rankBy if not specified (for consistency)
+  const rankMetric = rankBy || displayMetric;
+  
+  // Group by dataset and model
+  const byDatasetModel: Record<DatasetName, Record<string, ResultEntry[]>> = {
     motrpac: {},
     addneuromed: {},
     parkinsons: {},
@@ -210,10 +226,8 @@ export function getModelsByDataset(
 
   for (const r of results) {
     const ds = r.dataset as DatasetName;
-    if (!byDataset[ds][r.model]) byDataset[ds][r.model] = { values: [], stds: [] };
-    const { value, std } = getDisplayMetricValue(r, displayMetric);
-    byDataset[ds][r.model].values.push(value);
-    byDataset[ds][r.model].stds.push(std);
+    if (!byDatasetModel[ds][r.model]) byDatasetModel[ds][r.model] = [];
+    byDatasetModel[ds][r.model].push(r);
   }
 
   const result: Record<DatasetName, Record<string, ModelDataByDataset>> = {
@@ -224,12 +238,23 @@ export function getModelsByDataset(
 
   for (const ds of ['motrpac', 'addneuromed', 'parkinsons'] as DatasetName[]) {
     for (const model of modelOrder) {
-      const data = byDataset[ds][model];
-      if (data && data.values.length > 0) {
-        result[ds][model] = {
-          value: mean(data.values),
-          std: mean(data.stds), // pooled std approximation
-        };
+      const entries = byDatasetModel[ds][model];
+      if (entries && entries.length > 0) {
+        // Find the best entry based on ranking metric
+        let bestEntry = entries[0];
+        let bestRankValue = getRankingMetricValue(bestEntry, rankMetric).value;
+        
+        for (const entry of entries) {
+          const rankValue = getRankingMetricValue(entry, rankMetric).value;
+          if (rankValue > bestRankValue) {
+            bestEntry = entry;
+            bestRankValue = rankValue;
+          }
+        }
+        
+        // Use the best entry's display metric values
+        const { value, std } = getDisplayMetricValue(bestEntry, displayMetric);
+        result[ds][model] = { value, std };
       }
     }
   }

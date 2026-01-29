@@ -66,11 +66,12 @@ export default function Leaderboard() {
   }, [datasetFilter, methodFilter, ratioFilter]);
 
   // Get all models data by dataset for the faceted chart (always shows all datasets)
+  // Uses the ranking metric to select the best configuration for each model+dataset
   const allModelsData = useMemo(() => {
     // Include both MODEL_ORDER and BASELINE_MODELS
     const allModels = [...MODEL_ORDER, ...BASELINE_MODELS];
-    return getModelsByDataset(chartFilteredResults, allModels, displayMetric);
-  }, [chartFilteredResults, displayMetric]);
+    return getModelsByDataset(chartFilteredResults, allModels, displayMetric, rankBy);
+  }, [chartFilteredResults, displayMetric, rankBy]);
 
   // Get baseline values for horizontal lines (averaged across all data)
   const baselineValues = useMemo(() => {
