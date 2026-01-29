@@ -14,13 +14,19 @@ function pooledStd(stds: number[]): number {
   return mean(stds);
 }
 
-// Get the value and std fields for a ranking metric
+// Get the value and std fields for a ranking metric (can be val or test metrics)
 function getRankingMetricValue(entry: ResultEntry, metric: RankingMetric): { value: number; std: number } {
   switch (metric) {
     case 'val_accuracy':
       return { value: entry.val_accuracy, std: entry.val_accuracy_std };
     case 'val_f1_macro':
       return { value: entry.val_f1_macro, std: entry.val_f1_macro_std };
+    case 'test_accuracy':
+      return { value: entry.test_accuracy, std: entry.test_accuracy_std };
+    case 'test_f1_macro':
+      return { value: entry.test_f1_macro, std: entry.test_f1_macro_std };
+    case 'auroc':
+      return { value: entry.auroc, std: entry.auroc_std };
     default:
       return { value: entry.val_accuracy, std: entry.val_accuracy_std };
   }

@@ -179,40 +179,42 @@ export default function Leaderboard() {
       yaxis: yAxisId,
     } as Plotly.Data);
 
-    // Add horizontal lines for baselines
+    // Add horizontal lines for baselines using scatter with category names
     const baselineData = baselinesByDataset[ds];
     
-    // ElasticNet line (dashed)
-    if (baselineData.ElasticNet) {
+    // ElasticNet line (dashed) - use first and last model names
+    if (baselineData.ElasticNet && filteredModels.length > 0) {
       facetedChartData.push({
         type: 'scatter',
         mode: 'lines',
         name: dsIdx === 0 ? 'Elastic Net' : undefined,
-        x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
-        y: [baselineData.ElasticNet.value, baselineData.ElasticNet.value],
+        x: filteredModels,
+        y: Array(filteredModels.length).fill(baselineData.ElasticNet.value),
         line: { color: '#000000', width: 2, dash: 'dash' },
         showlegend: dsIdx === 0,
         legendgroup: 'ElasticNet',
         xaxis: xAxisId,
         yaxis: yAxisId,
         hoverinfo: 'name+y',
+        connectgaps: true,
       } as Plotly.Data);
     }
 
-    // SVM line (dotted)
-    if (baselineData.SVM) {
+    // SVM line (dotted) - use first and last model names
+    if (baselineData.SVM && filteredModels.length > 0) {
       facetedChartData.push({
         type: 'scatter',
         mode: 'lines',
         name: dsIdx === 0 ? 'SVM' : undefined,
-        x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
-        y: [baselineData.SVM.value, baselineData.SVM.value],
+        x: filteredModels,
+        y: Array(filteredModels.length).fill(baselineData.SVM.value),
         line: { color: '#000000', width: 2, dash: 'dot' },
         showlegend: dsIdx === 0,
         legendgroup: 'SVM',
         xaxis: xAxisId,
         yaxis: yAxisId,
         hoverinfo: 'name+y',
+        connectgaps: true,
       } as Plotly.Data);
     }
 
@@ -316,73 +318,6 @@ export default function Leaderboard() {
       range: yRange,
     },
   };
-
-  // Build dataset comparison chart data (grouped bars with error bars and baseline lines)
-  const datasetComparisonData: Plotly.Data[] = [];
-  
-  // Add bar traces for each dataset
-  datasets.forEach((ds) => {
-    const values: (number | null)[] = [];
-    const errors: number[] = [];
-    const textLabels: string[] = [];
-    
-    for (const model of filteredModels) {
-      const data = allModelsData[ds][model];
-      if (data && data.value > 0) {
-        values.push(data.value);
-        errors.push(data.std);
-        textLabels.push(`${(data.value * 100).toFixed(1)}%`);
-      } else {
-        values.push(null);
-        errors.push(0);
-        textLabels.push('');
-      }
-    }
-
-    datasetComparisonData.push({
-      type: 'bar',
-      name: `${DATASETS[ds].emoji} ${DATASETS[ds].fullName}`,
-      x: filteredModels,
-      y: values,
-      error_y: {
-        type: 'data',
-        array: errors,
-        visible: true,
-        color: '#333333',
-        thickness: 1.5,
-        width: 3,
-      },
-      marker: { color: DATASETS[ds].color },
-      text: textLabels,
-      textposition: 'outside',
-      textfont: { family: 'JetBrains Mono', size: 9 },
-    } as Plotly.Data);
-  });
-
-  // Add horizontal lines for baselines (ElasticNet - dashed, SVM - dotted)
-  if (baselineValues.ElasticNet) {
-    datasetComparisonData.push({
-      type: 'scatter',
-      mode: 'lines',
-      name: 'Elastic Net',
-      x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
-      y: [baselineValues.ElasticNet.value, baselineValues.ElasticNet.value],
-      line: { color: '#000000', width: 2, dash: 'dash' },
-      hoverinfo: 'name+y',
-    } as Plotly.Data);
-  }
-
-  if (baselineValues.SVM) {
-    datasetComparisonData.push({
-      type: 'scatter',
-      mode: 'lines',
-      name: 'SVM',
-      x: [filteredModels[0], filteredModels[filteredModels.length - 1]],
-      y: [baselineValues.SVM.value, baselineValues.SVM.value],
-      line: { color: '#000000', width: 2, dash: 'dot' },
-      hoverinfo: 'name+y',
-    } as Plotly.Data);
-  }
 
   return (
     <div>
@@ -531,44 +466,6 @@ export default function Leaderboard() {
           data={facetedChartData}
           layout={facetedLayout}
           config={{ displayModeBar: false, responsive: true }}
-          style={{ width: '100%', height: '400px' }}
-        />
-      </div>
-
-      {/* Dataset Comparison Chart */}
-      <div className="chart-card" style={{ marginTop: '24px' }}>
-        <div className="chart-title">{displayMetricLabel} Across Datasets</div>
-        <Plot
-          data={datasetComparisonData}
-          layout={{
-            barmode: 'group',
-            xaxis: {
-              gridcolor: '#e2e8f0',
-              categoryorder: 'array',
-              categoryarray: filteredModels,
-              tickangle: -45,
-            },
-            yaxis: {
-              title: { text: displayMetricLabel },
-              tickformat: '.0%',
-              gridcolor: '#e2e8f0',
-              range: yRange, // Use same tight range as faceted chart
-            },
-            plot_bgcolor: '#ffffff',
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            font: { family: 'DM Sans', color: '#0f172a' },
-            margin: { l: 60, r: 40, t: 20, b: 80 },
-            height: 400,
-            legend: {
-              orientation: 'h',
-              yanchor: 'bottom',
-              y: 1.02,
-              xanchor: 'right',
-              x: 1,
-              bgcolor: 'rgba(0,0,0,0)',
-            },
-          }}
-          config={{ displayModeBar: false }}
           style={{ width: '100%', height: '400px' }}
         />
       </div>

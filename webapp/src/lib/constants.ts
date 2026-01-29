@@ -8,7 +8,7 @@ export const DATASETS: Record<DatasetName, DatasetInfo> = {
 
 export const MODEL_CATEGORIES: Record<string, ModelCategory> = {
   // GNN models
-  GATv4: 'gnn',
+  'MLA-GNN': 'gnn',
   GATv2: 'gnn',
   GCN: 'gnn',
   GIN: 'gnn',
@@ -31,7 +31,7 @@ export const MODEL_ORDER = [
   'GraphSAGE',
   'SAGN',
   'ChebNet',
-  'GATv4',
+  'MLA-GNN',
 ];
 
 // Baseline models shown as horizontal lines
@@ -46,7 +46,7 @@ export const MODEL_COLORS: Record<string, string> = {
   GraphSAGE: '#66c2a5', // teal/cyan
   SAGN: '#984ea3',      // purple/violet
   ChebNet: '#4d9221',   // dark/forest green
-  GATv4: '#a6d96a',     // light green
+  'MLA-GNN': '#a6d96a', // light green
   // Baselines
   ElasticNet: '#000000', // black (dashed line)
   SVM: '#000000',        // black (dotted line)
@@ -77,10 +77,13 @@ export const METRIC_LABELS: Record<string, string> = {
   degree_std: 'Degree Standard Deviation',
 };
 
-// Metrics for ranking models (validation metrics - used for model selection)
+// Metrics for ranking models (validation or test metrics - used for model selection)
 export const RANKING_METRICS: Record<RankingMetric, string> = {
   val_accuracy: 'Val Accuracy',
   val_f1_macro: 'Val F1 Macro',
+  test_accuracy: 'Test Accuracy',
+  test_f1_macro: 'Test F1 Macro',
+  auroc: 'AUROC',
 };
 
 // Metrics for displaying model performance (test metrics - used for evaluation)

@@ -1,7 +1,7 @@
 {
-  "addneuromed|0.3|correlation|NoReadOut|GATv4": {
+  "addneuromed|0.3|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -19,9 +19,9 @@
     "auroc": 0.6439643502235413,
     "auroc_std": 0.0629510722237081
   },
-  "addneuromed|0.3|correlation|OmicsReadOut|GATv4": {
+  "addneuromed|0.3|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -39,9 +39,9 @@
     "auroc": 0.6880886952082316,
     "auroc_std": 0.0169262287901275
   },
-  "addneuromed|0.5|correlation|NoReadOut|GATv4": {
+  "addneuromed|0.5|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -59,9 +59,9 @@
     "auroc": 0.6307270328203837,
     "auroc_std": 0.032134430506581
   },
-  "addneuromed|0.5|correlation|OmicsReadOut|GATv4": {
+  "addneuromed|0.5|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -79,9 +79,9 @@
     "auroc": 0.6767261226971945,
     "auroc_std": 0.0450777466752684
   },
-  "addneuromed|0.8|correlation|NoReadOut|GATv4": {
+  "addneuromed|0.8|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -99,9 +99,9 @@
     "auroc": 0.645496129989624,
     "auroc_std": 0.0518125503544882
   },
-  "addneuromed|0.8|correlation|OmicsReadOut|GATv4": {
+  "addneuromed|0.8|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -119,9 +119,9 @@
     "auroc": 0.7151920199394226,
     "auroc_std": 0.0170951790877507
   },
-  "addneuromed|1.0|correlation|NoReadOut|GATv4": {
+  "addneuromed|1.0|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -139,9 +139,9 @@
     "auroc": 0.6339734594027201,
     "auroc_std": 0.023925393509097
   },
-  "addneuromed|1.0|correlation|OmicsReadOut|GATv4": {
+  "addneuromed|1.0|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -159,9 +159,9 @@
     "auroc": 0.6971878806749979,
     "auroc_std": 0.0444991820334907
   },
-  "addneuromed|0.3|distance_correlation|NoReadOut|GATv4": {
+  "addneuromed|0.3|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -179,9 +179,9 @@
     "auroc": 0.6735253930091858,
     "auroc_std": 0.018084486922356
   },
-  "addneuromed|0.3|distance_correlation|OmicsReadOut|GATv4": {
+  "addneuromed|0.3|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -199,9 +199,9 @@
     "auroc": 0.7123456796010336,
     "auroc_std": 0.048625879851431
   },
-  "addneuromed|0.5|distance_correlation|NoReadOut|GATv4": {
+  "addneuromed|0.5|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -219,9 +219,9 @@
     "auroc": 0.6549153725306193,
     "auroc_std": 0.0303736577374627
   },
-  "addneuromed|0.5|distance_correlation|OmicsReadOut|GATv4": {
+  "addneuromed|0.5|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -239,9 +239,9 @@
     "auroc": 0.7674211064974467,
     "auroc_std": 0.0113910776594433
   },
-  "addneuromed|0.8|distance_correlation|NoReadOut|GATv4": {
+  "addneuromed|0.8|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -259,9 +259,9 @@
     "auroc": 0.6609739065170288,
     "auroc_std": 0.0185498809736954
   },
-  "addneuromed|0.8|distance_correlation|OmicsReadOut|GATv4": {
+  "addneuromed|0.8|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -279,9 +279,9 @@
     "auroc": 0.734407881895701,
     "auroc_std": 0.0405634229944295
   },
-  "addneuromed|1.0|distance_correlation|NoReadOut|GATv4": {
+  "addneuromed|1.0|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -299,9 +299,9 @@
     "auroc": 0.6695701479911804,
     "auroc_std": 0.0107961633286315
   },
-  "addneuromed|1.0|distance_correlation|OmicsReadOut|GATv4": {
+  "addneuromed|1.0|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -319,9 +319,9 @@
     "auroc": 0.7321673234303793,
     "auroc_std": 0.019882288924777
   },
-  "addneuromed|0.3|random|NoReadOut|GATv4": {
+  "addneuromed|0.3|random|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -339,9 +339,9 @@
     "auroc": 0.6289894580841064,
     "auroc_std": 0.0830248073402554
   },
-  "addneuromed|0.3|random|OmicsReadOut|GATv4": {
+  "addneuromed|0.3|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -359,9 +359,9 @@
     "auroc": 0.6777778069178263,
     "auroc_std": 0.0303042993494733
   },
-  "addneuromed|0.5|random|NoReadOut|GATv4": {
+  "addneuromed|0.5|random|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -379,9 +379,9 @@
     "auroc": 0.6216278076171875,
     "auroc_std": 0.0101560512318427
   },
-  "addneuromed|0.5|random|OmicsReadOut|GATv4": {
+  "addneuromed|0.5|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -399,9 +399,9 @@
     "auroc": 0.6805898547172546,
     "auroc_std": 0.0509643859005077
   },
-  "addneuromed|0.8|random|NoReadOut|GATv4": {
+  "addneuromed|0.8|random|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -419,9 +419,9 @@
     "auroc": 0.6301554838816324,
     "auroc_std": 0.0385740605928451
   },
-  "addneuromed|0.8|random|OmicsReadOut|GATv4": {
+  "addneuromed|0.8|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -439,9 +439,9 @@
     "auroc": 0.7024577260017395,
     "auroc_std": 0.0263504675976087
   },
-  "addneuromed|1.0|random|NoReadOut|GATv4": {
+  "addneuromed|1.0|random|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -459,9 +459,9 @@
     "auroc": 0.5979652404785156,
     "auroc_std": 0.0431875519242884
   },
-  "addneuromed|1.0|random|OmicsReadOut|GATv4": {
+  "addneuromed|1.0|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -479,9 +479,9 @@
     "auroc": 0.694010059038798,
     "auroc_std": 0.0176209221704978
   },
-  "addneuromed|0.3|variance|NoReadOut|GATv4": {
+  "addneuromed|0.3|variance|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -499,9 +499,9 @@
     "auroc": 0.7035664916038513,
     "auroc_std": 0.0222853608474987
   },
-  "addneuromed|0.3|variance|OmicsReadOut|GATv4": {
+  "addneuromed|0.3|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.3|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -519,9 +519,9 @@
     "auroc": 0.7488111853599548,
     "auroc_std": 0.0255697831923077
   },
-  "addneuromed|0.5|variance|NoReadOut|GATv4": {
+  "addneuromed|0.5|variance|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -539,9 +539,9 @@
     "auroc": 0.6838591694831848,
     "auroc_std": 0.0309771109918307
   },
-  "addneuromed|0.5|variance|OmicsReadOut|GATv4": {
+  "addneuromed|0.5|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.5|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -559,9 +559,9 @@
     "auroc": 0.6982853412628174,
     "auroc_std": 0.0302338647507858
   },
-  "addneuromed|0.8|variance|NoReadOut|GATv4": {
+  "addneuromed|0.8|variance|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -579,9 +579,9 @@
     "auroc": 0.6729766527811686,
     "auroc_std": 0.0062579383169973
   },
-  "addneuromed|0.8|variance|OmicsReadOut|GATv4": {
+  "addneuromed|0.8|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|0.8|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -599,9 +599,9 @@
     "auroc": 0.7304298679033915,
     "auroc_std": 0.0260504921260495
   },
-  "addneuromed|1.0|variance|NoReadOut|GATv4": {
+  "addneuromed|1.0|variance|NoReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -619,9 +619,9 @@
     "auroc": 0.6197530825932821,
     "auroc_std": 0.0600788570516216
   },
-  "addneuromed|1.0|variance|OmicsReadOut|GATv4": {
+  "addneuromed|1.0|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "addneuromed|1.0|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "addneuromed",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -4799,9 +4799,9 @@
     "auroc": 0.7612482905387878,
     "auroc_std": 0.0072498474729601
   },
-  "motrpac|0.3|correlation|NoReadOut|GATv4": {
+  "motrpac|0.3|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -4819,9 +4819,9 @@
     "auroc": 0.583638588587443,
     "auroc_std": 0.059758132404165
   },
-  "motrpac|0.3|correlation|OmicsReadOut|GATv4": {
+  "motrpac|0.3|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -4839,9 +4839,9 @@
     "auroc": 0.5348748167355856,
     "auroc_std": 0.0456926259032199
   },
-  "motrpac|0.5|correlation|NoReadOut|GATv4": {
+  "motrpac|0.5|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -4859,9 +4859,9 @@
     "auroc": 0.6016483704249064,
     "auroc_std": 0.0322078702852216
   },
-  "motrpac|0.5|correlation|OmicsReadOut|GATv4": {
+  "motrpac|0.5|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -4879,9 +4879,9 @@
     "auroc": 0.5404456456502279,
     "auroc_std": 0.0514581937631633
   },
-  "motrpac|0.8|correlation|NoReadOut|GATv4": {
+  "motrpac|0.8|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -4899,9 +4899,9 @@
     "auroc": 0.6495726505915324,
     "auroc_std": 0.0306788104650992
   },
-  "motrpac|0.8|correlation|OmicsReadOut|GATv4": {
+  "motrpac|0.8|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -4919,9 +4919,9 @@
     "auroc": 0.5247252782185873,
     "auroc_std": 0.0668686408928979
   },
-  "motrpac|1.0|correlation|NoReadOut|GATv4": {
+  "motrpac|1.0|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -4939,9 +4939,9 @@
     "auroc": 0.6269841194152832,
     "auroc_std": 0.0177885151121228
   },
-  "motrpac|1.0|correlation|OmicsReadOut|GATv4": {
+  "motrpac|1.0|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -4959,9 +4959,9 @@
     "auroc": 0.6071428656578064,
     "auroc_std": 0.0398851731495949
   },
-  "motrpac|0.3|distance_correlation|NoReadOut|GATv4": {
+  "motrpac|0.3|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -4979,9 +4979,9 @@
     "auroc": 0.5708180665969849,
     "auroc_std": 0.0023045713655934
   },
-  "motrpac|0.3|distance_correlation|OmicsReadOut|GATv4": {
+  "motrpac|0.3|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -4999,9 +4999,9 @@
     "auroc": 0.5860805908838908,
     "auroc_std": 0.019187124859678
   },
-  "motrpac|0.5|distance_correlation|NoReadOut|GATv4": {
+  "motrpac|0.5|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -5019,9 +5019,9 @@
     "auroc": 0.5897435744603475,
     "auroc_std": 0.050065721053416
   },
-  "motrpac|0.5|distance_correlation|OmicsReadOut|GATv4": {
+  "motrpac|0.5|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -5039,9 +5039,9 @@
     "auroc": 0.5931013623873392,
     "auroc_std": 0.0355652526858719
   },
-  "motrpac|0.8|distance_correlation|NoReadOut|GATv4": {
+  "motrpac|0.8|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -5059,9 +5059,9 @@
     "auroc": 0.6092795928319296,
     "auroc_std": 0.0370435754045837
   },
-  "motrpac|0.8|distance_correlation|OmicsReadOut|GATv4": {
+  "motrpac|0.8|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -5079,9 +5079,9 @@
     "auroc": 0.5457875529925028,
     "auroc_std": 0.0498559469417581
   },
-  "motrpac|1.0|distance_correlation|NoReadOut|GATv4": {
+  "motrpac|1.0|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -5099,9 +5099,9 @@
     "auroc": 0.6132478713989258,
     "auroc_std": 0.0569044175983716
   },
-  "motrpac|1.0|distance_correlation|OmicsReadOut|GATv4": {
+  "motrpac|1.0|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -5119,9 +5119,9 @@
     "auroc": 0.5772283474604288,
     "auroc_std": 0.0132494495429824
   },
-  "motrpac|0.3|random|NoReadOut|GATv4": {
+  "motrpac|0.3|random|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -5139,9 +5139,9 @@
     "auroc": 0.5618131856123606,
     "auroc_std": 0.0609799925421968
   },
-  "motrpac|0.3|random|OmicsReadOut|GATv4": {
+  "motrpac|0.3|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -5159,9 +5159,9 @@
     "auroc": 0.5606684684753418,
     "auroc_std": 0.0285585378865801
   },
-  "motrpac|0.5|random|NoReadOut|GATv4": {
+  "motrpac|0.5|random|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -5179,9 +5179,9 @@
     "auroc": 0.5143467585245768,
     "auroc_std": 0.0426029025638444
   },
-  "motrpac|0.5|random|OmicsReadOut|GATv4": {
+  "motrpac|0.5|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -5199,9 +5199,9 @@
     "auroc": 0.6089743574460348,
     "auroc_std": 0.0162787266186533
   },
-  "motrpac|0.8|random|NoReadOut|GATv4": {
+  "motrpac|0.8|random|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -5219,9 +5219,9 @@
     "auroc": 0.4880952338377635,
     "auroc_std": 0.0631336940426709
   },
-  "motrpac|0.8|random|OmicsReadOut|GATv4": {
+  "motrpac|0.8|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -5239,9 +5239,9 @@
     "auroc": 0.5573870738347372,
     "auroc_std": 0.0408955739646702
   },
-  "motrpac|1.0|random|NoReadOut|GATv4": {
+  "motrpac|1.0|random|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -5259,9 +5259,9 @@
     "auroc": 0.4758852322896321,
     "auroc_std": 0.0311534689079105
   },
-  "motrpac|1.0|random|OmicsReadOut|GATv4": {
+  "motrpac|1.0|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -5279,9 +5279,9 @@
     "auroc": 0.6080586115519205,
     "auroc_std": 0.0238095659476096
   },
-  "motrpac|0.3|variance|NoReadOut|GATv4": {
+  "motrpac|0.3|variance|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -5299,9 +5299,9 @@
     "auroc": 0.5157203674316406,
     "auroc_std": 0.0411230410843646
   },
-  "motrpac|0.3|variance|OmicsReadOut|GATv4": {
+  "motrpac|0.3|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.3|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -5319,9 +5319,9 @@
     "auroc": 0.595695952574412,
     "auroc_std": 0.099476793433876
   },
-  "motrpac|0.5|variance|NoReadOut|GATv4": {
+  "motrpac|0.5|variance|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -5339,9 +5339,9 @@
     "auroc": 0.4355921645959218,
     "auroc_std": 0.0172074308560466
   },
-  "motrpac|0.5|variance|OmicsReadOut|GATv4": {
+  "motrpac|0.5|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.5|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -5359,9 +5359,9 @@
     "auroc": 0.5240384737650553,
     "auroc_std": 0.0749738785065373
   },
-  "motrpac|0.8|variance|NoReadOut|GATv4": {
+  "motrpac|0.8|variance|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -5379,9 +5379,9 @@
     "auroc": 0.4047619104385376,
     "auroc_std": 0.0699336335313988
   },
-  "motrpac|0.8|variance|OmicsReadOut|GATv4": {
+  "motrpac|0.8|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|0.8|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -5399,9 +5399,9 @@
     "auroc": 0.5609737435976664,
     "auroc_std": 0.0255040418772006
   },
-  "motrpac|1.0|variance|NoReadOut|GATv4": {
+  "motrpac|1.0|variance|NoReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -5419,9 +5419,9 @@
     "auroc": 0.4438339273134867,
     "auroc_std": 0.0549857657639063
   },
-  "motrpac|1.0|variance|OmicsReadOut|GATv4": {
+  "motrpac|1.0|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "motrpac|1.0|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "motrpac",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -9599,9 +9599,9 @@
     "auroc": 0.5578449169794718,
     "auroc_std": 0.0295262120750152
   },
-  "parkinsons|0.3|correlation|NoReadOut|GATv4": {
+  "parkinsons|0.3|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -9619,9 +9619,9 @@
     "auroc": 0.7908163269360861,
     "auroc_std": 0.0118114348384218
   },
-  "parkinsons|0.3|correlation|OmicsReadOut|GATv4": {
+  "parkinsons|0.3|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -9639,9 +9639,9 @@
     "auroc": 0.7953868707021078,
     "auroc_std": 0.0386622729788511
   },
-  "parkinsons|0.5|correlation|NoReadOut|GATv4": {
+  "parkinsons|0.5|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -9659,9 +9659,9 @@
     "auroc": 0.764030655225118,
     "auroc_std": 0.0121675704321888
   },
-  "parkinsons|0.5|correlation|OmicsReadOut|GATv4": {
+  "parkinsons|0.5|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -9679,9 +9679,9 @@
     "auroc": 0.8226509491602579,
     "auroc_std": 0.0320874027172378
   },
-  "parkinsons|0.8|correlation|NoReadOut|GATv4": {
+  "parkinsons|0.8|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -9699,9 +9699,9 @@
     "auroc": 0.7808248599370321,
     "auroc_std": 0.0278381156705686
   },
-  "parkinsons|0.8|correlation|OmicsReadOut|GATv4": {
+  "parkinsons|0.8|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -9719,9 +9719,9 @@
     "auroc": 0.7960246801376343,
     "auroc_std": 0.0298288579697026
   },
-  "parkinsons|1.0|correlation|NoReadOut|GATv4": {
+  "parkinsons|1.0|correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -9739,9 +9739,9 @@
     "auroc": 0.8020833333333334,
     "auroc_std": 0.0137573890771641
   },
-  "parkinsons|1.0|correlation|OmicsReadOut|GATv4": {
+  "parkinsons|1.0|correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -9759,9 +9759,9 @@
     "auroc": 0.7678571542104086,
     "auroc_std": 0.093530698311656
   },
-  "parkinsons|0.3|distance_correlation|NoReadOut|GATv4": {
+  "parkinsons|0.3|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -9779,9 +9779,9 @@
     "auroc": 0.7901785969734192,
     "auroc_std": 0.0162846257236382
   },
-  "parkinsons|0.3|distance_correlation|OmicsReadOut|GATv4": {
+  "parkinsons|0.3|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -9799,9 +9799,9 @@
     "auroc": 0.7888499101003011,
     "auroc_std": 0.0259607599017793
   },
-  "parkinsons|0.5|distance_correlation|NoReadOut|GATv4": {
+  "parkinsons|0.5|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -9819,9 +9819,9 @@
     "auroc": 0.7993197441101074,
     "auroc_std": 0.0036820962490291
   },
-  "parkinsons|0.5|distance_correlation|OmicsReadOut|GATv4": {
+  "parkinsons|0.5|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -9839,9 +9839,9 @@
     "auroc": 0.8213222424189249,
     "auroc_std": 0.0184076340061191
   },
-  "parkinsons|0.8|distance_correlation|NoReadOut|GATv4": {
+  "parkinsons|0.8|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -9859,9 +9859,9 @@
     "auroc": 0.769345243771871,
     "auroc_std": 0.0069959325218825
   },
-  "parkinsons|0.8|distance_correlation|OmicsReadOut|GATv4": {
+  "parkinsons|0.8|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -9879,9 +9879,9 @@
     "auroc": 0.7689732313156128,
     "auroc_std": 0.0202656530249177
   },
-  "parkinsons|1.0|distance_correlation|NoReadOut|GATv4": {
+  "parkinsons|1.0|distance_correlation|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|distance_correlation|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -9899,9 +9899,9 @@
     "auroc": 0.7833758393923441,
     "auroc_std": 0.0041617668980059
   },
-  "parkinsons|1.0|distance_correlation|OmicsReadOut|GATv4": {
+  "parkinsons|1.0|distance_correlation|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|distance_correlation|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -9919,9 +9919,9 @@
     "auroc": 0.7729060451189677,
     "auroc_std": 0.0239690752161241
   },
-  "parkinsons|0.3|random|NoReadOut|GATv4": {
+  "parkinsons|0.3|random|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -9939,9 +9939,9 @@
     "auroc": 0.5768495003382365,
     "auroc_std": 0.0663472518203996
   },
-  "parkinsons|0.3|random|OmicsReadOut|GATv4": {
+  "parkinsons|0.3|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -9959,9 +9959,9 @@
     "auroc": 0.7523384292920431,
     "auroc_std": 0.0306144726883293
   },
-  "parkinsons|0.5|random|NoReadOut|GATv4": {
+  "parkinsons|0.5|random|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -9979,9 +9979,9 @@
     "auroc": 0.5785501599311829,
     "auroc_std": 0.1000819991648492
   },
-  "parkinsons|0.5|random|OmicsReadOut|GATv4": {
+  "parkinsons|0.5|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -9999,9 +9999,9 @@
     "auroc": 0.7731717626253763,
     "auroc_std": 0.0105246316548415
   },
-  "parkinsons|0.8|random|NoReadOut|GATv4": {
+  "parkinsons|0.8|random|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -10019,9 +10019,9 @@
     "auroc": 0.5474064946174622,
     "auroc_std": 0.078577509666228
   },
-  "parkinsons|0.8|random|OmicsReadOut|GATv4": {
+  "parkinsons|0.8|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -10039,9 +10039,9 @@
     "auroc": 0.6703869104385376,
     "auroc_std": 0.0271670102245169
   },
-  "parkinsons|1.0|random|NoReadOut|GATv4": {
+  "parkinsons|1.0|random|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|random|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -10059,9 +10059,9 @@
     "auroc": 0.5483631292978922,
     "auroc_std": 0.0352563094204973
   },
-  "parkinsons|1.0|random|OmicsReadOut|GATv4": {
+  "parkinsons|1.0|random|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|random|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,
@@ -10079,9 +10079,9 @@
     "auroc": 0.6717687249183655,
     "auroc_std": 0.115220857149393
   },
-  "parkinsons|0.3|variance|NoReadOut|GATv4": {
+  "parkinsons|0.3|variance|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.3,
@@ -10099,9 +10099,9 @@
     "auroc": 0.7051445643107096,
     "auroc_std": 0.0738952389326075
   },
-  "parkinsons|0.3|variance|OmicsReadOut|GATv4": {
+  "parkinsons|0.3|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.3|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.3,
@@ -10119,9 +10119,9 @@
     "auroc": 0.7109375397364298,
     "auroc_std": 0.0230006395013047
   },
-  "parkinsons|0.5|variance|NoReadOut|GATv4": {
+  "parkinsons|0.5|variance|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.5,
@@ -10139,9 +10139,9 @@
     "auroc": 0.6448766986529032,
     "auroc_std": 0.1244792698690338
   },
-  "parkinsons|0.5|variance|OmicsReadOut|GATv4": {
+  "parkinsons|0.5|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.5|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.5,
@@ -10159,9 +10159,9 @@
     "auroc": 0.7517538666725159,
     "auroc_std": 0.0559191741987988
   },
-  "parkinsons|0.8|variance|NoReadOut|GATv4": {
+  "parkinsons|0.8|variance|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 0.8,
@@ -10179,9 +10179,9 @@
     "auroc": 0.6582695841789246,
     "auroc_std": 0.0731643942108083
   },
-  "parkinsons|0.8|variance|OmicsReadOut|GATv4": {
+  "parkinsons|0.8|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|0.8|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 0.8,
@@ -10199,9 +10199,9 @@
     "auroc": 0.7193345824877421,
     "auroc_std": 0.029524303406451
   },
-  "parkinsons|1.0|variance|NoReadOut|GATv4": {
+  "parkinsons|1.0|variance|NoReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|variance|NoReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "NoReadOut",
     "node_sample_ratio": 1.0,
@@ -10219,9 +10219,9 @@
     "auroc": 0.6211734811464945,
     "auroc_std": 0.105822690880859
   },
-  "parkinsons|1.0|variance|OmicsReadOut|GATv4": {
+  "parkinsons|1.0|variance|OmicsReadOut|MLA-GNN": {
     "graph_config": "parkinsons|1.0|variance|OmicsReadOut",
-    "model": "GATv4",
+    "model": "MLA-GNN",
     "dataset": "parkinsons",
     "readout": "OmicsReadOut",
     "node_sample_ratio": 1.0,

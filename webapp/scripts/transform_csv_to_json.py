@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Model name mapping: CSV name -> Display name
 MODEL_NAME_MAP = {
-    'GATv4': 'GATv4',
+    'GATv4': 'MLA-GNN',
     'gatv2': 'GATv2',
     'gcn': 'GCN',
     'gin': 'GIN',
