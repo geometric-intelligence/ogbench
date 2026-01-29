@@ -1,17 +1,10 @@
-import type { ResultEntry, GraphStats, LeaderboardEntry, ModelCategory, DatasetName, RankingMetric, DisplayMetric } from './types';
+import type { ResultEntry, GraphStats, LeaderboardEntry, DatasetName, RankingMetric, DisplayMetric } from './types';
 import { MODEL_CATEGORIES } from './constants';
 
 // Helper to compute mean of array
 function mean(arr: number[]): number {
   if (arr.length === 0) return 0;
   return arr.reduce((a, b) => a + b, 0) / arr.length;
-}
-
-// Helper to compute pooled standard deviation from individual stds
-function pooledStd(stds: number[]): number {
-  if (stds.length === 0) return 0;
-  // For simplicity, use mean of stds (approximation)
-  return mean(stds);
 }
 
 // Get the value and std fields for a ranking metric (can be val or test metrics)

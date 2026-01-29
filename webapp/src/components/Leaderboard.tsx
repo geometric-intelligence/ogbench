@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 // Dynamically import Plotly to avoid SSR issues
 const Plot = lazy(() => import('react-plotly.js'));
 import type { ResultEntry, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
-import { DATASETS, MODEL_CATEGORIES, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS } from '../lib/constants';
+import { DATASETS, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS } from '../lib/constants';
 import { computeLeaderboard, filterResults, getModelsByDataset } from '../lib/data';
 
 export default function Leaderboard() {
@@ -235,7 +235,7 @@ export default function Leaderboard() {
         legendgroup: 'ElasticNet',
         xaxis: xAxisId,
         yaxis: yAxisId,
-        hoverinfo: 'name+y',
+        hoverinfo: 'y+name',
         connectgaps: true,
       } as Plotly.Data);
     }
@@ -253,7 +253,7 @@ export default function Leaderboard() {
         legendgroup: 'SVM',
         xaxis: xAxisId,
         yaxis: yAxisId,
-        hoverinfo: 'name+y',
+        hoverinfo: 'y+name',
         connectgaps: true,
       } as Plotly.Data);
     }

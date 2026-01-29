@@ -179,7 +179,7 @@ export default function Explorer() {
               min={0}
               max={VALID_RATIOS.length - 1}
               step={1}
-              value={VALID_RATIOS.indexOf(nodeSampleRatio)}
+              value={VALID_RATIOS.indexOf(nodeSampleRatio as typeof VALID_RATIOS[number])}
               onChange={(e) => setNodeSampleRatio(VALID_RATIOS[parseInt(e.target.value)])}
             />
             <div className="flex justify-between text-xs text-text-muted mt-1">
