@@ -193,3 +193,5 @@ logs/
 datasets/
 run_data/
 *.csv
+*.pdf
+*.json

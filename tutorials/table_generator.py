@@ -6,8 +6,10 @@ import wandb
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from typing import Iterable, Optional, Sequence, Any, List
+from typing import Optional
 from wandb.errors import CommError
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 
 # ---------------------------------------------------------------------
@@ -26,101 +28,65 @@ def flatten_config(config, parent_key='', sep='.'):
 
 
 # ---------------------------------------------------------------------
-# Retry helper for handling transient API errors
+# Thread-local storage for wandb API instances (reuse across fetches)
 # ---------------------------------------------------------------------
-def retryable_iterator(iterator, max_retries=5, initial_delay=2.0, max_delay=60.0, backoff_factor=2.0):
-    """Wrap an iterator to retry on CommError during iteration.
-    
-    This handles cases where wandb's paginator fails when loading new pages.
-    """
-    delay = initial_delay
-    iterator_obj = iter(iterator)
-    
-    while True:
-        try:
-            yield next(iterator_obj)
-            # Reset delay on successful iteration
-            delay = initial_delay
-        except StopIteration:
-            break
-        except (CommError, Exception) as e:
-            # Check if it's a retryable error
-            is_retryable = False
-            if isinstance(e, CommError):
-                is_retryable = True
-            elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                is_retryable = e.response.status_code in [502, 503, 504, 429]
-            elif '502' in str(e) or '503' in str(e) or '504' in str(e) or '429' in str(e):
-                is_retryable = True
-            
-            if is_retryable and max_retries > 0:
-                print(f"\n⚠ Pagination error during iteration: {str(e)[:100]}")
-                print(f"   Retrying iteration in {delay:.1f} seconds... (max_retries={max_retries})")
-                time.sleep(delay)
-                delay = min(delay * backoff_factor, max_delay)
-                max_retries -= 1
-                # Try to get a fresh iterator - this is tricky with wandb's paginator
-                # For now, we'll just retry the same iterator
-                try:
-                    yield next(iterator_obj)
-                    delay = initial_delay  # Reset on success
-                except StopIteration:
-                    break
-            else:
-                # Non-retryable or out of retries
-                raise
+_thread_local = threading.local()
 
 
-def retry_with_backoff(func, max_retries=5, initial_delay=1.0, max_delay=60.0, backoff_factor=2.0):
-    """Retry a function with exponential backoff on CommError or HTTP errors.
-    
-    Args:
-        func: Function to retry (should be a callable that takes no arguments)
-        max_retries: Maximum number of retry attempts
-        initial_delay: Initial delay in seconds before first retry
-        max_delay: Maximum delay in seconds between retries
-        backoff_factor: Multiplier for delay after each retry
-        
-    Returns:
-        Result of the function call
-        
-    Raises:
-        Last exception if all retries fail
-    """
-    delay = initial_delay
-    last_exception = None
-    
-    for attempt in range(max_retries + 1):
-        try:
-            return func()
-        except (CommError, Exception) as e:
-            last_exception = e
-            # Check if it's a retryable error (502, 503, 504, or CommError)
-            is_retryable = False
-            if isinstance(e, CommError):
-                is_retryable = True
-            elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                is_retryable = e.response.status_code in [502, 503, 504, 429]
-            elif '502' in str(e) or '503' in str(e) or '504' in str(e) or '429' in str(e):
-                is_retryable = True
-            
-            if attempt < max_retries and is_retryable:
-                print(f"\n⚠ API error (attempt {attempt + 1}/{max_retries + 1}): {str(e)[:100]}")
-                print(f"   Retrying in {delay:.1f} seconds...")
-                time.sleep(delay)
-                delay = min(delay * backoff_factor, max_delay)
-            else:
-                if not is_retryable:
-                    # Non-retryable error, raise immediately
-                    raise
-                # All retries exhausted
-                raise last_exception
-    
-    raise last_exception
+def _get_thread_api(timeout=180):
+    """Get or create a thread-local wandb API instance."""
+    if not hasattr(_thread_local, 'api'):
+        _thread_local.api = wandb.Api(timeout=timeout)
+    return _thread_local.api
+
+
+def _is_retryable_error(e):
+    """Check if an exception is retryable (rate limit, timeout, server errors)."""
+    if isinstance(e, CommError):
+        return True
+    error_str = str(e).lower()
+    if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+        return e.response.status_code in [429, 500, 502, 503, 504]
+    retryable_patterns = ['429', '500', '502', '503', '504', 'timeout', 'timed out', 
+                          'server error', 'try again', 'connection', 'reset']
+    return any(p in error_str for p in retryable_patterns)
 
 
 # ---------------------------------------------------------------------
-# Load runs from W&B or from a cached CSV
+# Extract data from a run object (already loaded, no additional API call)
+# ---------------------------------------------------------------------
+def _extract_run_data(run):
+    """Extract data from a wandb Run object.
+    
+    The run object is already loaded from iteration - we just extract its data.
+    Accessing config/summary may trigger lazy loading but is faster than re-fetching.
+    """
+    try:
+        cfg = run.config.copy() if run.config else {}
+        cfg_flat = flatten_config(cfg)
+        
+        row = {
+            "run_id": run.id,
+            "run_name": run.name,
+            "state": run.state,
+        }
+        
+        # Add all summary metrics (only simple types)
+        if run.summary:
+            for key, value in run.summary.items():
+                if isinstance(value, (int, float, str, bool)) or value is None:
+                    row[f"summary.{key}"] = value
+        
+        # Add all config parameters
+        row.update(cfg_flat)
+        return ("success", row)
+        
+    except Exception as e:
+        return ("failed", (run.id, str(e)))
+
+
+# ---------------------------------------------------------------------
+# Load runs from W&B or from a cached CSV - STREAMING APPROACH
 # ---------------------------------------------------------------------
 def load_results_dataframe(
     wandb_username,
@@ -129,290 +95,241 @@ def load_results_dataframe(
     force_load=False,
     save_csv=True,
     filters=None,
+    batch_size=500,
+    per_page=50,
+    fetch_recent_only=True,
+    early_stop_threshold=100,
 ):
-    """Load results from W&B and return a DataFrame with all available metrics and configs.
+    """Load results from W&B with efficient streaming and incremental saves.
     
-    If a CSV file exists and has fewer runs than the W&B project, only new runs will be
-    fetched and appended to the existing CSV (much faster than reloading everything).
+    Key features:
+    - Streams runs directly from API (no separate ID collection phase)
+    - Extracts data from run objects during iteration (efficient)
+    - Saves to CSV every batch_size runs (resumable)
+    - Skips already-fetched runs automatically
+    - On error: saves progress and retries, properly resuming
+    - NEW: fetch_recent_only mode fetches newest runs first and stops early
+    
+    Args:
+        wandb_username: W&B username/entity
+        wandb_project: W&B project name
+        csv_filename: Output CSV filename
+        force_load: If True, reload all runs even if CSV exists
+        save_csv: If True, save results to CSV incrementally
+        filters: Optional filters for W&B API
+        batch_size: Runs to process before saving to CSV (default: 500)
+        per_page: Runs per API page request (default: 50, lower = more stable)
+        fetch_recent_only: If True, fetch newest runs first and stop early when
+                          hitting existing runs (default: True). Much faster for
+                          incremental updates.
+        early_stop_threshold: When fetch_recent_only=True, stop after hitting this
+                             many consecutive runs that are already in CSV (default: 100)
     """
     if filters is None:
         filters = {}
 
-    # Increase timeout and reduce per_page to avoid overwhelming the API
-    api = wandb.Api(timeout=300)  # 5 minute timeout
-    all_runs = api.runs(f"{wandb_username}/{wandb_project}", filters=filters, per_page=100)
-
-    # Check if CSV exists and if we should do incremental update
-    if os.path.exists(csv_filename) and not force_load:
-        df_existing = pd.read_csv(csv_filename)
-        existing_run_ids = set(df_existing['run_id'].astype(str))
-        n_existing = len(df_existing)
+    runs_path = f"{wandb_username}/{wandb_project}"
+    max_retries = 10
+    retry_delay = 5.0
+    
+    # Main retry loop - each attempt is a fresh start with updated CSV
+    for attempt in range(max_retries):
+        # Load existing CSV to get already-fetched run IDs
+        existing_run_ids = set()
+        existing_columns = None
         
-        print(f"▶ Found existing CSV with {n_existing} runs")
+        if os.path.exists(csv_filename) and not force_load:
+            try:
+                df_existing = pd.read_csv(csv_filename, low_memory=False)
+                existing_run_ids = set(df_existing['run_id'].astype(str))
+                existing_columns = df_existing.columns.tolist()
+                print(f"▶ CSV has {len(existing_run_ids)} runs already saved")
+            except Exception as e:
+                print(f"⚠ Could not read existing CSV: {e}")
+        elif force_load and os.path.exists(csv_filename) and attempt == 0:
+            backup_name = csv_filename.replace('.csv', '_backup.csv')
+            os.rename(csv_filename, backup_name)
+            print(f"▶ Force reload: backed up existing CSV to {backup_name}")
         
-        # Get total count (this is fast - just a metadata query)
-        total_runs_in_wandb = len(all_runs)
-        n_new_expected = total_runs_in_wandb - n_existing
+        # Get total count for progress bar
+        if attempt == 0:
+            print(f"▶ Connecting to W&B project: {runs_path}")
         
-        if n_new_expected > 0:
-            print(f"▶ Found {n_new_expected} new runs in W&B")
-            print(f"▶ Scanning runs to find new ones (checking IDs only, fast)...")
+        try:
+            api = wandb.Api(timeout=300)
+            total_runs = len(api.runs(runs_path, filters=filters))
+            new_to_fetch = max(0, total_runs - len(existing_run_ids))
             
-            # Fast method: iterate once through all runs, check IDs (fast metadata access),
-            # and only fetch full data for new runs
-            records = []
-            failed_runs = []
-            n_new = 0
-            n_checked = 0
+            if attempt == 0:
+                print(f"▶ Total runs in project: {total_runs}")
+                print(f"▶ New runs to fetch: {new_to_fetch}")
             
-            # Iterate through all runs once
-            # Wrap iteration in retry logic to handle pagination errors
-            iteration_retries = 3
-            iteration_delay = 5.0
-            
-            while iteration_retries >= 0:
-                try:
-                    for run in tqdm(all_runs, desc="Scanning for new runs", unit="run", total=total_runs_in_wandb):
-                        n_checked += 1
-                        
-                        # Add delays to avoid rate limiting
-                        if n_checked % 50 == 0:
-                            # Longer pause every 50 runs
-                            time.sleep(1.0)
-                        elif n_checked % 10 == 0:
-                            # Shorter pause every 10 runs
-                            time.sleep(0.2)
-                        
-                        # Check run.id (this is fast - just metadata, no full data fetch)
-                        # Wrap in retry logic to handle transient errors
-                        try:
-                            # Access run.id with retry - this might trigger API calls
-                            run_id_str = retry_with_backoff(
-                                lambda: str(run.id),
-                                max_retries=3,
-                                initial_delay=2.0,
-                                max_delay=30.0
-                            )
-                        except Exception as e:
-                            print(f"\n⚠ Failed to get run ID (attempt {n_checked}): {e}")
-                            failed_runs.append((None, None, f"Failed to get run ID: {str(e)}"))
-                            # Add a longer delay before continuing to next run
-                            time.sleep(2.0)
-                            continue
-                        
-                        # Only process if this run is new
-                        if run_id_str not in existing_run_ids:
-                            n_new += 1
-                            try:
-                                # Now fetch full data for this new run (this is the slow part, but only for new runs)
-                                # Wrap all run data access in retry logic
-                                def fetch_run_data():
-                                    cfg = run.config.copy() or {}
-                                    cfg_flat = flatten_config(cfg)
-
-                                    row = {
-                                        "run_id": run.id,
-                                        "run_name": run.name,
-                                        "state": run.state,
-                                    }
-
-                                    # Add all summary metrics (only simple types)
-                                    if run.summary:
-                                        for key, value in run.summary.items():
-                                            if isinstance(value, (int, float, str, bool)) or value is None:
-                                                row[f"summary.{key}"] = value
-
-                                    # Add all config parameters
-                                    row.update(cfg_flat)
-                                    return row
-                                
-                                row = retry_with_backoff(
-                                    fetch_run_data,
-                                    max_retries=3,
-                                    initial_delay=2.0,
-                                    max_delay=30.0
-                                )
-                                records.append(row)
-                            except Exception as e:
-                                print(f"\n⚠ Failed to fetch run {run_id_str}: {e}")
-                                failed_runs.append((run_id_str, None, str(e)))
-                                # Add a longer delay after a failure
-                                time.sleep(2.0)
-                                continue
-                            
-                            # Early exit optimization: if we've found all expected new runs and checked enough,
-                            # we can stop (assuming runs are roughly ordered)
-                            if n_new >= n_new_expected and n_checked > n_existing + n_new_expected * 2:
-                                print(f"▶ Found all expected new runs, stopping early...")
-                                break
-                    
-                    # If we complete the iteration successfully, break out of retry loop
-                    break
-                    
-                except (CommError, Exception) as e:
-                    # Check if it's a retryable pagination error
-                    is_retryable = False
-                    if isinstance(e, CommError):
-                        is_retryable = True
-                    elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                        is_retryable = e.response.status_code in [502, 503, 504, 429]
-                    elif '502' in str(e) or '503' in str(e) or '504' in str(e) or '429' in str(e):
-                        is_retryable = True
-                    
-                    if is_retryable and iteration_retries > 0:
-                        print(f"\n⚠ Pagination error during iteration (checked {n_checked} runs, found {n_new} new): {str(e)[:100]}")
-                        print(f"   Server suggests waiting 30 seconds. Waiting {iteration_delay:.1f} seconds... ({iteration_retries} retries left)")
-                        time.sleep(iteration_delay)
-                        iteration_delay = min(iteration_delay * 2, 60.0)
-                        iteration_retries -= 1
-                        # Save progress so far before retrying
-                        if len(records) > 0:
-                            print(f"   Saving {len(records)} new runs collected so far...")
-                            df_new_temp = pd.DataFrame(records)
-                            # Ensure column alignment
-                            all_columns = set(df_existing.columns) | set(df_new_temp.columns)
-                            for col in all_columns:
-                                if col not in df_existing.columns:
-                                    df_existing[col] = None
-                                if col not in df_new_temp.columns:
-                                    df_new_temp[col] = None
-                            df_new_temp = df_new_temp[df_existing.columns]
-                            df_temp = pd.concat([df_existing, df_new_temp], ignore_index=True)
-                            if save_csv:
-                                df_temp.to_csv(csv_filename, index=False)
-                                print(f"   Progress saved to {csv_filename}")
-                        # Get a fresh iterator
-                        all_runs = api.runs(f"{wandb_username}/{wandb_project}", filters=filters, per_page=100)
-                        print(f"   Retrying iteration (will skip already processed runs)...")
-                        # Note: We can't easily skip already processed runs with wandb's paginator,
-                        # but since we check run_id against existing_run_ids, duplicates won't be added
-                    else:
-                        # Non-retryable or out of retries - save what we have
-                        if len(records) > 0:
-                            print(f"\n⚠ Saving {len(records)} runs collected before error...")
-                            df_new_temp = pd.DataFrame(records)
-                            all_columns = set(df_existing.columns) | set(df_new_temp.columns)
-                            for col in all_columns:
-                                if col not in df_existing.columns:
-                                    df_existing[col] = None
-                                if col not in df_new_temp.columns:
-                                    df_new_temp[col] = None
-                            df_new_temp = df_new_temp[df_existing.columns]
-                            df_temp = pd.concat([df_existing, df_new_temp], ignore_index=True)
-                            if save_csv:
-                                df_temp.to_csv(csv_filename, index=False)
-                        print(f"\n❌ Fatal error during iteration after {iteration_retries} retries: {e}")
-                        print(f"   Processed {n_checked} runs, found {n_new} new runs before error")
-                        raise
-            
-            print(f"▶ Found {n_new} new runs to add (checked {n_checked} runs total)")
-            
-            if failed_runs:
-                print(f"⚠ Warning: Failed to fetch {len(failed_runs)} new runs out of {n_new}")
-            
-            if n_new > 0 and len(records) > 0:
-                # Create DataFrame for new runs
-                df_new = pd.DataFrame(records)
+            if new_to_fetch == 0:
+                print(f"▶ All runs already saved! Loading CSV...")
+                df = pd.read_csv(csv_filename, low_memory=False)
+                print(f"▶ DataFrame shape: {df.shape}")
+                return df
                 
-                # Ensure column alignment (add missing columns to both dataframes)
-                all_columns = set(df_existing.columns) | set(df_new.columns)
-                for col in all_columns:
-                    if col not in df_existing.columns:
-                        df_existing[col] = None
-                    if col not in df_new.columns:
-                        df_new[col] = None
-                
-                # Reorder columns to match
-                df_new = df_new[df_existing.columns]
-                
-                # Append new runs to existing dataframe
-                df = pd.concat([df_existing, df_new], ignore_index=True)
-                
-                if save_csv:
-                    df.to_csv(csv_filename, index=False)
-                    print(f"▶ Appended {len(df_new)} new runs to CSV. Total runs: {len(df)}")
-            else:
-                if n_new == 0:
-                    print(f"▶ No new runs found in recent runs. Using existing CSV.")
-                else:
-                    print(f"▶ No new runs were successfully fetched. Using existing CSV.")
-                df = df_existing
-        else:
-            print(f"▶ CSV already has all runs (or more). Using existing CSV.")
-            df = df_existing
-    else:
-        # Full load: fetch all runs
-        print(f"▶ Fetching all runs from W&B...")
+        except Exception as e:
+            print(f"⚠ Could not get run count: {e}")
+            total_runs = None
+            new_to_fetch = None
+        
+        # Stream and process runs
+        # When fetch_recent_only=True, sort by newest first for faster incremental updates
+        order_str = "-created_at" if fetch_recent_only else None
+        mode_str = "newest-first" if fetch_recent_only else "default order"
+        print(f"\n▶ Attempt {attempt + 1}/{max_retries}: Streaming runs ({mode_str}, batch={batch_size}, page={per_page})...")
+        if fetch_recent_only:
+            print(f"   Early stop after {early_stop_threshold} consecutive existing runs")
         
         records = []
         failed_runs = []
-        n_processed = 0
-        for run in tqdm(all_runs, desc="Fetching runs", unit="run"):
-            n_processed += 1
+        iter_count = 0
+        new_count = 0
+        saved_this_attempt = 0
+        consecutive_existing = 0  # Track consecutive runs already in CSV
+        early_stopped = False
+        
+        pbar = tqdm(desc="Fetching", unit="runs", total=new_to_fetch if fetch_recent_only else total_runs)
+        
+        try:
+            api = wandb.Api(timeout=300)
+            runs = api.runs(runs_path, filters=filters, per_page=per_page, order=order_str)
             
-            # Add delays to avoid rate limiting
-            if n_processed % 50 == 0:
-                # Longer pause every 50 runs
-                time.sleep(1.0)
-            elif n_processed % 10 == 0:
-                # Shorter pause every 10 runs
-                time.sleep(0.2)
-            
-            try:
-                # Wrap all run data access in retry logic
-                def fetch_run_data():
-                    cfg = run.config.copy() or {}
-                    cfg_flat = flatten_config(cfg)
-
-                    row = {
-                        "run_id": run.id,
-                        "run_name": run.name,
-                        "state": run.state,
-                    }
-
-                    # Add all summary metrics (only simple types)
-                    if run.summary:
-                        for key, value in run.summary.items():
-                            if isinstance(value, (int, float, str, bool)) or value is None:
-                                row[f"summary.{key}"] = value
-
-                    # Add all config parameters
-                    row.update(cfg_flat)
-                    return row
+            for run in runs:
+                run_id = str(run.id)
+                iter_count += 1
                 
-                row = retry_with_backoff(
-                    fetch_run_data,
-                    max_retries=3,
-                    initial_delay=2.0,
-                    max_delay=30.0
-                )
-                records.append(row)
-            except Exception as e:
-                run_id = getattr(run, 'id', 'unknown')
-                run_name = getattr(run, 'name', 'unknown')
-                print(f"\n⚠ Failed to fetch run {run_id} ({run_name}): {e}")
-                failed_runs.append((run_id, run_name, str(e)))
-                # Add a longer delay after a failure
-                time.sleep(2.0)
-                continue
+                # Skip if already in CSV
+                if run_id in existing_run_ids:
+                    consecutive_existing += 1
+                    pbar.set_postfix({
+                        "new": new_count,
+                        "consec_exist": consecutive_existing,
+                        "saved": saved_this_attempt
+                    })
+                    
+                    # Early stop if we've hit many consecutive existing runs
+                    if fetch_recent_only and consecutive_existing >= early_stop_threshold:
+                        early_stopped = True
+                        print(f"\n▶ Early stop: hit {consecutive_existing} consecutive existing runs")
+                        break
+                    continue
+                
+                # Reset consecutive counter when we find a new run
+                consecutive_existing = 0
+                pbar.update(1)
+                
+                # Extract data from run object
+                status, result = _extract_run_data(run)
+                
+                if status == "success":
+                    records.append(result)
+                    existing_run_ids.add(run_id)
+                    new_count += 1
+                else:
+                    failed_runs.append(result)
+                
+                pbar.set_postfix({
+                    "new": new_count,
+                    "consec_exist": consecutive_existing,
+                    "saved": saved_this_attempt
+                })
+                
+                # Save batch to CSV
+                if save_csv and len(records) >= batch_size:
+                    existing_columns = _save_batch_to_csv(
+                        records, csv_filename, existing_columns
+                    )
+                    saved_this_attempt += len(records)
+                    records = []
+            
+            pbar.close()
+            
+            # Save remaining records
+            if save_csv and records:
+                existing_columns = _save_batch_to_csv(records, csv_filename, existing_columns)
+                saved_this_attempt += len(records)
+            
+            # Success! 
+            if early_stopped:
+                print(f"▶ Complete (early stopped)!")
+            else:
+                print(f"\n▶ Complete!")
+            print(f"   Iterated: {iter_count} runs")
+            print(f"   New runs saved this session: {saved_this_attempt}")
+            print(f"   Total in CSV: {len(existing_run_ids)}")
+            if failed_runs:
+                print(f"   Failed: {len(failed_runs)}")
+            
+            df = pd.read_csv(csv_filename, low_memory=False)
+            print(f"▶ Final DataFrame shape: {df.shape}")
+            return df
+            
+        except Exception as e:
+            pbar.close()
+            
+            # Save what we have before retrying
+            if save_csv and records:
+                existing_columns = _save_batch_to_csv(records, csv_filename, existing_columns)
+                saved_this_attempt += len(records)
+                records = []
+            
+            if _is_retryable_error(e) and attempt < max_retries - 1:
+                wait_time = retry_delay * (1.5 ** attempt) + np.random.random() * 3
+                print(f"\n⚠ Error at iteration {iter_count}: {str(e)[:80]}")
+                print(f"   Saved {saved_this_attempt} runs this attempt")
+                print(f"   Retrying in {wait_time:.1f}s... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                print(f"\n✗ Fatal error after {attempt + 1} attempts: {e}")
+                break
+    
+    # Return whatever we have
+    if os.path.exists(csv_filename):
+        df = pd.read_csv(csv_filename, low_memory=False)
+        print(f"▶ Partial results - DataFrame shape: {df.shape}")
+        return df
+    return pd.DataFrame()
+
+
+def _save_batch_to_csv(records, csv_filename, existing_columns=None):
+    """Save a batch of records to CSV, handling column alignment."""
+    if not records:
+        return existing_columns
+    
+    df_new = pd.DataFrame(records)
+    
+    if os.path.exists(csv_filename):
+        # Read existing to align columns
+        if existing_columns is None:
+            df_existing = pd.read_csv(csv_filename, nrows=0)
+            existing_columns = df_existing.columns.tolist()
         
-        if failed_runs:
-            print(f"\n⚠ Warning: Failed to fetch {len(failed_runs)} runs out of {total_runs_in_wandb}")
+        # Find new columns
+        new_cols = [c for c in df_new.columns if c not in existing_columns]
         
-        df = pd.DataFrame(records)
-
-        if save_csv:
-            df.to_csv(csv_filename, index=False)
-            print(f"▶ Saved results to: {csv_filename}")
-
-    print(f"▶ DataFrame shape: {df.shape}")
-    print(f"\n▶ Column names ({len(df.columns)} total):")
-    print("-" * 80)
-    for i, col in enumerate(df.columns, 1):
-        print(f"{i:3d}. {col}")
-    print("-" * 80)
-
-    return df
+        if new_cols:
+            # Add new columns to existing file
+            df_existing = pd.read_csv(csv_filename, low_memory=False)
+            for col in new_cols:
+                df_existing[col] = None
+            df_existing.to_csv(csv_filename, index=False)
+            existing_columns = df_existing.columns.tolist()
+        
+        # Align new data columns and append
+        for col in existing_columns:
+            if col not in df_new.columns:
+                df_new[col] = None
+        df_new = df_new[existing_columns]
+        df_new.to_csv(csv_filename, mode='a', header=False, index=False)
+    else:
+        # Create new file
+        df_new.to_csv(csv_filename, index=False)
+        existing_columns = df_new.columns.tolist()
+    
+    return existing_columns
 
 
 # ---------------------------------------------------------------------
