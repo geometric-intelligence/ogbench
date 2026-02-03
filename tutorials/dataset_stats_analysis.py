@@ -37,26 +37,17 @@ def load_dataset(
 
     train_val_test_split = OmegaConf.create([0.7, 0.15, 0.15])
 
-    if node_sample_ratio == 'full':
-        dataset = HFOmicsDataset(
-            root='/home/johmathe/bgbench/run_data/omics',
-            data_name=dataset_name,
-            method=method,
-            adjacency_threshold=adj_thresh,
-            node_sample_ratio=None,
-            train_val_test_split=train_val_test_split,
-            imputation_method='mean',
-        )
-    else:
-        dataset = HFOmicsDataset(
-            root='/home/johmathe/bgbench/run_data/omics',
-            data_name=dataset_name,
-            method=method,
-            adjacency_threshold=adj_thresh,
-            node_sample_ratio=float(node_sample_ratio),
-            train_val_test_split=train_val_test_split,
-            imputation_method='mean',
-        )
+    # Pass 'full' as string, not None, because HFOmicsDataset checks for 'full' string
+    ratio_value = 'full' if node_sample_ratio == 'full' else float(node_sample_ratio)
+    dataset = HFOmicsDataset(
+        root='/home/louisa/code/bgbench-1/run_data/omics',
+        data_name=dataset_name,
+        method=method,
+        adjacency_threshold=adj_thresh,
+        node_sample_ratio=ratio_value,
+        train_val_test_split=train_val_test_split,
+        imputation_method='mean',
+    )
 
     return dataset
 
@@ -85,7 +76,7 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
             graph.add_nodes_from(range(num_nodes))
             graph.add_edges_from(edge_list)
         else:
-            root = '/home/johmathe/bgbench/run_data/omics/'
+            root = '/home/louisa/code/bgbench-1/run_data/omics/'
             name = osp.join(
                 root,
                 f'{dataset.data_name}',
@@ -307,7 +298,7 @@ def main():
     parser.add_argument(
         '--datasets',
         nargs='+',
-        default=['addneuromed', 'parkinsons', 'covidaki', 'motrpac'],
+        default=['addneuromed', 'parkinsons', 'motrpac'],
         help='List of datasets to process',
     )
     parser.add_argument(
