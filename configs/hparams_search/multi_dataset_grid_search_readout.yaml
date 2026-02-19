@@ -2,8 +2,8 @@
 # Used by scripts/hyperparam_search.py
 
 datasets:
-  - parkinsons
-  - addneuromed
+  # - parkinsons
+  # - addneuromed
   - motrpac
 
 models:

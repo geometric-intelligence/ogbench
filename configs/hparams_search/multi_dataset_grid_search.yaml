@@ -37,10 +37,10 @@ shared_grid:
   optimizer.parameters.lr:
     - 0.0001
     - 0.001
-    - 0.01
+    #- 0.01
   optimizer.parameters.weight_decay:
     - 0.0
-    - 0.0001
+    #  - 0.0001
     - 0.001
   model.backbone.dropout:
     - 0.1
@@ -76,7 +76,7 @@ per_model_grid:
     model.backbone.num_layers:
       - 2
       - 4
-      - 8
+      #- 8
     model.backbone.heads:
       - 4
       - 8
