@@ -367,6 +367,16 @@ def build_run_configs(
 
                                 # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
                                 readout_name = final_hp_combo.get('model.readout.readout_name')
+                                # Auto-set fc_dropout to match backbone.dropout if not explicitly set
+                                if (
+                                    readout_name != 'NoReadOut'
+                                    and 'model.readout.fc_dropout' not in final_hp_combo
+                                    and 'model.backbone.dropout' in final_hp_combo
+                                ):
+                                    final_hp_combo['model.readout.fc_dropout'] = final_hp_combo[
+                                        'model.backbone.dropout'
+                                    ]
+
                                 for key, value in final_hp_combo.items():
                                     if readout_name == 'NoReadOut' and key in (
                                         'model.readout.fc_dim',
@@ -413,6 +423,16 @@ def build_run_configs(
                         overrides.append(to_override(key, value))
 
                     # Add hyperparameters
+                    # Auto-set fc_dropout to match backbone.dropout if not explicitly set
+                    readout_name = hp_combo.get('model.readout.readout_name')
+                    if (
+                        readout_name
+                        and readout_name != 'NoReadOut'
+                        and 'model.readout.fc_dropout' not in hp_combo
+                        and 'model.backbone.dropout' in hp_combo
+                    ):
+                        hp_combo['model.readout.fc_dropout'] = hp_combo['model.backbone.dropout']
+
                     for key, value in hp_combo.items():
                         overrides.append(to_override(key, value))
 
