@@ -222,7 +222,7 @@ per_dataset_ratio_method_grid:
   addneuromed,0.5,variance:
     dataset.loader.parameters.adjacency_threshold: [0.1792]
 
-  # ratio=0.8, method=random
+  # ratio=0.5, method=random
   motrpac,0.5,random:
     dataset.loader.parameters.adjacency_threshold: [0.0988]
 
