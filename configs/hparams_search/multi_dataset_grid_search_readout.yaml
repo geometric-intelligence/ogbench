@@ -134,36 +134,6 @@ per_model_grid:
 # Format: "dataset,ratio,method" as key (e.g., "parkinsons,1.0,variance")
 # Organized by ratio and method first, then by dataset
 per_dataset_ratio_method_grid:
-  # ratio=1.25, method=variance
-  motrpac,1.25,variance:
-    dataset.loader.parameters.adjacency_threshold: [0.1178]
-
-  parkinsons,1.25,variance:
-    dataset.loader.parameters.adjacency_threshold: [0.0420]
-
-  addneuromed,1.25,variance:
-    dataset.loader.parameters.adjacency_threshold: [0.3522]
-
-  # ratio=1.25, method=random
-  motrpac,1.25,random:
-    dataset.loader.parameters.adjacency_threshold: [0.0088]
-
-  parkinsons,1.25,random:
-    dataset.loader.parameters.adjacency_threshold: [0.0086]
-
-  addneuromed,1.25,random:
-    dataset.loader.parameters.adjacency_threshold: [0.0092]
-
-  # ratio=1.25, method=correlation
-  motrpac,1.25,correlation:
-    dataset.loader.parameters.adjacency_threshold: [.0094]
-
-  parkinsons,1.25,correlation:
-    dataset.loader.parameters.adjacency_threshold: [0.0090]
-
-  addneuromed,1.25,correlation:
-    dataset.loader.parameters.adjacency_threshold: [0.0618]
-
   # ratio=1.0, method=variance
   motrpac,1.0,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0926]
@@ -193,6 +163,16 @@ per_dataset_ratio_method_grid:
 
   addneuromed,1.0,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0997]
+
+  # ratio=1.0, method=distance_correlation
+  motrpac,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0585]
+
+  parkinsons,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0096]
+
+  addneuromed,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0098]
 
   # ratio=0.8, method=variance
   motrpac,0.8,variance:
@@ -224,6 +204,16 @@ per_dataset_ratio_method_grid:
   addneuromed,0.8,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.1088]
 
+  # ratio=0.8, method=distance_correlation
+  motrpac,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0476]
+
+  parkinsons,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0095]
+
+  addneuromed,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.1769]
+
   # ratio=0.5, method=variance
   motrpac,0.5,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0229]
@@ -253,6 +243,56 @@ per_dataset_ratio_method_grid:
 
   addneuromed,0.5,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0972]
+
+  # ratio=0.5, method=distance_correlation
+  motrpac,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0370]
+
+  parkinsons,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0086]
+
+  addneuromed,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0097]
+
+  # ratio=0.3, method=variance
+  motrpac,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0138]
+
+  parkinsons,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0279]
+
+  addneuromed,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.2390]
+
+  # ratio=0.3, method=random
+  motrpac,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0917]
+
+  parkinsons,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0082]
+
+  addneuromed,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  # ratio=0.3, method=correlation
+  motrpac,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0302]
+
+  parkinsons,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0082]
+
+  addneuromed,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0856]
+
+  # ratio=0.3, method=distance_correlation
+  motrpac,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0253]
+
+  parkinsons,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  addneuromed,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.1409]
 
 # Training settings
 training:
