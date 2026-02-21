@@ -1,161 +1,161 @@
-dataset,adj_thresh,node_sample_ratio,method,num_nodes,num_edges,avg_degree,density_pct,avg_clustering_coeff,largest_cc_ratio_pct,avg_shortest_path_length,num_connected_components,degree_std,error
-motrpac,0.0,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,full,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,full,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,full,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,full,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,1.0,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,1.0,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,1.0,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,1.0,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.5,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.5,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.5,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.5,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.3,variance,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.3,random,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.3,correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.0,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.11,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.22,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.33,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.44,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.56,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.67,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.78,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,0.89,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
-motrpac,1.0,0.3,distance_correlation,,,,,,,,,,[Errno 13] Permission denied: '/home/johmathe'
+dataset,adj_thresh,node_sample_ratio,method,num_nodes,num_edges,avg_degree,density_pct,largest_cc_ratio_pct,num_connected_components,degree_std
+motrpac,0.0,full,variance,4976,7118133,2860.985932475884,57.50725492413837,100.0,1,509.0733706917328
+motrpac,0.11,full,variance,4976,394466,158.54742765273312,3.1868829678941326,55.14469453376206,2150,287.4392025772937
+motrpac,0.22,full,variance,4976,223024,89.63987138263666,1.8018064599524954,33.05868167202573,2922,194.63182255837566
+motrpac,0.33,full,variance,4976,131423,52.82274919614148,1.0617638029375172,26.145498392282956,3408,131.0827265612495
+motrpac,0.44,full,variance,4976,75110,30.188906752411576,0.6068121960283733,20.819935691318328,3746,83.88803404753911
+motrpac,0.56,full,variance,4976,37743,15.170016077170418,0.3049249462747823,13.263665594855306,4098,46.23141011291652
+motrpac,0.67,full,variance,4976,17820,7.162379421221865,0.1439674255521983,9.565916398713826,4372,21.86531042830483
+motrpac,0.78,full,variance,4976,8124,3.265273311897106,0.06563363440999209,5.848070739549839,4621,6.911530966079479
+motrpac,0.89,full,variance,4976,5204,2.0916398713826365,0.042043012490103254,1.7282958199356915,4849,0.7270348175530444
+motrpac,1.0,full,variance,4976,4976,2.0,0.04020100502512563,0.02009646302250804,4976,0.0
+motrpac,0.0,full,random,4976,7118133,2860.985932475884,57.50725492413837,100.0,1,509.0733706917328
+motrpac,0.11,full,random,4976,394466,158.54742765273312,3.1868829678941326,55.14469453376206,2150,287.4392025772937
+motrpac,0.22,full,random,4976,223024,89.63987138263666,1.8018064599524954,33.05868167202573,2922,194.63182255837566
+motrpac,0.33,full,random,4976,131423,52.82274919614148,1.0617638029375172,26.145498392282956,3408,131.0827265612495
+motrpac,0.44,full,random,4976,75110,30.188906752411576,0.6068121960283733,20.819935691318328,3746,83.88803404753911
+motrpac,0.56,full,random,4976,37743,15.170016077170418,0.3049249462747823,13.263665594855306,4098,46.23141011291653
+motrpac,0.67,full,random,4976,17820,7.162379421221865,0.1439674255521983,9.565916398713826,4372,21.865310428304834
+motrpac,0.78,full,random,4976,8124,3.265273311897106,0.06563363440999209,5.848070739549839,4621,6.911530966079479
+motrpac,0.89,full,random,4976,5204,2.0916398713826365,0.042043012490103254,1.7282958199356915,4849,0.7270348175530444
+motrpac,1.0,full,random,4976,4976,2.0,0.04020100502512563,0.02009646302250804,4976,0.0
+motrpac,0.0,full,correlation,4976,7118133,2860.985932475884,57.50725492413837,100.0,1,509.07337069173275
+motrpac,0.11,full,correlation,4976,394466,158.54742765273312,3.1868829678941326,55.14469453376206,2150,287.4392025772937
+motrpac,0.22,full,correlation,4976,223024,89.63987138263666,1.8018064599524954,33.05868167202573,2922,194.63182255837566
+motrpac,0.33,full,correlation,4976,131423,52.82274919614148,1.0617638029375172,26.145498392282956,3408,131.0827265612495
+motrpac,0.44,full,correlation,4976,75110,30.188906752411576,0.6068121960283733,20.819935691318328,3746,83.8880340475391
+motrpac,0.56,full,correlation,4976,37743,15.170016077170418,0.3049249462747823,13.263665594855306,4098,46.23141011291653
+motrpac,0.67,full,correlation,4976,17820,7.162379421221865,0.1439674255521983,9.565916398713826,4372,21.865310428304834
+motrpac,0.78,full,correlation,4976,8124,3.265273311897106,0.06563363440999209,5.848070739549839,4621,6.911530966079479
+motrpac,0.89,full,correlation,4976,5204,2.0916398713826365,0.042043012490103254,1.7282958199356915,4849,0.7270348175530444
+motrpac,1.0,full,correlation,4976,4976,2.0,0.04020100502512563,0.02009646302250804,4976,0.0
+motrpac,0.0,full,distance_correlation,4976,7118133,2860.985932475884,57.50725492413837,100.0,1,509.07337069173275
+motrpac,0.11,full,distance_correlation,4976,394466,158.54742765273312,3.1868829678941326,55.14469453376206,2150,287.4392025772937
+motrpac,0.22,full,distance_correlation,4976,223024,89.63987138263666,1.8018064599524954,33.05868167202573,2922,194.63182255837566
+motrpac,0.33,full,distance_correlation,4976,131423,52.82274919614148,1.0617638029375172,26.145498392282956,3408,131.0827265612495
+motrpac,0.44,full,distance_correlation,4976,75110,30.188906752411576,0.6068121960283733,20.819935691318328,3746,83.88803404753911
+motrpac,0.56,full,distance_correlation,4976,37743,15.170016077170418,0.3049249462747823,13.263665594855306,4098,46.23141011291653
+motrpac,0.67,full,distance_correlation,4976,17820,7.162379421221865,0.1439674255521983,9.565916398713826,4372,21.865310428304834
+motrpac,0.78,full,distance_correlation,4976,8124,3.265273311897106,0.06563363440999209,5.848070739549839,4621,6.911530966079479
+motrpac,0.89,full,distance_correlation,4976,5204,2.0916398713826365,0.042043012490103254,1.7282958199356915,4849,0.7270348175530444
+motrpac,1.0,full,distance_correlation,4976,4976,2.0,0.04020100502512563,0.02009646302250804,4976,0.0
+motrpac,0.0,1.0,variance,457,65839,288.13566739606125,63.187646358785365,100.0,1,96.09800327429971
+motrpac,0.11,1.0,variance,457,9603,42.02625820568928,9.216284694230104,52.078774617067836,176,53.02304698732
+motrpac,0.22,1.0,variance,457,4608,20.166301969365428,4.422434642404699,42.88840262582057,233,29.673915674290768
+motrpac,0.33,1.0,variance,457,2326,10.179431072210066,2.232331375484663,35.667396061269145,271,15.997626099336639
+motrpac,0.44,1.0,variance,457,1206,5.277899343544858,1.1574340665668548,24.945295404814004,327,7.860894930618166
+motrpac,0.56,1.0,variance,457,700,3.063457330415755,0.6718108180736305,14.22319474835886,375,3.2587736270469687
+motrpac,0.67,1.0,variance,457,538,2.3544857768052516,0.5163346001765903,4.157549234135667,414,1.3268588003461057
+motrpac,0.78,1.0,variance,457,474,2.0743982494529543,0.45491189680985833,1.312910284463895,441,0.3546208241554992
+motrpac,0.89,1.0,variance,457,459,2.008752735229759,0.44051595070828053,0.437636761487965,455,0.09314571839734251
+motrpac,1.0,1.0,variance,457,457,2.0,0.43859649122807015,0.2188183807439825,457,0.0
+motrpac,0.0,1.0,random,457,62299,272.6433260393873,59.79020307881301,100.0,1,49.18007953949206
+motrpac,0.11,1.0,random,457,10427,45.63238512035011,10.00710200007678,82.93216630196937,77,47.88649601336598
+motrpac,0.22,1.0,random,457,2771,12.12691466083151,2.6594111098314714,30.85339168490153,279,20.646585327038412
+motrpac,0.33,1.0,random,457,3466,15.168490153172867,3.326423279204576,34.79212253829322,261,25.10982556159026
+motrpac,0.44,1.0,random,457,2377,10.402625820568927,2.2812775922300284,22.75711159737418,316,18.290263390650694
+motrpac,0.56,1.0,random,457,1003,4.389496717724289,0.962608929325502,14.00437636761488,373,7.034561378994925
+motrpac,0.67,1.0,random,457,460,2.0131291028446388,0.44147568044838575,0.6564551422319475,454,0.13165522062574464
+motrpac,0.78,1.0,random,457,497,2.175054704595186,0.4769856808322776,4.157549234135667,429,0.7938434104065608
+motrpac,0.89,1.0,random,457,461,2.017505470459519,0.442435410188491,0.87527352297593,453,0.1610955126416277
+motrpac,1.0,1.0,random,457,457,2.0,0.43859649122807015,0.2188183807439825,457,0.0
+motrpac,0.0,1.0,correlation,457,76474,334.67833698030637,73.39437214480402,100.0,1,94.82442275052136
+motrpac,0.11,1.0,correlation,457,1101,4.818380743982495,1.05666244385581,25.38293216630197,336,6.507683659501714
+motrpac,0.22,1.0,correlation,457,634,2.774617067833698,0.6084686552266881,12.472647702407002,385,2.3010727010382817
+motrpac,0.33,1.0,correlation,457,506,2.2144420131291027,0.4856232484932243,3.7199124726477026,427,0.8961193783708674
+motrpac,0.44,1.0,correlation,457,473,2.0700218818380742,0.45395216706975317,1.0940919037199124,445,0.37933288147715705
+motrpac,0.56,1.0,correlation,457,462,2.0218818380743984,0.44339513992859614,0.437636761487965,452,0.1462977212292935
+motrpac,0.67,1.0,correlation,457,459,2.008752735229759,0.44051595070828053,0.437636761487965,455,0.09314571839734252
+motrpac,0.78,1.0,correlation,457,458,2.0043763676148796,0.4395562209681753,0.437636761487965,456,0.06600920406563833
+motrpac,0.89,1.0,correlation,457,458,2.0043763676148796,0.4395562209681753,0.437636761487965,456,0.06600920406563833
+motrpac,1.0,1.0,correlation,457,457,2.0,0.43859649122807015,0.2188183807439825,457,0.0
+motrpac,0.0,1.0,distance_correlation,457,78333,342.8140043763676,75.17850973165956,100.0,1,81.55626845453115
+motrpac,0.11,1.0,distance_correlation,457,5213,22.814004376367613,5.003071135168337,41.57549234135667,221,34.08604090564677
+motrpac,0.22,1.0,distance_correlation,457,2629,11.5054704595186,2.523129486736535,29.540481400437635,302,20.092686560663243
+motrpac,0.33,1.0,distance_correlation,457,1577,6.901531728665208,1.5134938001458789,21.00656455142232,347,12.442653481575386
+motrpac,0.44,1.0,distance_correlation,457,1056,4.621444201312911,1.0134746055510768,15.317286652078774,380,7.870048176990764
+motrpac,0.56,1.0,distance_correlation,457,690,3.0196936542669586,0.6622135206725787,9.62800875273523,404,3.716667396519256
+motrpac,0.67,1.0,distance_correlation,457,515,2.25382932166302,0.494260816154171,5.908096280087528,426,1.153963580279161
+motrpac,0.78,1.0,distance_correlation,457,462,2.0218818380743984,0.44339513992859614,0.437636761487965,452,0.14629772122929346
+motrpac,0.89,1.0,distance_correlation,457,458,2.0043763676148796,0.4395562209681753,0.437636761487965,456,0.06600920406563833
+motrpac,1.0,1.0,distance_correlation,457,457,2.0,0.43859649122807015,0.2188183807439825,457,0.0
+motrpac,0.0,0.5,variance,914,261774,572.8096280087527,62.73928017620511,100.0,1,194.74091770260188
+motrpac,0.11,0.5,variance,914,15528,33.9781181619256,3.7215901601232857,45.62363238512035,447,53.22880673956728
+motrpac,0.22,0.5,variance,914,6521,14.269146608315099,1.5628857183258595,34.79212253829322,559,25.375425963253907
+motrpac,0.33,0.5,variance,914,3118,6.822757111597374,0.747289935552834,25.38293216630197,661,11.923318393013762
+motrpac,0.44,0.5,variance,914,1692,3.702407002188184,0.4055210298125065,17.067833698030636,734,4.846105917662408
+motrpac,0.56,0.5,variance,914,1140,2.4945295404814005,0.27322338888076675,8.752735229759299,805,1.767835851273694
+motrpac,0.67,0.5,variance,914,978,2.140043763676149,0.23439690730297358,1.75054704595186,867,0.6414514434632325
+motrpac,0.78,0.5,variance,914,926,2.026258205689278,0.22193408605578072,0.437636761487965,902,0.1852604856762952
+motrpac,0.89,0.5,variance,914,917,2.0065645514223194,0.21977705930145888,0.2188183807439825,911,0.08075554523958832
+motrpac,1.0,0.5,variance,914,914,2.0,0.21905805038335158,0.10940919037199125,914,0.0
+motrpac,0.0,0.5,random,914,244417,534.8293216630196,58.57933424567576,100.0,1,94.79751179796185
+motrpac,0.11,0.5,random,914,8548,18.704595185995622,2.0486960773270124,23.413566739606125,611,37.20853530084697
+motrpac,0.22,0.5,random,914,22506,49.2472647702407,5.3940049036408215,63.7855579868709,320,70.25293563379556
+motrpac,0.33,0.5,random,914,13920,30.45951859956236,3.3362013800177834,45.076586433260395,486,53.01963843036704
+motrpac,0.44,0.5,random,914,8958,19.601750547045953,2.146960629468341,22.538293216630198,583,38.36917636549187
+motrpac,0.56,0.5,random,914,1609,3.5207877461706785,0.38562844974487165,9.190371991247265,821,6.111124933851091
+motrpac,0.67,0.5,random,914,1844,4.035010940919038,0.44195081499660865,11.37855579868709,798,7.504256972031762
+motrpac,0.78,0.5,random,914,1637,3.5820568927789935,0.3923391996472063,9.737417943107221,821,6.297714646883301
+motrpac,0.89,0.5,random,914,917,2.0065645514223194,0.21977705930145888,0.2188183807439825,911,0.08075554523958832
+motrpac,1.0,0.5,random,914,914,2.0,0.21905805038335158,0.10940919037199125,914,0.0
+motrpac,0.0,0.5,correlation,914,293843,642.9824945295405,70.42524584113258,100.0,1,174.44032328965957
+motrpac,0.11,0.5,correlation,914,11236,24.58643326039387,2.692928067951136,36.65207877461707,539,42.626381427750836
+motrpac,0.22,0.5,correlation,914,4766,10.428884026258206,1.1422655012331002,27.571115973741794,642,19.898865670960404
+motrpac,0.33,0.5,correlation,914,2417,5.288840262582057,0.5792815183550993,20.350109409190374,716,9.489585802276768
+motrpac,0.44,0.5,correlation,914,1432,3.1334792122538295,0.3432069235765421,11.050328227571116,782,3.8655912861245665
+motrpac,0.56,0.5,correlation,914,1056,2.3107221006564553,0.25309113917376286,6.3457330415754925,839,1.2322059186898227
+motrpac,0.67,0.5,correlation,914,952,2.0831509846827134,0.22816549667937716,0.6564551422319475,887,0.46270128408911676
+motrpac,0.78,0.5,correlation,914,925,2.024070021881838,0.2216944164164116,0.437636761487965,904,0.18555747078909282
+motrpac,0.89,0.5,correlation,914,918,2.008752735229759,0.22001672894082797,0.3282275711159737,911,0.12345313393379898
+motrpac,1.0,0.5,correlation,914,914,2.0,0.21905805038335158,0.10940919037199125,914,0.0
+motrpac,0.0,0.5,distance_correlation,914,299616,655.6148796498906,71.80885866921037,100.0,1,152.13966446290348
+motrpac,0.11,0.5,distance_correlation,914,37248,81.5054704595186,8.927214727219999,70.35010940919038,267,106.32443060453335
+motrpac,0.22,0.5,distance_correlation,914,18889,41.332603938730855,4.527119818042809,42.01312910284464,453,66.86071685056126
+motrpac,0.33,0.5,distance_correlation,914,10756,23.536105032822757,2.577886641053971,32.60393873085339,583,43.816522524024855
+motrpac,0.44,0.5,distance_correlation,914,6351,13.897155361050329,1.5221418796331136,24.61706783369803,666,28.162865127937092
+motrpac,0.56,0.5,distance_correlation,914,3360,7.352297592997812,0.8052899882801546,19.14660831509847,729,15.11518720419248
+motrpac,0.67,0.5,distance_correlation,914,1754,3.8380743982494527,0.4203805474533902,12.800875273522976,784,6.336483487542625
+motrpac,0.78,0.5,distance_correlation,914,1034,2.262582056892779,0.24781840710764283,6.455142231947483,847,1.132849617732102
+motrpac,0.89,0.5,distance_correlation,914,922,2.017505470459519,0.22097540749830433,0.3282275711159737,906,0.13923797172807909
+motrpac,1.0,0.5,distance_correlation,914,914,2.0,0.21905805038335158,0.10940919037199125,914,0.0
+motrpac,0.0,0.3,variance,1523,665000,873.2764281024295,57.376900663760146,100.0,1,272.81219819699186
+motrpac,0.11,0.3,variance,1523,34176,44.87984241628365,2.948741288849123,41.2344057780696,800,77.49496843074942
+motrpac,0.22,0.3,variance,1523,14324,18.810242941562706,1.2358898121920305,30.400525279054495,982,37.60221490984461
+motrpac,0.33,0.3,variance,1523,6870,9.02166776099803,0.5927508384361386,23.30925804333552,1113,18.849096370598435
+motrpac,0.44,0.3,variance,1523,3575,4.694681549573211,0.30845476672622935,16.152330925804335,1236,8.54008457783375
+motrpac,0.56,0.3,variance,1523,2124,2.789231779382797,0.1832609579095136,10.04596191726855,1334,2.90281899362868
+motrpac,0.67,0.3,variance,1523,1688,2.216677609980302,0.14564241852695808,2.0354563361785947,1425,1.028962206813684
+motrpac,0.78,0.3,variance,1523,1550,2.0354563361785947,0.1337356331260575,0.3939592908732764,1498,0.25377692967841503
+motrpac,0.89,0.3,variance,1523,1528,2.0065659881812214,0.13183744994620378,0.13131976362442546,1518,0.08076432368580408
+motrpac,1.0,0.3,variance,1523,1523,2.0,0.1314060446780552,0.06565988181221273,1523,0.0
+motrpac,0.0,0.3,random,1523,670003,879.8463558765594,57.808564775069605,100.0,1,152.53533878412438
+motrpac,0.11,0.3,random,1523,104665,137.44583059750494,9.030606478154068,87.0650032829941,194,157.83843622759014
+motrpac,0.22,0.3,random,1523,33207,43.60735390676297,2.8651349478819297,45.04267892317794,807,80.74545657482032
+motrpac,0.33,0.3,random,1523,39255,51.54957321076822,3.386962760234443,49.90151017728168,736,90.29573141498966
+motrpac,0.44,0.3,random,1523,13364,17.54957321076822,1.1530600007075045,19.763624425476035,1125,39.546933537436715
+motrpac,0.56,0.3,random,1523,12132,15.9317137229153,1.0467617426356963,22.78397898883782,1104,36.99192382468905
+motrpac,0.67,0.3,random,1523,7820,10.269205515430071,0.6747178393843675,15.430072225869992,1224,25.315262690864337
+motrpac,0.78,0.3,random,1523,3703,4.8627708470124755,0.3194987415908328,10.3086014445174,1336,11.162393455143178
+motrpac,0.89,0.3,random,1523,1711,2.24688115561392,0.1476268827604415,2.8233749179251477,1456,1.465553860888631
+motrpac,1.0,0.3,random,1523,1523,2.0,0.1314060446780552,0.06565988181221273,1523,0.0
+motrpac,0.0,0.3,correlation,1523,766753,1006.8982271831911,66.15625671374448,100.0,1,258.34352270261934
+motrpac,0.11,0.3,correlation,1523,35169,46.1838476690742,3.0344183751034293,36.50689428759028,889,84.24543811296145
+motrpac,0.22,0.3,correlation,1523,15602,20.488509520682864,1.3461569987308057,27.77413000656599,1056,43.50594520105919
+motrpac,0.33,0.3,correlation,1523,7730,10.151017728168089,0.6669525445576931,21.470781352593566,1170,22.953852844824958
+motrpac,0.44,0.3,correlation,1523,4064,5.336835193696651,0.35064620195115975,13.591595535128038,1268,11.11588227874662
+motrpac,0.56,0.3,correlation,1523,2330,3.0597504924491137,0.2010348549572348,9.258043335521995,1356,4.334924572284734
+motrpac,0.67,0.3,correlation,1523,1758,2.3086014445173997,0.1516820922810381,3.939592908732764,1435,1.673821715116816
+motrpac,0.78,0.3,correlation,1523,1604,2.1063690085357845,0.13839481002206208,1.247537754432042,1484,0.7526570228002833
+motrpac,0.89,0.3,correlation,1523,1533,2.0131319763624425,0.13226885521435233,0.1969796454366382,1514,0.13973373157716812
+motrpac,1.0,0.3,correlation,1523,1523,2.0,0.1314060446780552,0.06565988181221273,1523,0.0
+motrpac,0.0,0.3,distance_correlation,1523,786694,1033.0847012475379,67.87678720417463,100.0,1,226.28835936637768
+motrpac,0.11,0.3,distance_correlation,1523,91933,120.72619829284308,7.932076103340544,67.69533814839134,483,166.76637801321198
+motrpac,0.22,0.3,distance_correlation,1523,49905,65.53512803676954,4.305855981390903,40.7091267235719,762,111.10435569026389
+motrpac,0.33,0.3,distance_correlation,1523,29135,38.260013131976365,2.5137984975017322,31.582403151674328,958,74.60717451448372
+motrpac,0.44,0.3,distance_correlation,1523,16835,22.10768220617203,1.4525415378562436,24.688115561391992,1091,48.08629485826961
+motrpac,0.56,0.3,distance_correlation,1523,8590,11.280367695338148,0.7411542506792477,19.63230466185161,1203,26.493836335115102
+motrpac,0.67,0.3,distance_correlation,1523,4273,5.6112934996717,0.3686789421597701,13.3946158896914,1300,12.33760927387275
+motrpac,0.78,0.3,distance_correlation,1523,2131,2.7984241628365067,0.1838649252849216,8.207485226526593,1389,3.5536518368487204
+motrpac,0.89,0.3,distance_correlation,1523,1566,2.056467498358503,0.13511612998413292,0.8535784635587657,1492,0.44021706812181954
+motrpac,1.0,0.3,distance_correlation,1523,1523,2.0,0.1314060446780552,0.06565988181221273,1523,0.0
