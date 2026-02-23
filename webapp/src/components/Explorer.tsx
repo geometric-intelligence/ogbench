@@ -4,7 +4,37 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 const Plot = lazy(() => import('react-plotly.js'));
 import type { GraphStats, DatasetName, NodeSelectionMethod } from '../lib/types';
 import { DATASETS, VALID_RATIOS, VALID_THRESHOLDS, METRIC_LABELS } from '../lib/constants';
+
+/** Metrics shown in the Explorer (2 rows × 3). Order: row1 = nodes, edges, avg_degree; row2 = density_pct, degree_std, largest_cc. */
+const EXPLORER_METRICS: (keyof typeof METRIC_LABELS)[] = [
+  'num_nodes',
+  'num_edges',
+  'avg_degree',
+  'density_pct',
+  'degree_std',
+  'largest_cc_ratio_pct',
+];
 import { getStats, computeMetricMaxValues } from '../lib/data';
+
+/** Parse stats keys "dataset|ratio|method|threshold" to derive unique ratios and thresholds. */
+function deriveOptionsFromStats(stats: Record<string, GraphStats>): {
+  ratios: number[];
+  thresholds: number[];
+} {
+  const ratioSet = new Set<number>();
+  const thresholdSet = new Set<number>();
+  for (const key of Object.keys(stats)) {
+    const parts = key.split('|');
+    if (parts.length !== 4) continue;
+    const r = parseFloat(parts[1]);
+    const t = parseFloat(parts[3]);
+    if (!Number.isNaN(r)) ratioSet.add(r);
+    if (!Number.isNaN(t)) thresholdSet.add(t);
+  }
+  const ratios = [...ratioSet].sort((a, b) => a - b);
+  const thresholds = [...thresholdSet].sort((a, b) => a - b);
+  return { ratios, thresholds };
+}
 
 export default function Explorer() {
   const [allStats, setAllStats] = useState<Record<string, GraphStats>>({});
@@ -15,6 +45,23 @@ export default function Explorer() {
 
   // All datasets are always shown
   const datasetOrder: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons'];
+
+  const { ratios: validRatios, thresholds: validThresholds } = useMemo(() => {
+    const derived = deriveOptionsFromStats(allStats);
+    return {
+      ratios: derived.ratios.length > 0 ? derived.ratios : [...VALID_RATIOS],
+      thresholds: derived.thresholds.length > 0 ? derived.thresholds : [...VALID_THRESHOLDS],
+    };
+  }, [allStats]);
+
+  // When data loads, ensure selected ratio and threshold exist in the data; otherwise pick first available
+  useEffect(() => {
+    if (loading || Object.keys(allStats).length === 0) return;
+    const { ratios, thresholds } = deriveOptionsFromStats(allStats);
+    if (ratios.length === 0 || thresholds.length === 0) return;
+    setNodeSampleRatio((prev) => (ratios.includes(prev) ? prev : ratios[0]));
+    setAdjacencyThreshold((prev) => (thresholds.includes(prev) ? prev : thresholds[0]));
+  }, [loading, allStats]);
 
   // Load data on mount
   useEffect(() => {
@@ -45,7 +92,7 @@ export default function Explorer() {
     return stats;
   }, [allStats, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold]);
 
-  const metrics = Object.entries(METRIC_LABELS) as [keyof GraphStats, string][];
+  const metrics = EXPLORER_METRICS.map((key) => [key, METRIC_LABELS[key]] as [keyof GraphStats, string]);
 
   if (loading) {
     return (
@@ -80,9 +127,7 @@ export default function Explorer() {
 
         if (metric === 'density_pct' || metric === 'largest_cc_ratio_pct') {
           textValues.push(`${v.toFixed(1)}%`);
-        } else if (metric === 'avg_clustering_coeff' || metric === 'avg_shortest_path_length') {
-          textValues.push(v.toFixed(2));
-        } else if (metric === 'num_nodes' || metric === 'num_edges' || metric === 'num_connected_components') {
+        } else if (metric === 'num_nodes' || metric === 'num_edges') {
           textValues.push(Math.round(v).toLocaleString());
         } else {
           textValues.push(v.toFixed(1));
@@ -108,10 +153,9 @@ export default function Explorer() {
       yaxis: yAxisId,
     } as Plotly.Data);
 
-    // Add subplot title as annotation - centered above each subplot
-    // Calculate positions based on grid layout with gaps
-    const colCenters = [0.14, 0.5, 0.86]; // Center positions for 3 columns
-    const rowTops = [1.0, 0.63, 0.27]; // Top positions for 3 rows (above each row)
+    // Add subplot title as annotation - centered above each subplot (2 rows × 3 columns)
+    const colCenters = [0.14, 0.5, 0.86];
+    const rowTops = [1.0, 0.48]; // Top positions for 2 rows
     
     annotations.push({
       text: `<b>${label}</b>`,
@@ -126,17 +170,17 @@ export default function Explorer() {
     });
   }
 
-  // Build layout with 3x3 subplots - professional spacing
+  // Build layout with 2×3 subplots
   const layout: Partial<Plotly.Layout> = {
-    height: 1000,
+    height: 680,
     font: { family: 'DM Sans', size: 14, color: '#0f172a' },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: '#ffffff',
     margin: { l: 60, r: 40, t: 50, b: 50 },
     annotations,
-    grid: { 
-      rows: 3, 
-      columns: 3, 
+    grid: {
+      rows: 2,
+      columns: 3,
       pattern: 'independent',
       xgap: 0.1,
       ygap: 0.18,
@@ -177,13 +221,13 @@ export default function Explorer() {
             <input
               type="range"
               min={0}
-              max={VALID_RATIOS.length - 1}
+              max={validRatios.length - 1}
               step={1}
-              value={VALID_RATIOS.indexOf(nodeSampleRatio as typeof VALID_RATIOS[number])}
-              onChange={(e) => setNodeSampleRatio(VALID_RATIOS[parseInt(e.target.value)])}
+              value={Math.max(0, validRatios.indexOf(nodeSampleRatio))}
+              onChange={(e) => setNodeSampleRatio(validRatios[parseInt(e.target.value)] ?? validRatios[0])}
             />
             <div className="flex justify-between text-xs text-text-muted mt-1">
-              {VALID_RATIOS.map((r) => (
+              {validRatios.map((r) => (
                 <span key={r}>{r}</span>
               ))}
             </div>
@@ -208,13 +252,13 @@ export default function Explorer() {
             <input
               type="range"
               min={0}
-              max={VALID_THRESHOLDS.length - 1}
+              max={validThresholds.length - 1}
               step={1}
-              value={VALID_THRESHOLDS.indexOf(adjacencyThreshold)}
-              onChange={(e) => setAdjacencyThreshold(VALID_THRESHOLDS[parseInt(e.target.value)])}
+              value={Math.max(0, validThresholds.indexOf(adjacencyThreshold))}
+              onChange={(e) => setAdjacencyThreshold(validThresholds[parseInt(e.target.value)] ?? validThresholds[0])}
             />
             <div className="flex justify-between text-xs text-text-muted mt-1">
-              {VALID_THRESHOLDS.map((t) => (
+              {validThresholds.map((t) => (
                 <span key={t}>{t}</span>
               ))}
             </div>
@@ -229,7 +273,7 @@ export default function Explorer() {
           data={subplotData}
           layout={layout}
           config={{ displayModeBar: true, responsive: true }}
-          style={{ width: '100%', height: '1000px' }}
+          style={{ width: '100%', height: '680px' }}
         />
       </div>
     </div>

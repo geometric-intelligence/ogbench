@@ -84,9 +84,26 @@ The `dist/` directory contains all static files. Deploy to any static host:
 
 ## Updating Data
 
-### Regenerating Graph Statistics
+### Building stats.json from existing CSVs
 
-The `tutorials/dataset_stats_analysis.py` script computes graph statistics for all parameter combinations and outputs `stats.json` for the webapp.
+If you already have the graph-statistics CSV files (e.g. from a previous run of `dataset_stats_analysis.py` or from the repo), you can regenerate `public/data/stats.json` without PyTorch:
+
+```bash
+# From repo root
+python webapp/scripts/build_stats_from_csv.py
+```
+
+This reads:
+
+- `tutorials/stats/addneuromed/graph_stats_comprehensive_addneuro.csv`
+- `tutorials/stats/motrpac/graph_stats_comprehensive_motrpac.csv`
+- `tutorials/stats/parkinsons/graph_stats_comprehensive_parkinsons.csv`
+
+and writes `webapp/public/data/stats.json`. Run this after updating any of those CSVs or when setting up the webapp on a fresh clone so the Dataset Explorer has data. The Explorer’s Node Sample Ratio and Adjacency Threshold sliders will only show values that exist in the generated stats.
+
+### Regenerating Graph Statistics (full pipeline)
+
+The `tutorials/dataset_stats_analysis.py` script computes graph statistics for all parameter combinations and outputs both the CSVs and `stats.json` for the webapp.
 
 **Prerequisites:**
 
@@ -182,11 +199,9 @@ This will:
 
 ### How to Update
 
-1. **Replace the JSON files** in `public/data/`:
-   ```bash
-   cp /path/to/new/results.json public/data/results.json
-   cp /path/to/new/stats.json public/data/stats.json
-   ```
+1. **Replace or regenerate the JSON files** in `public/data/`:
+   - For **stats.json** (Dataset Explorer): run `python webapp/scripts/build_stats_from_csv.py` from the repo root if you have the graph-statistics CSVs (see [Building stats.json from existing CSVs](#building-statsjson-from-existing-csvs)), or copy a pre-built file: `cp /path/to/new/stats.json public/data/stats.json`
+   - For **results.json** (Leaderboard): `cp /path/to/new/results.json public/data/results.json`
 
 2. **Rebuild and deploy**:
    ```bash
