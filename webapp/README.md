@@ -84,51 +84,78 @@ The `dist/` directory contains all static files. Deploy to any static host:
 
 ## Updating Data
 
-### Regenerating Graph Statistics
+### Building stats.json from existing CSVs
 
-The `precompute_stats.py` script computes graph statistics for all parameter combinations and outputs `stats.json`.
+If you already have the graph-statistics CSV files (e.g. from a previous run of `dataset_stats_analysis.py` or from the repo), you can regenerate `public/data/stats.json` without PyTorch:
+
+```bash
+# From repo root
+python webapp/scripts/build_stats_from_csv.py
+```
+
+This reads:
+
+- `tutorials/stats/addneuromed/graph_stats_comprehensive_addneuro.csv`
+- `tutorials/stats/motrpac/graph_stats_comprehensive_motrpac.csv`
+- `tutorials/stats/parkinsons/graph_stats_comprehensive_parkinsons.csv`
+
+and writes `webapp/public/data/stats.json`. Run this after updating any of those CSVs or when setting up the webapp on a fresh clone so the Dataset Explorer has data. The Explorer’s Node Sample Ratio and Adjacency Threshold sliders will only show values that exist in the generated stats.
+
+### Regenerating Graph Statistics (full pipeline)
+
+The `tutorials/dataset_stats_analysis.py` script computes graph statistics for all parameter combinations and outputs both the CSVs and `stats.json` for the webapp.
 
 **Prerequisites:**
 
+The script requires the full `ogbench` environment with PyTorch:
+
 ```bash
-pip install networkx numpy pandas scikit-learn huggingface_hub
+# Install PyTorch (see https://pytorch.org for platform-specific instructions)
+pip install torch
+
+# Install other dependencies
+pip install torch-geometric networkx numpy pandas scikit-learn huggingface_hub joblib omegaconf
+
+# Install ogbench package (from repo root)
+pip install -e .
 ```
 
 **Run the script:**
 
 ```bash
-cd webapp
-python precompute_stats.py
+cd tutorials
+python dataset_stats_analysis.py
 ```
 
+**Note:** If the environment is not properly set up, some selection methods (like `distance_correlation`) may not have data available in the webapp.
+
 This will:
-1. Download datasets from HuggingFace (`geometric-intelligence/bgbench`)
-2. Compute graph statistics for all 324 combinations:
-   - 3 datasets × 6 ratios × 3 methods × 6 thresholds
-3. Save results to `public/data/stats.json`
+1. Load datasets using the HFOmicsDataset loader
+2. Compute graph statistics for all parameter combinations
+3. Save results to both CSV files (in `./stats/`) and JSON for the webapp (`webapp/public/data/stats.json`)
 
 **Parameters computed:**
 
 | Parameter | Values |
 |-----------|--------|
-| Datasets | `motrpac`, `addneuromed`, `parkinsons` |
-| Node sample ratios | 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 |
-| Selection methods | `variance`, `correlation`, `random` |
-| Adjacency thresholds | 0.02, 0.1, 0.2, 0.3, 0.4, 0.5 |
+| Datasets | `motrpac`, `addneuromed`, `parkinsons`, `covidaki` |
+| Node sample ratios | `full`, `1.0`, `0.5`, `0.3` |
+| Selection methods | `variance`, `correlation`, `distance_correlation`, `random` |
+| Adjacency thresholds | 10 values from 0.0 to 1.0 |
 
 **Metrics computed per graph:**
 
-- `n_nodes` — Number of nodes (features)
-- `n_edges` — Number of edges
-- `density` — Graph density (%)
-- `mean_degree` — Average node degree
-- `std_degree` — Standard deviation of degrees
-- `n_components` — Number of connected components
-- `largest_cc_ratio` — Largest connected component / total nodes (%)
-- `avg_clustering` — Average clustering coefficient
-- `avg_path_length` — Average shortest path length (sampled for large graphs)
+- `num_nodes` — Number of nodes (features)
+- `num_edges` — Number of edges
+- `density_pct` — Graph density (%)
+- `avg_degree` — Average node degree
+- `degree_std` — Standard deviation of degrees
+- `num_connected_components` — Number of connected components
+- `largest_cc_ratio_pct` — Largest connected component / total nodes (%)
+- `avg_clustering_coeff` — Average clustering coefficient
+- `avg_shortest_path_length` — Average shortest path length
 
-**Expected runtime:** ~2-5 minutes (depends on network speed for initial download).
+**Expected runtime:** Varies based on number of parallel jobs and dataset sizes.
 
 ### JSON File Structure
 
@@ -156,15 +183,15 @@ This will:
 ```json
 {
   "motrpac|0.5|variance|0.02": {
-    "n_nodes": 914,
-    "n_edges": 135087,
-    "density": 32.37,
-    "mean_degree": 295.59,
-    "std_degree": 240.65,
-    "n_components": 172,
-    "largest_cc_ratio": 77.68,
-    "avg_clustering": 0.72,
-    "avg_path_length": 2.59,
+    "num_nodes": 914,
+    "num_edges": 135087,
+    "density_pct": 32.37,
+    "avg_degree": 295.59,
+    "degree_std": 240.65,
+    "num_connected_components": 172,
+    "largest_cc_ratio_pct": 77.68,
+    "avg_clustering_coeff": 0.72,
+    "avg_shortest_path_length": 2.59,
     "dataset": "motrpac"
   }
 }
@@ -172,11 +199,9 @@ This will:
 
 ### How to Update
 
-1. **Replace the JSON files** in `public/data/`:
-   ```bash
-   cp /path/to/new/results.json public/data/results.json
-   cp /path/to/new/stats.json public/data/stats.json
-   ```
+1. **Replace or regenerate the JSON files** in `public/data/`:
+   - For **stats.json** (Dataset Explorer): run `python webapp/scripts/build_stats_from_csv.py` from the repo root if you have the graph-statistics CSVs (see [Building stats.json from existing CSVs](#building-statsjson-from-existing-csvs)), or copy a pre-built file: `cp /path/to/new/stats.json public/data/stats.json`
+   - For **results.json** (Leaderboard): `cp /path/to/new/results.json public/data/results.json`
 
 2. **Rebuild and deploy**:
    ```bash
@@ -189,10 +214,10 @@ Results key: `{dataset}|{ratio}|{method}|{threshold}|{model}`
 Stats key: `{dataset}|{ratio}|{method}|{threshold}`
 
 Where:
-- `dataset`: `motrpac`, `addneuromed`, or `parkinsons`
-- `ratio`: node sample ratio (0.5–0.9)
-- `method`: `variance`, `correlation`, or `random`
-- `threshold`: adjacency threshold (0.02–0.5)
+- `dataset`: `motrpac`, `addneuromed`, `parkinsons`, or `covidaki`
+- `ratio`: node sample ratio (`full`, `1.0`, `0.5`, `0.3`)
+- `method`: `variance`, `correlation`, `distance_correlation`, or `random`
+- `threshold`: adjacency threshold (0.0–1.0)
 - `model`: `SVM`, `ElasticNet`, `MLP`, `GATv4`, `GATv2`, `GIN`, `GCN`, `GraphSAGE`, `SAGN`, `Random`
 
 ## Tech Stack
