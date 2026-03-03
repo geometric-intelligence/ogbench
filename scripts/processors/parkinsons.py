@@ -44,7 +44,7 @@ def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True)
     df.columns = probe_map.loc[common_probes, gene_symbol_col].values
 
     if collapse:
-        df = df.groupby(df.columns, axis=1).mean()
+        df = df.T.groupby(level=0).mean().T
 
     return df
 

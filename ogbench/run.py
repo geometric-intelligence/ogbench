@@ -213,8 +213,8 @@ def count_number_of_parameters(model: torch.nn.Module, only_trainable: bool = Tr
     """
     if only_trainable:
         num_params: int = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    else:  # counts trainable and none-traibale
-        num_params: int = sum(p.numel() for p in model.parameters() if p)
+    else:  # counts trainable and non-trainable
+        num_params: int = sum(p.numel() for p in model.parameters())
     assert num_params > 0, f'Err: {num_params=}'
     return int(num_params)
 

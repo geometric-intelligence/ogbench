@@ -19,11 +19,15 @@ class DatasetLoss(AbstractLoss):
         super().__init__()
         self.task = dataset_loss['task']
         self.loss_type = dataset_loss['loss_type']
-        self.class_weights = dataset_loss.get('class_weights', None)
 
-        # Convert class_weights to tensor if provided
-        if self.class_weights is not None:
-            self.class_weights = torch.tensor(self.class_weights, dtype=torch.float32)
+        # Register class_weights as a buffer so model.to(device) moves it automatically
+        class_weights_raw = dataset_loss.get('class_weights', None)
+        if class_weights_raw is not None:
+            self.register_buffer(
+                'class_weights', torch.tensor(class_weights_raw, dtype=torch.float32)
+            )
+        else:
+            self.register_buffer('class_weights', None)
 
         # Dataset loss
         if self.task == 'classification':
@@ -86,12 +90,6 @@ class DatasetLoss(AbstractLoss):
         torch.Tensor
             Loss value.
         """
-        # Ensure class weights are on the same device as logits
-        if self.class_weights is not None and self.class_weights.device != logits.device:
-            self.class_weights = self.class_weights.to(logits.device)
-            # Update the criterion with the moved weights
-            self.criterion = torch.nn.CrossEntropyLoss(weight=self.class_weights)
-
         if self.task == 'regression':
             target = target.unsqueeze(1)
             dataset_loss = self.criterion(logits, target)

@@ -58,6 +58,10 @@ class OmicsDatasetLoader(AbstractLoader):
             A dictionary mapping split names to index arrays.
         """
         split_sizes = [int(x * dataset_length) for x in self.parameters['train_val_test_split']]
+        assert all(s > 0 for s in split_sizes), (
+            f'All split sizes must be > 0, got {split_sizes} for dataset_length={dataset_length} '
+            f'and splits={self.parameters["train_val_test_split"]}'
+        )
         split_idx = {'train': np.arange(split_sizes[0])}
         split_idx['valid'] = np.arange(
             split_sizes[0],
