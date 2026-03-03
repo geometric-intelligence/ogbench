@@ -73,7 +73,7 @@ class HypergraphKNNLifting(Graph2HypergraphLifting):
                     connected_nodes = data_lifted.edge_index[0, data_lifted.edge_index[1] == i]
                     dists = torch.sqrt(
                         torch.sum(
-                            (data.pos[connected_nodes] - data.pos[i].unsqueeze(0) ** 2),
+                            (data.pos[connected_nodes] - data.pos[i].unsqueeze(0)) ** 2,
                             dim=1,
                         )
                     )

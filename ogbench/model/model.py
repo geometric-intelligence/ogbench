@@ -5,7 +5,6 @@ from typing import Any
 import torch
 from lightning import LightningModule
 from torch_geometric.data import Data
-from torchmetrics import MeanMetric
 
 
 class TBModel(LightningModule):
@@ -67,12 +66,6 @@ class TBModel(LightningModule):
         # Loss function
         self.loss = loss
         self.task_level = self.readout.task_level
-
-        # Tracking best so far validation accuracy
-        self.val_acc_best = MeanMetric()
-        self.metric_collector_val = []
-        self.metric_collector_val2 = []
-        self.metric_collector_test = []
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(backbone={self.backbone}, readout={self.readout}, loss={self.loss}, feature_encoder={self.feature_encoder})'
@@ -349,13 +342,6 @@ class TBModel(LightningModule):
         self.evaluator.reset()
         self.train_metrics_logged = False
 
-    def on_val_epoch_start(self) -> None:
-        r"""Lightning hook that is called when a validation epoch begins.
-
-        This hook is used to reset the validation metrics.
-        """
-        self.evaluator.reset()
-
     def on_test_epoch_start(self) -> None:
         r"""Lightning hook that is called when a test epoch begins.
 
@@ -379,7 +365,7 @@ class TBModel(LightningModule):
             Either "fit", "validate", "test", or "predict".
         """
         if self.hparams.compile and stage == 'fit':
-            self.net = torch.compile(self.net)
+            self.backbone = torch.compile(self.backbone)
 
     def configure_optimizers(self) -> dict[str, Any]:
         r"""Configure optimizers and learning-rate schedulers.

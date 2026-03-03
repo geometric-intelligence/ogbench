@@ -91,14 +91,14 @@ def task_wrapper(task_func: Callable) -> Callable:
             metric_dict, object_dict = task_func(cfg=cfg)
 
         # things to do if exception occurs
-        except Exception as ex:
+        except Exception:
             # save exception to `.log` file
             log.exception('')
 
             # some hyperparameter combinations might be invalid or cause out-of-memory errors
             # so when using hparam search plugins like Optuna, you might want to disable
             # raising the below exception to avoid multirun failure
-            raise ex
+            raise
 
         # things to always do after either success or exception
         finally:
