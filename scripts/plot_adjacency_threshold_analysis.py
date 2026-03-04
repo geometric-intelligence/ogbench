@@ -28,21 +28,21 @@ plt.rcParams['figure.figsize'] = (12, 8)
 DATASETS = {
     'motrpac': {
         'data_name': 'motrpac',
-        'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
+        'revision': '3abc196',
         'train_val_test_split': [0.7, 0.2, 0.1],
         'node_sample_ratio': 0.5,
         'method': 'variance',
     },
     'parkinsons': {
         'data_name': 'parkinsons',
-        'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
+        'revision': '3abc196',
         'train_val_test_split': [0.7, 0.15, 0.15],
         'node_sample_ratio': 0.5,
         'method': 'variance',
     },
     'addneuromed': {
         'data_name': 'addneuromed',
-        'revision': '9f052d330ce130408a2c7c347b2ed197154da7c8',
+        'revision': '3abc196',
         'train_val_test_split': [0.7, 0.2, 0.1],
         'node_sample_ratio': 0.5,
         'method': 'variance',
