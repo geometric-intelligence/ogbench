@@ -73,7 +73,7 @@ class HFOmicsDataset(InMemoryDataset):
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
-        revision: str = 'e1631e8',
+        revision: str = '3abc196',
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
