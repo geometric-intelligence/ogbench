@@ -127,6 +127,7 @@ class RunConfig:
     hyperparams: dict[str, Any]
     timeout: int | None = None
     gpu_id: int | None = None
+    n_threads: int | None = None
 
 
 def to_override(key: str, value: Any) -> str:
@@ -193,7 +194,10 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
 
 
 def run_training(
-    overrides: list[str], timeout: int | None = None, gpu_id: int | None = None
+    overrides: list[str],
+    timeout: int | None = None,
+    gpu_id: int | None = None,
+    n_threads: int | None = None,
 ) -> tuple[bool, str | None, dict[str, Any] | None]:
     """Run training via subprocess."""
     cmd = ['ogbench-train'] + overrides
@@ -201,6 +205,9 @@ def run_training(
     env = os.environ.copy()
     if gpu_id is not None and torch.cuda.is_available():
         env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+    if n_threads is not None:
+        env['OMP_NUM_THREADS'] = str(n_threads)
+        env['MKL_NUM_THREADS'] = str(n_threads)
 
     try:
         result = subprocess.run(  # nosec B603
@@ -251,7 +258,9 @@ def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
         metrics = {'params': n_params} if success else None
         error_msg = error
     else:
-        success, error_msg, metrics = run_training(config.overrides, config.timeout, config.gpu_id)
+        success, error_msg, metrics = run_training(
+            config.overrides, config.timeout, config.gpu_id, config.n_threads
+        )
 
     elapsed = time.time() - start_time
 
@@ -287,6 +296,7 @@ def build_run_configs(
     n_gpus: int = 1,
     parallel: bool = True,
     dry_run: bool = False,
+    n_threads: int | None = None,
 ) -> list[RunConfig]:
     """Build all run configurations from search config."""
     configs = []
@@ -400,6 +410,7 @@ def build_run_configs(
                                         hyperparams=final_hp_combo,
                                         timeout=search_config.timeout,
                                         gpu_id=gpu_id,
+                                        n_threads=n_threads,
                                     )
                                 )
                         continue  # Skip the else block below
@@ -451,10 +462,76 @@ def build_run_configs(
                             hyperparams=hp_combo,
                             timeout=search_config.timeout,
                             gpu_id=gpu_id,
+                            n_threads=n_threads,
                         )
                     )
 
     return configs
+
+
+def warmup_caches(dataset_configs: list[dict[str, Any]], data_dir: str) -> None:
+    """Pre-generate dataset caches to avoid race conditions in parallel training.
+
+    Sequentially instantiates HFOmicsDataset for each unique config, triggering the download() and
+    process() methods if the cache doesn't exist.
+    """
+    from ogbench.data.datasets import HFOmicsDataset
+
+    print(f'Warming up {len(dataset_configs)} dataset caches...')
+    for i, config in enumerate(dataset_configs, 1):
+        print(
+            f'  [{i}/{len(dataset_configs)}] {config["data_name"]} | '
+            f'ratio={config["node_sample_ratio"]} | method={config["method"]} | '
+            f'threshold={config["adjacency_threshold"]}'
+        )
+
+        # Instantiation triggers download() and process() if cache missing
+        HFOmicsDataset(
+            root=data_dir,
+            data_name=config['data_name'],
+            node_sample_ratio=config['node_sample_ratio'],
+            method=config['method'],
+            adjacency_threshold=config['adjacency_threshold'],
+        )
+
+    print('Cache warmup complete.')
+
+
+def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str, Any]]:
+    """Extract unique dataset configurations that need cache warmup.
+
+    Identifies all unique (dataset, node_sample_ratio, method, adjacency_threshold) combinations
+    from the search config to pre-generate caches before parallel training.
+    """
+    unique_configs: set[tuple[str, float, str, float]] = set()
+
+    for dataset in search_config.datasets:
+        ratios = search_config.shared_grid.get(
+            'dataset.loader.parameters.node_sample_ratio', [0.5]
+        )
+        methods = search_config.shared_grid.get('dataset.loader.parameters.method', ['variance'])
+
+        for ratio in ratios:
+            for method in methods:
+                # Look up threshold from per_dataset_ratio_method_grid
+                ratio_key = (dataset, float(ratio), method)
+                threshold_grid = search_config.per_dataset_ratio_method_grid.get(ratio_key, {})
+                thresholds = threshold_grid.get(
+                    'dataset.loader.parameters.adjacency_threshold', [0.05]
+                )
+
+                for threshold in thresholds:
+                    unique_configs.add((dataset, float(ratio), method, float(threshold)))
+
+    return [
+        {
+            'data_name': d,
+            'node_sample_ratio': r,
+            'method': m,
+            'adjacency_threshold': t,
+        }
+        for d, r, m, t in sorted(unique_configs)
+    ]
 
 
 def run_search(
@@ -463,10 +540,16 @@ def run_search(
     dry_run: bool = False,
     parallel: bool = True,
     n_jobs: int | None = None,
+    skip_warmup: bool = False,
 ) -> pd.DataFrame:
     """Run the full hyperparameter search."""
     n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
     n_jobs = n_jobs or max(n_gpus, 1)
+
+    # Cap CPU threads per job to avoid thrashing when running in parallel.
+    # Each job gets an equal share of available cores.
+    n_cpu = os.cpu_count() or 1
+    n_threads = max(1, n_cpu // n_jobs)
 
     # Build all run configurations
     configs = build_run_configs(
@@ -475,6 +558,7 @@ def run_search(
         n_gpus=n_gpus,
         parallel=parallel,
         dry_run=dry_run,
+        n_threads=n_threads,
     )
 
     # Print summary
@@ -487,8 +571,16 @@ def run_search(
     print(f'Total runs: {len(configs)}')
     print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
     print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus})')
+    print(f'CPU threads per job: {n_threads} (of {n_cpu} total cores)')
     print(f'Output: {search_config.output_dir}')
     print('=' * 60)
+
+    # Warmup dataset caches to avoid race conditions in parallel training
+    if not dry_run and not skip_warmup:
+        data_dir = os.path.join(os.environ.get('PROJECT_ROOT', '.'), 'run_data', 'data', 'omics')
+        dataset_configs = extract_unique_dataset_configs(search_config)
+        print(f'\nUnique dataset configs to cache: {len(dataset_configs)}')
+        warmup_caches(dataset_configs, data_dir)
 
     # Create output directory
     os.makedirs(search_config.output_dir, exist_ok=True)
@@ -600,6 +692,11 @@ Examples:
         type=str,
         help='Override output directory from config',
     )
+    parser.add_argument(
+        '--skip-warmup',
+        action='store_true',
+        help='Skip dataset cache warmup (use when caches already exist)',
+    )
 
     args = parser.parse_args()
 
@@ -623,6 +720,7 @@ Examples:
         dry_run=args.dry_run,
         parallel=not args.no_parallel,
         n_jobs=args.n_jobs,
+        skip_warmup=args.skip_warmup,
     )
 
 
