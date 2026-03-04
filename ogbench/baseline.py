@@ -112,13 +112,13 @@ def task_wrapper(task_func):
     def wrap(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         try:
             metric_dict, object_dict = task_func(cfg=cfg)
-        except Exception as ex:
+        except Exception:
             logger.exception('Task failed with exception')
             # Always close wandb run (even if exception occurs)
             if wandb.run:
                 logger.info('Closing wandb!')
                 wandb.finish()
-            raise ex
+            raise
         finally:
             # Note: we handle wandb finish inside run_baseline for each baseline
             pass

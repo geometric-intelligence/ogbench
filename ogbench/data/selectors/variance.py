@@ -10,6 +10,6 @@ class VarianceSelector(AbstractNodeSelector):
 
     def select(self, data: np.ndarray, targets: np.ndarray, n_selected: int) -> np.ndarray:
         """Select nodes based on variance."""
-        variances = np.std(data, axis=0)
+        variances = np.var(data, axis=0)
         ranked_nodes = np.argsort(variances)[::-1]
         return ranked_nodes[:n_selected]

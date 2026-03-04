@@ -4,19 +4,64 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 const Plot = lazy(() => import('react-plotly.js'));
 import type { GraphStats, DatasetName, NodeSelectionMethod } from '../lib/types';
 import { DATASETS, VALID_RATIOS, VALID_THRESHOLDS, METRIC_LABELS } from '../lib/constants';
+
+/** Metrics shown in the Explorer (2 rows × 3). Order: row1 = nodes, edges, avg_degree; row2 = density_pct, degree_std, largest_cc. */
+const EXPLORER_METRICS: (keyof typeof METRIC_LABELS)[] = [
+  'num_nodes',
+  'num_edges',
+  'avg_degree',
+  'density_pct',
+  'degree_std',
+  'largest_cc_ratio_pct',
+];
 import { getStats, computeMetricMaxValues } from '../lib/data';
+
+/** Parse stats keys "dataset|ratio|method|threshold" to derive unique ratios and thresholds. */
+function deriveOptionsFromStats(stats: Record<string, GraphStats>): {
+  ratios: number[];
+  thresholds: number[];
+} {
+  const ratioSet = new Set<number>();
+  const thresholdSet = new Set<number>();
+  for (const key of Object.keys(stats)) {
+    const parts = key.split('|');
+    if (parts.length !== 4) continue;
+    const r = parseFloat(parts[1]);
+    const t = parseFloat(parts[3]);
+    if (!Number.isNaN(r)) ratioSet.add(r);
+    if (!Number.isNaN(t)) thresholdSet.add(t);
+  }
+  const ratios = [...ratioSet].sort((a, b) => a - b);
+  const thresholds = [...thresholdSet].sort((a, b) => a - b);
+  return { ratios, thresholds };
+}
 
 export default function Explorer() {
   const [allStats, setAllStats] = useState<Record<string, GraphStats>>({});
   const [loading, setLoading] = useState(true);
-  const [nodeSampleRatio, setNodeSampleRatio] = useState(0.5);
+  const [nodeSampleRatio, setNodeSampleRatio] = useState<number>(0.5);
   const [nodeSelectionMethod, setNodeSelectionMethod] = useState<NodeSelectionMethod>('variance');
   const [adjacencyThreshold, setAdjacencyThreshold] = useState(0.02);
-  const [selectedDatasets, setSelectedDatasets] = useState<DatasetName[]>([
-    'motrpac',
-    'addneuromed',
-    'parkinsons',
-  ]);
+
+  // All datasets are always shown
+  const datasetOrder: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons'];
+
+  const { ratios: validRatios, thresholds: validThresholds } = useMemo(() => {
+    const derived = deriveOptionsFromStats(allStats);
+    return {
+      ratios: derived.ratios.length > 0 ? derived.ratios : [...VALID_RATIOS],
+      thresholds: derived.thresholds.length > 0 ? derived.thresholds : [...VALID_THRESHOLDS],
+    };
+  }, [allStats]);
+
+  // When data loads, ensure selected ratio and threshold exist in the data; otherwise pick first available
+  useEffect(() => {
+    if (loading || Object.keys(allStats).length === 0) return;
+    const { ratios, thresholds } = deriveOptionsFromStats(allStats);
+    if (ratios.length === 0 || thresholds.length === 0) return;
+    setNodeSampleRatio((prev) => (ratios.includes(prev) ? prev : ratios[0]));
+    setAdjacencyThreshold((prev) => (thresholds.includes(prev) ? prev : thresholds[0]));
+  }, [loading, allStats]);
 
   // Load data on mount
   useEffect(() => {
@@ -38,27 +83,16 @@ export default function Explorer() {
   // Get current stats for selected parameters
   const currentStats = useMemo(() => {
     const stats: (GraphStats & { dataset: DatasetName })[] = [];
-    for (const ds of selectedDatasets) {
+    for (const ds of datasetOrder) {
       const s = getStats(allStats, ds, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold);
       if (s) {
         stats.push({ ...s, dataset: ds });
       }
     }
     return stats;
-  }, [allStats, selectedDatasets, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold]);
+  }, [allStats, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold]);
 
-  const metrics = Object.entries(METRIC_LABELS) as [keyof GraphStats, string][];
-  const datasetOrder: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons'];
-
-  const toggleDataset = (ds: DatasetName) => {
-    if (selectedDatasets.includes(ds)) {
-      if (selectedDatasets.length > 1) {
-        setSelectedDatasets(selectedDatasets.filter((d) => d !== ds));
-      }
-    } else {
-      setSelectedDatasets([...selectedDatasets, ds]);
-    }
-  };
+  const metrics = EXPLORER_METRICS.map((key) => [key, METRIC_LABELS[key]] as [keyof GraphStats, string]);
 
   if (loading) {
     return (
@@ -91,11 +125,9 @@ export default function Explorer() {
         yValues.push(v);
         colors.push(DATASETS[ds].color);
 
-        if (metric === 'density' || metric === 'largest_cc_ratio') {
+        if (metric === 'density_pct' || metric === 'largest_cc_ratio_pct') {
           textValues.push(`${v.toFixed(1)}%`);
-        } else if (metric === 'avg_clustering' || metric === 'avg_path_length') {
-          textValues.push(v.toFixed(2));
-        } else if (metric === 'n_nodes' || metric === 'n_edges' || metric === 'n_components') {
+        } else if (metric === 'num_nodes' || metric === 'num_edges') {
           textValues.push(Math.round(v).toLocaleString());
         } else {
           textValues.push(v.toFixed(1));
@@ -121,28 +153,38 @@ export default function Explorer() {
       yaxis: yAxisId,
     } as Plotly.Data);
 
-    // Add subplot title as annotation
+    // Add subplot title as annotation - centered above each subplot (2 rows × 3 columns)
+    const colCenters = [0.14, 0.5, 0.86];
+    const rowTops = [1.0, 0.48]; // Top positions for 2 rows
+    
     annotations.push({
-      text: label,
+      text: `<b>${label}</b>`,
       xref: 'paper',
       yref: 'paper',
-      x: (col * 0.33) + 0.165,
-      y: 1 - (row * 0.35) + 0.02,
+      x: colCenters[col],
+      y: rowTops[row],
       showarrow: false,
-      font: { size: 14, color: '#475569', family: 'DM Sans' },
+      font: { size: 12, color: '#1e293b', family: 'DM Sans' },
       xanchor: 'center',
+      yanchor: 'bottom',
     });
   }
 
-  // Build layout with 3x3 subplots
+  // Build layout with 2×3 subplots
   const layout: Partial<Plotly.Layout> = {
-    height: 850,
+    height: 680,
     font: { family: 'DM Sans', size: 14, color: '#0f172a' },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: '#ffffff',
-    margin: { l: 50, r: 30, t: 60, b: 70 },
+    margin: { l: 60, r: 40, t: 50, b: 50 },
     annotations,
-    grid: { rows: 3, columns: 3, pattern: 'independent' },
+    grid: {
+      rows: 2,
+      columns: 3,
+      pattern: 'independent',
+      xgap: 0.1,
+      ygap: 0.18,
+    },
   };
 
   // Configure axes for each subplot
@@ -152,7 +194,7 @@ export default function Explorer() {
 
     (layout as Record<string, unknown>)[`xaxis${axisNum}`] = {
       showgrid: false,
-      tickangle: -35,
+      tickangle: 0,
       tickfont: { size: 11, color: '#475569' },
       fixedrange: true,
     };
@@ -179,13 +221,13 @@ export default function Explorer() {
             <input
               type="range"
               min={0}
-              max={VALID_RATIOS.length - 1}
+              max={validRatios.length - 1}
               step={1}
-              value={VALID_RATIOS.indexOf(nodeSampleRatio)}
-              onChange={(e) => setNodeSampleRatio(VALID_RATIOS[parseInt(e.target.value)])}
+              value={Math.max(0, validRatios.indexOf(nodeSampleRatio))}
+              onChange={(e) => setNodeSampleRatio(validRatios[parseInt(e.target.value)] ?? validRatios[0])}
             />
             <div className="flex justify-between text-xs text-text-muted mt-1">
-              {VALID_RATIOS.map((r) => (
+              {validRatios.map((r) => (
                 <span key={r}>{r}</span>
               ))}
             </div>
@@ -199,6 +241,7 @@ export default function Explorer() {
             >
               <option value="variance">📊 Variance</option>
               <option value="correlation">🔗 Correlation</option>
+              <option value="distance_correlation">📐 Distance Correlation</option>
               <option value="random">🎲 Random</option>
             </select>
           </div>
@@ -209,37 +252,18 @@ export default function Explorer() {
             <input
               type="range"
               min={0}
-              max={VALID_THRESHOLDS.length - 1}
+              max={validThresholds.length - 1}
               step={1}
-              value={VALID_THRESHOLDS.indexOf(adjacencyThreshold)}
-              onChange={(e) => setAdjacencyThreshold(VALID_THRESHOLDS[parseInt(e.target.value)])}
+              value={Math.max(0, validThresholds.indexOf(adjacencyThreshold))}
+              onChange={(e) => setAdjacencyThreshold(validThresholds[parseInt(e.target.value)] ?? validThresholds[0])}
             />
             <div className="flex justify-between text-xs text-text-muted mt-1">
-              {VALID_THRESHOLDS.map((t) => (
+              {validThresholds.map((t) => (
                 <span key={t}>{t}</span>
               ))}
             </div>
           </div>
 
-          <div className="control-group">
-            <div className="control-label">Datasets</div>
-            <div className="flex gap-4 flex-wrap mt-1">
-              {datasetOrder.map((ds) => (
-                <label
-                  key={ds}
-                  className="flex items-center gap-2 cursor-pointer"
-                  style={{ color: DATASETS[ds].color, fontWeight: 600 }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedDatasets.includes(ds)}
-                    onChange={() => toggleDataset(ds)}
-                  />
-                  {DATASETS[ds].emoji} {DATASETS[ds].fullName}
-                </label>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -248,8 +272,8 @@ export default function Explorer() {
         <Plot
           data={subplotData}
           layout={layout}
-          config={{ displayModeBar: true }}
-          style={{ width: '100%', height: '850px' }}
+          config={{ displayModeBar: true, responsive: true }}
+          style={{ width: '100%', height: '680px' }}
         />
       </div>
     </div>

@@ -130,7 +130,7 @@ def get_complex_connectivity(complex, max_rank, neighborhoods=None, signed=False
                 connectivity[f'{connectivity_info}_{rank_idx}'] = from_sparse(
                     getattr(complex, f'{connectivity_info}_matrix')(rank=rank_idx, signed=signed)
                 )
-            except:  # noqa: E722
+            except Exception:
                 if connectivity_info == 'incidence':
                     connectivity[
                         f'{connectivity_info}_{rank_idx}'
@@ -377,8 +377,8 @@ def select_neighborhoods_of_interest(connectivity, neighborhoods):
                         )
             else:
                 useful_connectivity[neighborhood] = connectivity[neighborhood]
-        except:  # noqa: E722
-            raise ValueError(f'Invalid neighborhood {neighborhood}')  # noqa: B904
+        except Exception as exc:
+            raise ValueError(f'Invalid neighborhood {neighborhood}') from exc
     for key in connectivity:
         if 'incidence' in key and '-' not in key:
             useful_connectivity[key] = connectivity[key]
@@ -535,7 +535,7 @@ def ensure_serializable(obj):
     elif isinstance(obj, list | tuple):
         return [ensure_serializable(item) for item in obj]
     elif isinstance(obj, set):
-        return {ensure_serializable(item) for item in obj}
+        return [ensure_serializable(item) for item in obj]
     elif isinstance(obj, str | int | float | bool | type(None)):
         return obj
     elif isinstance(obj, omegaconf.dictconfig.DictConfig):

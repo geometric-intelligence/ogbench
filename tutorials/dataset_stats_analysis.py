@@ -13,6 +13,7 @@ Usage examples:
 
 import csv
 import itertools
+import json
 import os
 import os.path as osp
 from typing import Any
@@ -37,26 +38,17 @@ def load_dataset(
 
     train_val_test_split = OmegaConf.create([0.7, 0.15, 0.15])
 
-    if node_sample_ratio == 'full':
-        dataset = HFOmicsDataset(
-            root='/home/johmathe/bgbench/run_data/omics',
-            data_name=dataset_name,
-            method=method,
-            adjacency_threshold=adj_thresh,
-            node_sample_ratio=None,
-            train_val_test_split=train_val_test_split,
-            imputation_method='mean',
-        )
-    else:
-        dataset = HFOmicsDataset(
-            root='/home/johmathe/bgbench/run_data/omics',
-            data_name=dataset_name,
-            method=method,
-            adjacency_threshold=adj_thresh,
-            node_sample_ratio=float(node_sample_ratio),
-            train_val_test_split=train_val_test_split,
-            imputation_method='mean',
-        )
+    # Pass 'full' as string, not None, because HFOmicsDataset checks for 'full' string
+    ratio_value = 'full' if node_sample_ratio == 'full' else float(node_sample_ratio)
+    dataset = HFOmicsDataset(
+        root='/scratch/lcornelis/bgbench-1/run_data/omics',
+        data_name=dataset_name,
+        method=method,
+        adjacency_threshold=adj_thresh,
+        node_sample_ratio=ratio_value,
+        train_val_test_split=train_val_test_split,
+        imputation_method='mean',
+    )
 
     return dataset
 
@@ -68,9 +60,7 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
         'num_edges': 0,
         'avg_degree': 0.0,
         'density_pct': 0.0,
-        'avg_clustering_coeff': 0.0,
         'largest_cc_ratio_pct': 0.0,
-        'avg_shortest_path_length': 0.0,
         'num_connected_components': 0,
         'degree_std': 0.0,
     }
@@ -85,7 +75,7 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
             graph.add_nodes_from(range(num_nodes))
             graph.add_edges_from(edge_list)
         else:
-            root = '/home/johmathe/bgbench/run_data/omics/'
+            root = '/home/lcornelis/code/bgbench-1/run_data/omics/'
             name = osp.join(
                 root,
                 f'{dataset.data_name}',
@@ -113,27 +103,18 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
         avg_degree = np.mean(degrees)
         degree_std = np.std(degrees)
         density_pct = nx.density(graph) * 100
-        avg_clustering_coeff = nx.average_clustering(graph)
 
         connected_components = list(nx.connected_components(graph))
         num_connected_components = len(connected_components)
         largest_cc = max(connected_components, key=len)
         largest_cc_ratio_pct = (len(largest_cc) / num_nodes) * 100
 
-        if len(largest_cc) > 1:
-            largest_cc_subgraph = graph.subgraph(largest_cc)
-            avg_shortest_path_length = nx.average_shortest_path_length(largest_cc_subgraph)
-        else:
-            avg_shortest_path_length = 0.0
-
         return {
             'num_nodes': num_nodes,
             'num_edges': num_edges,
             'avg_degree': avg_degree,
             'density_pct': density_pct,
-            'avg_clustering_coeff': avg_clustering_coeff,
             'largest_cc_ratio_pct': largest_cc_ratio_pct,
-            'avg_shortest_path_length': avg_shortest_path_length,
             'num_connected_components': num_connected_components,
             'degree_std': degree_std,
         }
@@ -170,9 +151,7 @@ def process_single_combination(args_tuple: tuple[str, str, str, float]) -> dict[
             'num_edges': None,
             'avg_degree': None,
             'density_pct': None,
-            'avg_clustering_coeff': None,
             'largest_cc_ratio_pct': None,
-            'avg_shortest_path_length': None,
             'num_connected_components': None,
             'degree_std': None,
             'error': str(e),
@@ -217,9 +196,7 @@ def save_stats_to_csv(all_stats: list[dict[str, Any]], output_file: str) -> None
         'num_edges',
         'avg_degree',
         'density_pct',
-        'avg_clustering_coeff',
         'largest_cc_ratio_pct',
-        'avg_shortest_path_length',
         'num_connected_components',
         'degree_std',
     ]
@@ -233,6 +210,31 @@ def save_stats_to_csv(all_stats: list[dict[str, Any]], output_file: str) -> None
         writer.writerows(all_stats)
 
     print(f'Statistics saved to {output_file}')
+
+
+def save_stats_to_json_for_webapp(
+    all_stats: list[dict[str, Any]], output_file: str
+) -> None:
+    """Save statistics to JSON for webapp consumption.
+
+    The JSON format uses keys like "dataset|node_sample_ratio|method|adj_thresh"
+    for fast lookup in the webapp.
+    """
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+    result = {}
+    for stats in all_stats:
+        # Skip entries with errors
+        if 'error' in stats or stats.get('num_nodes') is None:
+            continue
+
+        key = f"{stats['dataset']}|{stats['node_sample_ratio']}|{stats['method']}|{stats['adj_thresh']}"
+        result[key] = stats
+
+    with open(output_file, 'w') as f:
+        json.dump(result, f, indent=2)
+
+    print(f'Webapp JSON saved to {output_file}')
 
 
 def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
@@ -254,6 +256,9 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
                 continue
 
             fig, axes = plt.subplots(3, 3, figsize=(16, 12))
+            # Hide unused subplots (we have 7 metrics, grid has 9 cells)
+            for ax in axes.flatten()[7:]:
+                ax.set_visible(False)
             fig.suptitle(
                 f'{dataset_name} - Node Ratio: {node_ratio}, Method: {method}', fontsize=16, y=1.02
             )
@@ -263,9 +268,7 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
                 ('num_edges', 'Number of Edges', 'green'),
                 ('avg_degree', 'Average Degree', 'orange'),
                 ('density_pct', 'Density (%)', 'red'),
-                ('avg_clustering_coeff', 'Avg Clustering Coefficient', 'cyan'),
                 ('largest_cc_ratio_pct', 'Largest CC / Total Nodes (%)', 'magenta'),
-                ('avg_shortest_path_length', 'Avg Shortest Path Length', 'brown'),
                 ('num_connected_components', 'Connected Components', 'purple'),
                 ('degree_std', 'Degree Std Dev', 'teal'),
             ]
@@ -307,7 +310,7 @@ def main():
     parser.add_argument(
         '--datasets',
         nargs='+',
-        default=['addneuromed', 'parkinsons', 'covidaki', 'motrpac'],
+        default=['addneuromed', 'parkinsons', 'motrpac'],
         help='List of datasets to process',
     )
     parser.add_argument(
@@ -351,6 +354,9 @@ def main():
         f'Total combinations: {len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds)}'
     )
 
+    # Collect all stats across all datasets for webapp JSON export
+    all_datasets_stats = []
+
     # Process each dataset
     for dataset_name in datasets:
         print(f"\n{'='*50}")
@@ -362,6 +368,9 @@ def main():
             dataset_name, node_sample_ratios, sampling_methods, adj_thresholds, n_jobs
         )
 
+        # Collect for webapp JSON
+        all_datasets_stats.extend(all_stats)
+
         # Save to CSV
         output_file = f'./stats/{dataset_name}/graph_stats_comprehensive.csv'
         save_stats_to_csv(all_stats, output_file)
@@ -369,6 +378,12 @@ def main():
         # Create plots (unless skipped)
         if not args.skip_plots:
             create_plots_for_dataset(dataset_name, output_file)
+
+    # Save aggregated stats to webapp JSON
+    webapp_json_path = os.path.join(
+        os.path.dirname(__file__), '..', 'webapp', 'public', 'data', 'stats.json'
+    )
+    save_stats_to_json_for_webapp(all_datasets_stats, webapp_json_path)
 
     print('\nAnalysis complete!')
     print('Check the ./stats/ and ./plots/ directories for results.')

@@ -1,17 +1,19 @@
 SHELL := /bin/bash
 
-.PHONY: help dev build preview lint clean install deps deploy
+.PHONY: help dev build preview stats lint clean install deps deploy
 
 PROJECT ?= ogbench
 DIST_DIR ?= dist
 NPM ?= npm
+PYTHON ?= python3
 WRANGLER ?= npx --yes wrangler
 
 help:
 	@echo "Available targets:"
 	@echo "  dev      - Start development server"
-	@echo "  build    - Build for production"
+	@echo "  build    - Build for production (runs stats first to refresh Dataset Explorer data)"
 	@echo "  preview  - Preview production build"
+	@echo "  stats    - Regenerate public/data/stats.json from tutorials/stats/*.csv"
 	@echo "  lint     - Typecheck (astro check)"
 	@echo "  clean    - Clean build artifacts"
 	@echo "  install  - Install dependencies"
@@ -25,7 +27,10 @@ help:
 dev: build
 	$(NPM) run dev
 
-build:
+stats:
+	$(PYTHON) scripts/build_stats_from_csv.py
+
+build: stats
 	$(NPM) run build
 
 preview:

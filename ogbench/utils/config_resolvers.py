@@ -373,7 +373,7 @@ def infer_in_channels(dataset, transforms):
                 ] * (transforms[lifting].complex_dim - len(dataset.parameters.num_features))
 
     # Case when there is no lifting
-    elif not there_is_complex_lifting:
+    else:
         if isinstance(dataset.parameters.num_features, int):
             return [dataset.parameters.num_features]
         else:
