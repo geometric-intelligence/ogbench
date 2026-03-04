@@ -49,10 +49,12 @@ cd bgbench
 
 # Create conda environment
 conda create -n bgbench python=3.12
+curl -LsSf https://astral.sh/uv/install.sh | sh
 conda activate bgbench
 
 # Install dependencies
-pip install -e '.[all]'
+uv venv
+uv pip install -e '.[all]'
 
 # Install pre-commit hooks
 pre-commit install

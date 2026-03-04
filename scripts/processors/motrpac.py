@@ -211,8 +211,8 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
     raw_data = raw_data.loc[:, col_na <= 0.1]  # drop analytes with >10% NA
     # Leave remaining NaNs as-is; downstream will impute on train only
 
-    # 6) log transform
-    raw_data = np.log1p(raw_data)  # log1p for stability
+    # 6) log transform (log2 is standard for SomaLogic RFU data)
+    raw_data = np.log2(raw_data)
     raw_data = pd.DataFrame(raw_data, columns=raw_data.columns).reset_index(drop=True)
 
     # 6.5) Adjust for covariates (age, sex, bmi, race)
@@ -253,7 +253,7 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
         num_features=raw_data.shape[1],
         target_stats=target_stats,
         preprocessing_notes=(
-            'Data is log1p-transformed and adjusted for covariates (age, sex, bmi, race) '
+            'Data is log2-transformed and adjusted for covariates (age, sex, bmi, race) '
             'using linear regression. For each protein, fits protein ~ covariates, then adjusts '
             'to remove covariate effects centered at mean covariate values. This approach avoids '
             'using target labels, preventing data leakage.'
