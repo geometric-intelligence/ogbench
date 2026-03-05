@@ -381,7 +381,10 @@ class HFOmicsDataset(InMemoryDataset):
         import json
 
         # Convert train_val_test_split to list if it's a ListConfig
-        train_val_test_split = OmegaConf.to_object(self.train_val_test_split)
+        if OmegaConf.is_config(self.train_val_test_split):
+            train_val_test_split = OmegaConf.to_object(self.train_val_test_split)
+        else:
+            train_val_test_split = list(self.train_val_test_split)
         normalizer_stats = {
             'train_val_test_split': train_val_test_split,
             'train_idx': train_idx,
