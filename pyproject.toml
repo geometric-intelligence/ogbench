@@ -56,7 +56,7 @@ dependencies=[
     "huggingface-hub>=0.20.0",
     "torch-sparse",
     "torch-scatter",
-    "torch==2.8.0",
+    "torch==2.11.0",
     "torch-cluster",
     "combat>=0.3.3",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
