@@ -9,6 +9,7 @@ from ogbench.nn.backbones.graph import (
     ChebNet,
     CustomGATConv,
     GATv4,
+    GPSEncoder,
     GroupMLP,
     IdentityGAT,
     IdentityGCN,
@@ -38,4 +39,5 @@ __all__ = [
     'MultiHeadBatchNorm',
     'MultiHeadLinear',
     'SAGN',
+    'GPSEncoder',
 ]
