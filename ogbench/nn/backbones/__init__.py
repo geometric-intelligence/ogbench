@@ -1,4 +1,4 @@
-"""Some models implemented for TopoBenchX."""
+"""Some models implemented for OGBenchX."""
 
 from ogbench.nn.backbones.graph import (
     BACKBONE_CLASSES as GRAPH_BACKBONE_CLASSES,

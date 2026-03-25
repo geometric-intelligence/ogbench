@@ -1,1 +1,1 @@
-"""TopoBench: A library for benchmarking of topological models."""
+"""OGBench: A library for benchmarking of topological models."""

@@ -48,7 +48,7 @@ class CombinedPSEs(BaseTransform):
         torch_geometric.data.Data
             The transformed data with added structural encodings.
         """
-        from topobench.transforms.data_manipulations import (
+        from ogbench.transforms.data_manipulations import (
             RWSE,
             ElectrostaticPE,
             HKdiagSE,
