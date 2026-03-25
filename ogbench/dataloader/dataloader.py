@@ -29,6 +29,9 @@ class TBDataloader(LightningDataModule):
         The number of worker processes to use for data loading (default: 0).
     pin_memory : bool, optional
         If True, the data loader will copy tensors into pinned memory before returning them (default: False).
+    drop_last : bool, optional
+        If True, drop the last incomplete batch during training to avoid issues with
+        batch normalization when batch size is 1 (default: True).
     **kwargs : optional
         Additional arguments.
 
@@ -46,6 +49,7 @@ class TBDataloader(LightningDataModule):
         batch_size: int = 1,
         num_workers: int = 0,
         pin_memory: bool = False,
+        drop_last: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -69,6 +73,7 @@ class TBDataloader(LightningDataModule):
             self.dataset_test = dataset_test
         self.num_workers = num_workers
         self.pin_memory = pin_memory
+        self.drop_last = drop_last
         self.persistent_workers = kwargs.get('persistent_workers', False)
 
     def __repr__(self) -> str:
@@ -88,6 +93,7 @@ class TBDataloader(LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             shuffle=True,
+            drop_last=self.drop_last,
             collate_fn=collate_fn,
             persistent_workers=self.persistent_workers,
         )

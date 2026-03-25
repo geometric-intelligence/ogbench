@@ -26,12 +26,22 @@ backbone:
 
 readout:
   _target_: ogbench.nn.readouts.${model.readout.readout_name}
-  readout_name: NoReadOut
-  hidden_dim: ${model.backbone.out_channels}
-  out_channels: ${model.backbone.out_channels}
+  readout_name: OmicsReadOut
+  num_nodes: ${dataset.parameters.num_nodes}
+  hidden_dim: ${get_flattened_channels:${dataset.parameters.num_nodes},${model.backbone_wrapper.out_channels}}
+  which_layer: ["output"]
+  fc_dim: [16, 8, 4]
+  fc_dropout: 0.3
+  fc_act: relu
+  out_channels: ${dataset.parameters.num_classes}
   task_level: ${dataset.parameters.task_level}
-  pooling_type: sum
-  logits_linear_layer: false
+  # _target_: ogbench.nn.readouts.${model.readout.readout_name}
+  # readout_name: NoReadOut
+  # hidden_dim: ${model.backbone.out_channels}
+  # out_channels: ${model.backbone.out_channels}
+  # task_level: ${dataset.parameters.task_level}
+  # pooling_type: sum
+  # logits_linear_layer: false
 
 # compile model for faster training with pytorch 2.0
 compile: false

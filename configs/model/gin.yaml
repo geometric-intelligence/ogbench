@@ -27,12 +27,22 @@ backbone_wrapper:
 
 readout:
   _target_: ogbench.nn.readouts.${model.readout.readout_name}
-  readout_name: NoReadOut #  Use <NoReadOut> in case readout is not needed Options: PropagateSignalDown
-  num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}} # The highest order of cell dimensions to consider
-  hidden_dim: ${model.feature_encoder.out_channels}
+  readout_name: OmicsReadOut
+  num_nodes: ${dataset.parameters.num_nodes}
+  hidden_dim: ${get_flattened_channels:${dataset.parameters.num_nodes},${model.backbone_wrapper.out_channels}}
+  which_layer: ["output"]
+  fc_dim: [16, 8, 4]
+  fc_dropout: 0.3
+  fc_act: relu
   out_channels: ${dataset.parameters.num_classes}
   task_level: ${dataset.parameters.task_level}
-  pooling_type: mean
+  # _target_: ogbench.nn.readouts.${model.readout.readout_name}
+  # readout_name: NoReadOut #  Use <NoReadOut> in case readout is not needed Options: PropagateSignalDown
+  # num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}} # The highest order of cell dimensions to consider
+  # hidden_dim: ${model.feature_encoder.out_channels}
+  # out_channels: ${dataset.parameters.num_classes}
+  # task_level: ${dataset.parameters.task_level}
+  # pooling_type: mean
 
 # compile model for faster training with pytorch 2.0
 compile: false

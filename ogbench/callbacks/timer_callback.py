@@ -19,7 +19,7 @@ class PipelineTimer(pl.Callback):
             'test_batch': [],
             'test_epoch': [],
         }
-        self.counts = {key: 0 for key in self.sums}
+        self.counts = dict.fromkeys(self.sums, 0)
         self.times = {}
         self.skip_first_n = 10
 
