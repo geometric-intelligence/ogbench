@@ -11,7 +11,7 @@ from ogbench.transforms.data_manipulations.equal_gaus_features import EqualGausF
 from ogbench.transforms.data_manipulations.group_homophily import (
     GroupCombinatorialHomophily,
 )
-from ogbench.transforms.data_manipulations.hk_feature_encodings import HKFE
+from ogbench.transforms.data_manipulations.hkdiag_encodings import HKdiagSE
 from ogbench.transforms.data_manipulations.identity_transform import IdentityTransform
 from ogbench.transforms.data_manipulations.infere_knn_connectivity import (
     InfereKNNConnectivity,
@@ -56,7 +56,7 @@ DATA_MANIPULATIONS: dict[str, type] = {
     'NodeFeaturesToFloat': NodeFeaturesToFloat,
     'OneHotDegreeFeatures': OneHotDegreeFeatures,
     'RedefineSimplicialNeighbourhoods': RedefineSimplicialNeighbourhoods,
-    'HKFE': HKFE,
+    'HKdiagSE': HKdiagSE,
     'ElectrostaticPE': ElectrostaticPE,
     'LapPE': LapPE,
     'RWSE': RWSE,
@@ -80,7 +80,7 @@ __all__ = [
     'NodeFeaturesToFloat',
     'OneHotDegreeFeatures',
     'RedefineSimplicialNeighbourhoods',
-    'HKFE',
+    'HKdiagSE',
     'ElectrostaticPE',
     'LapPE',
     'RWSE',
