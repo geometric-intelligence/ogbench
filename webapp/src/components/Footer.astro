@@ -1,0 +1,16 @@
+---
+import Logo from './Logo';
+
+interface Props {
+  text: string;
+  subtext?: string;
+}
+
+const { text, subtext } = Astro.props;
+---
+
+<div class="footer">
+  <Logo size={40} className="footer-logo" client:load />
+  <p>{text}</p>
+  {subtext && <p>{subtext}</p>}
+</div>

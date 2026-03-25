@@ -1,0 +1,4 @@
+# GPU statistics callback for logging peak memory and utilization to wandb
+
+gpu_stats:
+  _target_: ogbench.callbacks.gpu_stats_callback.GPUStatsCallback

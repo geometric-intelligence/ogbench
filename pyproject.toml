@@ -24,6 +24,7 @@ dependencies=[
     "tqdm",
     "numpy",
     "scipy",
+    "dcor",
     "requests",
     "scikit-learn",
     "matplotlib",
@@ -38,7 +39,7 @@ dependencies=[
     "hydra-optuna-sweeper==1.2.0",
     "wandb",
     "fastmcp",
-    "einops==0.7.0",
+    "einops==0.8.2",
     "tabulate",
     "ipykernel",
     "notebook",
@@ -52,11 +53,12 @@ dependencies=[
     "fastparquet",
     "datasets>=2.14.0",
     "typer>=0.9.0",
+    "huggingface-hub>=0.20.0",
     "torch-sparse",
     "torch-scatter",
     "torch==2.8.0",
     "torch-cluster",
-    "pycombat",
+    "combat>=0.3.3",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
     "toponetx @ git+https://github.com/pyt-team/TopoNetX.git",
     "lightning>=2.5.0",
@@ -86,8 +88,8 @@ test = [
     "pytest-mock"
 ]
 
-dev = ["BGBench[test, lint]"]
-all = ["BGBench[dev, doc]"]
+dev = ["ogbench[test, lint]"]
+all = ["ogbench[dev, doc]"]
 
 
 [project.scripts]
@@ -124,6 +126,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"ogbench/baseline.py" = ["I001"]
 
 [tool.ruff.format]
 quote-style = "single"

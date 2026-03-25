@@ -16,6 +16,7 @@ defaults:
   - paths: default
   - extras: default
   - hydra: default
+  - hf: default
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule

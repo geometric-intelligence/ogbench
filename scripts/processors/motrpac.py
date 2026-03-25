@@ -11,19 +11,18 @@ from scripts.utils import create_dataset_metadata, download_file, upload_to_hugg
 
 def adjust_for_covariates(
     data: pd.DataFrame,
-    target: pd.Series,
     covariates: pd.DataFrame,
     covariate_names: list[str],
 ) -> pd.DataFrame:
-    """Adjust protein data for specified covariates using linear regression with target.
+    """Adjust protein data for specified covariates using linear regression.
 
-    Fits: target ~ all_proteins + covariates, then adjusts proteins to remove covariate
-    effects while preserving relationship with target.
+    For each protein, fits: protein ~ covariates, then adjusts to remove covariate
+    effects while centering at mean covariate values. This avoids using target
+    labels, preventing data leakage.
     Categorical variables (sex, race) are automatically one-hot encoded.
 
     Args:
         data: DataFrame with protein columns (already log-transformed)
-        target: Target variable (e.g., delta_rel)
         covariates: DataFrame with covariate columns
         covariate_names: List of covariate column names to adjust for
 
@@ -43,7 +42,7 @@ def adjust_for_covariates(
     if categorical_cols:
         cov_encoded = pd.get_dummies(cov_df[categorical_cols], drop_first=True, dtype=float)
     else:
-        cov_encoded = pd.DataFrame()
+        cov_encoded = pd.DataFrame(index=cov_df.index)
 
     if continuous_cols:
         cov_continuous = cov_df[continuous_cols].astype(float)
@@ -51,52 +50,66 @@ def adjust_for_covariates(
     else:
         X_cov = cov_encoded
 
-    # Find rows with complete covariate and target data
-    valid_mask = X_cov.notna().all(axis=1) & target.notna()
+    # Find rows with complete covariate data
+    valid_cov_mask = X_cov.notna().all(axis=1)
 
-    if valid_mask.sum() == 0:
-        print('Warning: No samples with complete data. Returning original data.')
+    if valid_cov_mask.sum() == 0:
+        print('Warning: No samples with complete covariate data. Returning original data.')
         return adjusted_data
 
-    X_cov_valid = X_cov.loc[valid_mask]
-    target_valid = target.loc[valid_mask]
+    X_cov_valid = X_cov.loc[valid_cov_mask].values
+    X_cov_mean = X_cov_valid.mean(axis=0)
 
-    # Get protein data for valid samples, fill NaNs with column means for fitting
-    proteins_valid = data.loc[valid_mask].fillna(data.mean())
+    print(f'Adjusting for covariates: {covariate_names}')
+    print(f'  Encoded covariate columns: {list(X_cov.columns)}')
+    print(f'  Samples with complete covariate data: {valid_cov_mask.sum()} / {len(data)}')
 
-    # Build full design matrix: [all_proteins, covariates]
-    X_full = np.hstack([proteins_valid.values, X_cov_valid.values])
+    # Track adjustment statistics
+    adjustment_stats: dict[str, dict[str, float]] = {}
 
-    # Fit: target ~ all_proteins + covariates
-    model = LinearRegression()
-    model.fit(X_full, target_valid.values)
+    # For each protein, fit protein ~ covariates and adjust
+    for protein_col in data.columns:
+        protein_values = data[protein_col].values
 
-    # Extract covariate coefficients (skip protein coefficients)
-    n_proteins = proteins_valid.shape[1]
-    covariate_coefs = model.coef_[n_proteins:]
+        # Find valid rows: complete covariates AND non-NaN protein
+        valid_mask = valid_cov_mask.values & ~np.isnan(protein_values)
 
-    # Calculate mean covariate values for centering
-    X_cov_mean = X_cov_valid.values.mean(axis=0)
+        if valid_mask.sum() < 10:
+            # Not enough data to fit regression, skip adjustment
+            continue
 
-    # Calculate covariate effects
-    cov_effect_at_mean = np.dot(X_cov_mean, covariate_coefs)
-    cov_effect_all = np.dot(X_cov_valid.values, covariate_coefs)
+        # Get valid data for this protein
+        X_valid = X_cov.loc[valid_mask].values
+        y_valid = protein_values[valid_mask]
 
-    # Adjust all proteins at once: remove (covariate_effect - covariate_effect_at_mean)
-    adjustment = cov_effect_all - cov_effect_at_mean
-    adjusted_data.loc[valid_mask] = data.loc[valid_mask] - adjustment[:, np.newaxis]
+        # Fit: protein ~ covariates
+        model = LinearRegression()
+        model.fit(X_valid, y_valid)
 
-    print(f'Adjusted for covariates: {covariate_names}')
-    print(f'  Valid samples for adjustment: {valid_mask.sum()} / {len(data)}')
+        # Calculate expected value at mean covariates
+        expected_at_mean = model.predict(X_cov_mean.reshape(1, -1))[0]
 
-    # Print per-covariate adjustment impact
-    print('  Covariate effects on target:')
-    for i, cov_name in enumerate(X_cov.columns):
-        cov_contribution = X_cov_valid.values[:, i] * covariate_coefs[i]
-        mean_abs_effect = np.abs(cov_contribution - cov_contribution.mean()).mean()
-        print(
-            f'    {cov_name}: coef={covariate_coefs[i]:.4f}, mean_abs_adjustment={mean_abs_effect:.4f}'
-        )
+        # For all samples with valid covariates, calculate adjustment
+        # adjusted = original - (predicted - expected_at_mean)
+        predicted_all = model.predict(X_cov_valid)
+        adjustment = predicted_all - expected_at_mean
+
+        # Apply adjustment only to samples with valid covariates
+        adjusted_values = protein_values.copy()
+        adjusted_values[valid_cov_mask.values] = protein_values[valid_cov_mask.values] - adjustment
+        adjusted_data[protein_col] = adjusted_values
+
+        # Track mean absolute adjustment for this protein
+        adjustment_stats[protein_col] = {
+            'mean_abs_adjustment': float(np.abs(adjustment).mean()),
+            'valid_samples': int(valid_mask.sum()),
+        }
+
+    # Print summary statistics
+    mean_adjustments = [s['mean_abs_adjustment'] for s in adjustment_stats.values()]
+    print(f'  Proteins adjusted: {len(adjustment_stats)} / {len(data.columns)}')
+    print(f'  Mean absolute adjustment across proteins: {np.mean(mean_adjustments):.4f}')
+    print(f'  Max absolute adjustment: {np.max(mean_adjustments):.4f}')
 
     return adjusted_data
 
@@ -198,21 +211,20 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
     raw_data = raw_data.loc[:, col_na <= 0.1]  # drop analytes with >10% NA
     # Leave remaining NaNs as-is; downstream will impute on train only
 
-    # 6) log transform
-    raw_data = np.log1p(raw_data)  # log1p for stability
+    # 6) log transform (log2 is standard for SomaLogic RFU data)
+    raw_data = np.log2(raw_data)
     raw_data = pd.DataFrame(raw_data, columns=raw_data.columns).reset_index(drop=True)
 
-    # 6.5) Adjust for covariates (age, sex, bmi, race, vo2_baseline)
+    # 6.5) Adjust for covariates (age, sex, bmi, race)
     print('\nCovariate selection:')
     print(f'  Available covariates in cov dataframe: {cov.columns.tolist()}')
     print(f'  Non-null counts: {cov.notna().sum().to_dict()}')
 
-    covariates_to_adjust = ['age', 'sex', 'bmi', 'race', 'vo2_baseline']
+    covariates_to_adjust = ['age', 'sex', 'bmi', 'race']
 
     print(f'  Selected for adjustment: {covariates_to_adjust}')
 
-    delta_rel_series = delta_rel.reset_index(drop=True)
-    raw_data = adjust_for_covariates(raw_data, delta_rel_series, cov, covariates_to_adjust)
+    raw_data = adjust_for_covariates(raw_data, cov, covariates_to_adjust)
 
     # 7) Emit classification target only
     out = os.path.join(output_dir, 'motrpac')
@@ -241,9 +253,10 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
         num_features=raw_data.shape[1],
         target_stats=target_stats,
         preprocessing_notes=(
-            'Data is log1p-transformed and adjusted for covariates (age, sex, bmi, race, vo2_baseline) '
-            'using linear regression. Fits target ~ all_proteins + covariates, then adjusts proteins to '
-            'remove covariate effects while preserving their relationship with the target.'
+            'Data is log2-transformed and adjusted for covariates (age, sex, bmi, race) '
+            'using linear regression. For each protein, fits protein ~ covariates, then adjusts '
+            'to remove covariate effects centered at mean covariate values. This approach avoids '
+            'using target labels, preventing data leakage.'
         ),
     )
 

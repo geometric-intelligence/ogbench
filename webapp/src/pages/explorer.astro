@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Logo from '../components/Logo';
+import Footer from '../components/Footer.astro';
+import ExplorerComponent from '../components/Explorer';
+---
+
+<Layout title="OgBench Dataset Explorer">
+  <!-- Header -->
+  <div class="header">
+    <Logo size={120} className="header-logo" client:load />
+    <div class="header-badge">DATASET EXPLORER</div>
+    <h1>OgBench Dataset Explorer</h1>
+    <p class="header-subtitle">
+      Interactive visualization of omics dataset graph properties
+    </p>
+
+    <a href="/" class="nav-link">
+      <span>🏆</span>
+      <span>Back to Leaderboard</span>
+    </a>
+  </div>
+
+  <!-- Explorer Component -->
+  <ExplorerComponent client:only="react" />
+
+  <Footer text="OgBench Dataset Explorer" />
+</Layout>
