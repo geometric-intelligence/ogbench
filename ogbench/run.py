@@ -25,6 +25,20 @@ from ogbench.utils.config_resolvers import (
     register_all_resolvers,
 )
 
+# PyTorch 2.6+ changed torch.load to default weights_only=True, which blocks
+# Lightning from loading checkpoints containing custom ogbench classes.
+# Lightning explicitly passes weights_only=True, so we must override it.
+# These are our own trusted checkpoints, so this is safe.
+_orig_torch_load = torch.load
+
+
+def _patched_torch_load(*args, **kwargs):
+    kwargs['weights_only'] = False
+    return _orig_torch_load(*args, **kwargs)
+
+
+torch.load = _patched_torch_load
+
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
@@ -213,8 +227,8 @@ def count_number_of_parameters(model: torch.nn.Module, only_trainable: bool = Tr
     """
     if only_trainable:
         num_params: int = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    else:  # counts trainable and none-traibale
-        num_params: int = sum(p.numel() for p in model.parameters() if p)
+    else:  # counts trainable and non-trainable
+        num_params: int = sum(p.numel() for p in model.parameters())
     assert num_params > 0, f'Err: {num_params=}'
     return int(num_params)
 

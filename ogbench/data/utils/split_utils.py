@@ -51,17 +51,25 @@ def k_fold_split(labels, parameters):
 
         skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
 
-        for fold_n, (train_idx, valid_idx) in enumerate(skf.split(x_idx, labels)):
+        # Collect all fold indices first so we can assign test = fold_n, valid = next fold
+        all_folds = list(skf.split(x_idx, labels))
+
+        for fold_n in range(k):
+            test_idx = all_folds[fold_n][1]
+            valid_idx = all_folds[(fold_n + 1) % k][1]
+            # Train = everything not in test or valid
+            held_out = np.union1d(test_idx, valid_idx)
+            train_idx = np.setdiff1d(np.arange(len(labels)), held_out)
+
             split_idx = {
                 'train': train_idx,
                 'valid': valid_idx,
-                'test': valid_idx,
+                'test': test_idx,
             }
 
             # Check that all nodes/graph have been assigned to some split
-            assert np.all(
-                np.sort(np.array(split_idx['train'].tolist() + split_idx['valid'].tolist()))
-                == np.sort(np.arange(len(labels)))
+            assert np.unique(np.concatenate([train_idx, valid_idx, test_idx])).shape[0] == len(
+                labels
             ), 'Not every sample has been loaded.'
             split_path = os.path.join(split_dir, f'{fold_n}.npz')
 

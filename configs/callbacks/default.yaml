@@ -3,6 +3,7 @@ defaults:
   - early_stopping
   - model_summary
   - model_timer
+  - gpu_stats
   - _self_
 
 model_checkpoint:

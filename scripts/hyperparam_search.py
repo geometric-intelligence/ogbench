@@ -46,6 +46,7 @@ class SearchConfig:
     shared_grid: dict[str, list[Any]]
     per_model_grid: dict[str, dict[str, list[Any]]]
     per_model_dataset_grid: dict[tuple[str, str], dict[str, list[Any]]]
+    per_dataset_ratio_method_grid: dict[tuple[str, float | str, str], dict[str, list[Any]]]
     timeout: int
     output_dir: str
     tags: list[str]
@@ -78,6 +79,27 @@ class SearchConfig:
                 # Already a tuple (shouldn't happen with YAML but handle it)
                 per_model_dataset_grid[key] = value
 
+        # Parse per_dataset_ratio_method_grid with string keys "dataset,ratio,method" -> tuple keys
+        per_dataset_ratio_raw = config.get('per_dataset_ratio_method_grid', {})
+        per_dataset_ratio_method_grid = {}
+        for key, value in per_dataset_ratio_raw.items():
+            if isinstance(key, str) and ',' in key:
+                # Parse "dataset,ratio,method" -> (dataset, ratio, method)
+                parts = key.split(',')
+                if len(parts) == 3:
+                    dataset = parts[0].strip()
+                    ratio_str = parts[1].strip()
+                    method = parts[2].strip()
+                    # Try to convert ratio to float, otherwise keep as string
+                    try:
+                        ratio = float(ratio_str)
+                    except ValueError:
+                        ratio = ratio_str
+                    per_dataset_ratio_method_grid[(dataset, ratio, method)] = value
+            elif isinstance(key, tuple) and len(key) == 3:
+                # Already a tuple (shouldn't happen with YAML but handle it)
+                per_dataset_ratio_method_grid[key] = value
+
         return cls(
             datasets=datasets,
             models=config['models'],
@@ -86,6 +108,7 @@ class SearchConfig:
             shared_grid=config.get('shared_grid', {}),
             per_model_grid=config.get('per_model_grid', {}),
             per_model_dataset_grid=per_model_dataset_grid,
+            per_dataset_ratio_method_grid=per_dataset_ratio_method_grid,
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
             tags=config.get('tags', []),
@@ -104,6 +127,7 @@ class RunConfig:
     hyperparams: dict[str, Any]
     timeout: int | None = None
     gpu_id: int | None = None
+    n_threads: int | None = None
 
 
 def to_override(key: str, value: Any) -> str:
@@ -170,7 +194,10 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
 
 
 def run_training(
-    overrides: list[str], timeout: int | None = None, gpu_id: int | None = None
+    overrides: list[str],
+    timeout: int | None = None,
+    gpu_id: int | None = None,
+    n_threads: int | None = None,
 ) -> tuple[bool, str | None, dict[str, Any] | None]:
     """Run training via subprocess."""
     cmd = ['ogbench-train'] + overrides
@@ -178,6 +205,9 @@ def run_training(
     env = os.environ.copy()
     if gpu_id is not None and torch.cuda.is_available():
         env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+    if n_threads is not None:
+        env['OMP_NUM_THREADS'] = str(n_threads)
+        env['MKL_NUM_THREADS'] = str(n_threads)
 
     try:
         result = subprocess.run(  # nosec B603
@@ -228,7 +258,9 @@ def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
         metrics = {'params': n_params} if success else None
         error_msg = error
     else:
-        success, error_msg, metrics = run_training(config.overrides, config.timeout, config.gpu_id)
+        success, error_msg, metrics = run_training(
+            config.overrides, config.timeout, config.gpu_id, config.n_threads
+        )
 
     elapsed = time.time() - start_time
 
@@ -264,6 +296,7 @@ def build_run_configs(
     n_gpus: int = 1,
     parallel: bool = True,
     dry_run: bool = False,
+    n_threads: int | None = None,
 ) -> list[RunConfig]:
     """Build all run configurations from search config."""
     configs = []
@@ -273,22 +306,116 @@ def build_run_configs(
 
     for model in models:
         for dataset in search_config.datasets:
-            # 3-level grid merge (priority: shared < per_model < per_model_dataset)
+            # Multi-level grid merge (priority: shared < per_model < per_model_dataset < per_dataset_ratio)
             # Get model-specific grid
             model_grid = search_config.per_model_grid.get(model, {})
 
             # Get model+dataset-specific grid
             model_dataset_grid = search_config.per_model_dataset_grid.get((model, dataset), {})
 
-            # Combine all three levels (later overrides earlier)
-            full_grid = {
+            # Combine base grids (per_dataset_ratio applied conditionally after generating combinations)
+            base_grid = {
                 **search_config.shared_grid,
                 **model_grid,
                 **model_dataset_grid,
             }
 
             # Generate all hyperparameter combinations
-            for hp_combo in product_dict(full_grid):
+            for hp_combo in product_dict(base_grid):
+                # Apply per_dataset_ratio_method_grid if dataset, node_sample_ratio, and method match
+                node_sample_ratio_key = 'dataset.loader.parameters.node_sample_ratio'
+                method_key = 'dataset.loader.parameters.method'
+                dataset_ratio_grid = {}
+
+                if node_sample_ratio_key in hp_combo and method_key in hp_combo:
+                    node_sample_ratio_value = hp_combo[node_sample_ratio_key]
+                    method_value = hp_combo[method_key]
+                    # Try to match as float or string
+                    ratio_key = None
+                    # Try exact match first
+                    if (
+                        dataset,
+                        node_sample_ratio_value,
+                        method_value,
+                    ) in search_config.per_dataset_ratio_method_grid:
+                        ratio_key = (dataset, node_sample_ratio_value, method_value)
+                    else:
+                        # Try float conversion for matching
+                        try:
+                            float_value = float(node_sample_ratio_value)
+                            if (
+                                dataset,
+                                float_value,
+                                method_value,
+                            ) in search_config.per_dataset_ratio_method_grid:
+                                ratio_key = (dataset, float_value, method_value)
+                        except (ValueError, TypeError):
+                            pass
+
+                    if ratio_key:
+                        dataset_ratio_grid = search_config.per_dataset_ratio_method_grid[ratio_key]
+                        # Generate combinations from dataset_ratio_grid and merge each into hp_combo
+                        for ratio_hp_combo in product_dict(dataset_ratio_grid):
+                            final_hp_combo = {**hp_combo, **ratio_hp_combo}
+
+                            for seed in search_config.seeds:
+                                run_id += 1
+
+                                # Build overrides list
+                                all_tags = [model, dataset, 'hpsearch'] + search_config.tags
+                                tags_str = ','.join(all_tags)
+                                overrides = [
+                                    f'model={model}',
+                                    f'dataset={dataset}',
+                                    f'seed={seed}',
+                                    f'logger.wandb.tags=[{tags_str}]',
+                                ]
+
+                                # Add fixed parameters
+                                for key, value in search_config.fixed.items():
+                                    overrides.append(to_override(key, value))
+
+                                # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
+                                readout_name = final_hp_combo.get('model.readout.readout_name')
+                                # Auto-set fc_dropout to match backbone.dropout if not explicitly set
+                                if (
+                                    readout_name != 'NoReadOut'
+                                    and 'model.readout.fc_dropout' not in final_hp_combo
+                                    and 'model.backbone.dropout' in final_hp_combo
+                                ):
+                                    final_hp_combo['model.readout.fc_dropout'] = final_hp_combo[
+                                        'model.backbone.dropout'
+                                    ]
+
+                                for key, value in final_hp_combo.items():
+                                    if readout_name == 'NoReadOut' and key in (
+                                        'model.readout.fc_dim',
+                                        'model.readout.fc_dropout',
+                                    ):
+                                        continue
+                                    overrides.append(to_override(key, value))
+
+                                # Assign GPU round-robin
+                                gpu_id = None
+                                if parallel and not dry_run and n_gpus > 0:
+                                    gpu_id = (run_id - 1) % n_gpus
+
+                                configs.append(
+                                    RunConfig(
+                                        run_id=run_id,
+                                        model=model,
+                                        dataset=dataset,
+                                        seed=seed,
+                                        overrides=overrides,
+                                        hyperparams=final_hp_combo,
+                                        timeout=search_config.timeout,
+                                        gpu_id=gpu_id,
+                                        n_threads=n_threads,
+                                    )
+                                )
+                        continue  # Skip the else block below
+
+                # No per_dataset_ratio_method_grid match, use hp_combo as-is
                 for seed in search_config.seeds:
                     run_id += 1
 
@@ -307,6 +434,16 @@ def build_run_configs(
                         overrides.append(to_override(key, value))
 
                     # Add hyperparameters
+                    # Auto-set fc_dropout to match backbone.dropout if not explicitly set
+                    readout_name = hp_combo.get('model.readout.readout_name')
+                    if (
+                        readout_name
+                        and readout_name != 'NoReadOut'
+                        and 'model.readout.fc_dropout' not in hp_combo
+                        and 'model.backbone.dropout' in hp_combo
+                    ):
+                        hp_combo['model.readout.fc_dropout'] = hp_combo['model.backbone.dropout']
+
                     for key, value in hp_combo.items():
                         overrides.append(to_override(key, value))
 
@@ -325,10 +462,76 @@ def build_run_configs(
                             hyperparams=hp_combo,
                             timeout=search_config.timeout,
                             gpu_id=gpu_id,
+                            n_threads=n_threads,
                         )
                     )
 
     return configs
+
+
+def warmup_caches(dataset_configs: list[dict[str, Any]], data_dir: str) -> None:
+    """Pre-generate dataset caches to avoid race conditions in parallel training.
+
+    Sequentially instantiates HFOmicsDataset for each unique config, triggering the download() and
+    process() methods if the cache doesn't exist.
+    """
+    from ogbench.data.datasets import HFOmicsDataset
+
+    print(f'Warming up {len(dataset_configs)} dataset caches...')
+    for i, config in enumerate(dataset_configs, 1):
+        print(
+            f'  [{i}/{len(dataset_configs)}] {config["data_name"]} | '
+            f'ratio={config["node_sample_ratio"]} | method={config["method"]} | '
+            f'threshold={config["adjacency_threshold"]}'
+        )
+
+        # Instantiation triggers download() and process() if cache missing
+        HFOmicsDataset(
+            root=data_dir,
+            data_name=config['data_name'],
+            node_sample_ratio=config['node_sample_ratio'],
+            method=config['method'],
+            adjacency_threshold=config['adjacency_threshold'],
+        )
+
+    print('Cache warmup complete.')
+
+
+def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str, Any]]:
+    """Extract unique dataset configurations that need cache warmup.
+
+    Identifies all unique (dataset, node_sample_ratio, method, adjacency_threshold) combinations
+    from the search config to pre-generate caches before parallel training.
+    """
+    unique_configs: set[tuple[str, float, str, float]] = set()
+
+    for dataset in search_config.datasets:
+        ratios = search_config.shared_grid.get(
+            'dataset.loader.parameters.node_sample_ratio', [0.5]
+        )
+        methods = search_config.shared_grid.get('dataset.loader.parameters.method', ['variance'])
+
+        for ratio in ratios:
+            for method in methods:
+                # Look up threshold from per_dataset_ratio_method_grid
+                ratio_key = (dataset, float(ratio), method)
+                threshold_grid = search_config.per_dataset_ratio_method_grid.get(ratio_key, {})
+                thresholds = threshold_grid.get(
+                    'dataset.loader.parameters.adjacency_threshold', [0.05]
+                )
+
+                for threshold in thresholds:
+                    unique_configs.add((dataset, float(ratio), method, float(threshold)))
+
+    return [
+        {
+            'data_name': d,
+            'node_sample_ratio': r,
+            'method': m,
+            'adjacency_threshold': t,
+        }
+        for d, r, m, t in sorted(unique_configs)
+    ]
 
 
 def run_search(
@@ -337,10 +540,16 @@ def run_search(
     dry_run: bool = False,
     parallel: bool = True,
     n_jobs: int | None = None,
+    skip_warmup: bool = False,
 ) -> pd.DataFrame:
     """Run the full hyperparameter search."""
     n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
     n_jobs = n_jobs or max(n_gpus, 1)
+
+    # Cap CPU threads per job to avoid thrashing when running in parallel.
+    # Each job gets an equal share of available cores.
+    n_cpu = os.cpu_count() or 1
+    n_threads = max(1, n_cpu // n_jobs)
 
     # Build all run configurations
     configs = build_run_configs(
@@ -349,6 +558,7 @@ def run_search(
         n_gpus=n_gpus,
         parallel=parallel,
         dry_run=dry_run,
+        n_threads=n_threads,
     )
 
     # Print summary
@@ -361,8 +571,16 @@ def run_search(
     print(f'Total runs: {len(configs)}')
     print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
     print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus})')
+    print(f'CPU threads per job: {n_threads} (of {n_cpu} total cores)')
     print(f'Output: {search_config.output_dir}')
     print('=' * 60)
+
+    # Warmup dataset caches to avoid race conditions in parallel training
+    if not dry_run and not skip_warmup:
+        data_dir = os.path.join(os.environ.get('PROJECT_ROOT', '.'), 'run_data', 'data', 'omics')
+        dataset_configs = extract_unique_dataset_configs(search_config)
+        print(f'\nUnique dataset configs to cache: {len(dataset_configs)}')
+        warmup_caches(dataset_configs, data_dir)
 
     # Create output directory
     os.makedirs(search_config.output_dir, exist_ok=True)
@@ -474,6 +692,11 @@ Examples:
         type=str,
         help='Override output directory from config',
     )
+    parser.add_argument(
+        '--skip-warmup',
+        action='store_true',
+        help='Skip dataset cache warmup (use when caches already exist)',
+    )
 
     args = parser.parse_args()
 
@@ -497,6 +720,7 @@ Examples:
         dry_run=args.dry_run,
         parallel=not args.no_parallel,
         n_jobs=args.n_jobs,
+        skip_warmup=args.skip_warmup,
     )
 
 
