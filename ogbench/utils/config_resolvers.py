@@ -241,6 +241,170 @@ def get_monitor_mode(task):
         raise ValueError(f'Invalid task {task}')
 
 
+def get_pse_dimensions(encodings, parameters):
+    r"""Get dimensions of positional or structural encodings.
+
+    Parameters
+    ----------
+    encodings : list
+        List of positional or structural encodings.
+    parameters : dict
+        Dictionary of parameters for the positional or structural encodings, which should
+        contain the key "parameters" with the parameters for each encoding.
+
+    Returns
+    -------
+    list
+        List with dimensions of the positional or structural encodings.
+    """
+    dimensions = []
+    for pse in encodings:
+        if pse == 'LapPE':
+            if parameters[pse].get('include_eigenvalues'):
+                dimensions.append(parameters[pse].get('max_pe_dim') * 2)
+            else:
+                dimensions.append(parameters[pse].get('max_pe_dim'))
+        elif pse == 'RWSE':
+            dimensions.append(parameters[pse].get('max_pe_dim'))
+        elif pse == 'ElectrostaticPE':
+            dimensions.append(7)
+        elif pse == 'HKdiagSE':
+            kernel_param = parameters[pse].get('kernel_param_HKdiagSE')
+            # Handle both OmegaConf ListConfig and regular lists/tuples
+            if (
+                isinstance(kernel_param, list | tuple)
+                or type(kernel_param) is omegaconf.listconfig.ListConfig
+            ):
+                dimensions.append(kernel_param[1] - kernel_param[0])
+            else:
+                dimensions.append(kernel_param)
+    return dimensions
+
+
+def get_all_encoding_dimensions(encodings, parameters):
+    r"""Get dimensions of all encodings (PSEs and FEs) in order.
+
+    Parameters
+    ----------
+    encodings : list
+        List of all encodings (both PSEs and FEs).
+    parameters : dict
+        Dictionary of parameters for all encodings.
+
+    Returns
+    -------
+    list
+        List with dimensions of all encodings in the same order as input.
+    """
+    dimensions = []
+    for enc in encodings:
+        # PSE encodings
+        if enc == 'LapPE':
+            if parameters[enc].get('include_eigenvalues'):
+                dimensions.append(parameters[enc].get('max_pe_dim') * 2)
+            else:
+                dimensions.append(parameters[enc].get('max_pe_dim'))
+        elif enc == 'RWSE':
+            dimensions.append(parameters[enc].get('max_pe_dim'))
+        elif enc == 'ElectrostaticPE':
+            dimensions.append(7)
+        elif enc == 'HKdiagSE':
+            kernel_param = parameters[enc].get('kernel_param_HKdiagSE')
+            # Handle both OmegaConf ListConfig and regular lists/tuples
+            if (
+                isinstance(kernel_param, list | tuple)
+                or type(kernel_param) is omegaconf.listconfig.ListConfig
+            ):
+                dimensions.append(kernel_param[1] - kernel_param[0])
+            else:
+                dimensions.append(kernel_param)
+        # FE encodings
+        elif enc == 'HKFE':
+            kernel_param = parameters[enc].get('kernel_param_HKFE')
+            # Handle both OmegaConf ListConfig and regular lists/tuples
+            if (
+                isinstance(kernel_param, list | tuple)
+                or type(kernel_param) is omegaconf.listconfig.ListConfig
+            ):
+                dimensions.append(kernel_param[1] - kernel_param[0])
+            else:
+                dimensions.append(kernel_param)
+        elif enc == 'KHopFE':
+            # max_hop - 1 because the 0th hop is the features themselves
+            dimensions.append(parameters[enc].get('max_hop') - 1)
+    return dimensions
+
+
+def check_pses_in_transforms(transforms):
+    r"""Check if there are positional or structural encodings in the transforms.
+
+    Parameters
+    ----------
+    transforms : DictConfig
+        Configuration parameters for the transforms.
+
+    Returns
+    -------
+    int
+       Count of the number of features added by the encodings.
+    """
+    added_features = 0
+    # Single transform
+    transform = transforms.get('transform_name', None)
+    if transform is not None:
+        if transform == 'LapPE':
+            if transforms.get('include_eigenvalues'):
+                added_features += transforms.get('max_pe_dim') * 2
+            else:
+                added_features += transforms.get('max_pe_dim')
+        elif transform == 'RWSE' or transform == 'SheafConnLapPE':
+            added_features += transforms.get('max_pe_dim')
+    # Potentially multiple transforms
+    for key in transforms:
+        if 'CombinedPSEs' in key or 'encodings' in key:
+            for pse in transforms[key].get('encodings', []):
+                if pse == 'LapPE':
+                    if transforms[key].get('parameters').get(pse).get('include_eigenvalues'):
+                        added_features += (
+                            transforms[key].get('parameters').get(pse).get('max_pe_dim') * 2
+                        )
+                    else:
+                        added_features += (
+                            transforms[key].get('parameters').get(pse).get('max_pe_dim')
+                        )
+                elif pse == 'RWSE':
+                    added_features += transforms[key].get('parameters').get(pse).get('max_pe_dim')
+                elif pse == 'ElectrostaticPE':
+                    added_features += 7
+                elif pse == 'HKdiagSE':
+                    kernel_param = (
+                        transforms[key].get('parameters').get(pse).get('kernel_param_HKdiagSE')
+                    )
+                    added_features += (
+                        (kernel_param[1] - kernel_param[0])
+                        if type(kernel_param) is omegaconf.listconfig.ListConfig
+                        else kernel_param
+                    )
+        elif 'LapPE' in key:
+            if transforms[key].get('include_eigenvalues'):
+                added_features += transforms[key].get('max_pe_dim') * 2
+            else:
+                added_features += transforms[key].get('max_pe_dim')
+        elif 'RWSE' in key or 'SheafConnLapPE' in key:
+            added_features += transforms[key].get('max_pe_dim')
+        elif 'ElectrostaticPE' in key:
+            added_features += 7
+        elif 'HKdiagSE' in key:
+            kernel_param = transforms[key].get('kernel_param_HKdiagSE')
+            added_features += (
+                (kernel_param[1] - kernel_param[0])
+                if type(kernel_param) is omegaconf.listconfig.ListConfig
+                else kernel_param
+            )
+
+    return added_features
+
+
 def infer_in_channels(dataset, transforms):
     r"""Infer the number of input channels for a given dataset.
 
@@ -256,6 +420,9 @@ def infer_in_channels(dataset, transforms):
     list
         List with dimensions of the input channels.
     """
+    num_features = dataset.parameters.num_features
+    if isinstance(num_features, int) and transforms is not None:
+        num_features = num_features + check_pses_in_transforms(transforms)
 
     # Make it possible to pass lifting configuration as file path
     if transforms is not None and transforms.keys() == {'liftings'}:
@@ -336,48 +503,78 @@ def infer_in_channels(dataset, transforms):
         # Get type of feature lifting
         feature_lifting = check_for_type_feature_lifting(transforms, lifting)
 
-        # Check if the dataset.parameters.num_features defines a single value or a list
-        if isinstance(dataset.parameters.num_features, int):
+        # Check if the num_features defines a single value or a list
+        if isinstance(num_features, int):
             # Case when the dataset has no edge attributes
             if feature_lifting == 'Concatenation':
-                return_value = [dataset.parameters.num_features]
-                for i in range(2, transforms[lifting].complex_dim + 1):
+                return_value = [num_features]
+                for i in range(2, transforms[lifting].complex_dim + 2):
                     return_value += [int(return_value[-1]) * i]
 
                 return return_value
 
             else:
                 # ProjectionSum feature lifting by default
-                return [dataset.parameters.num_features] * transforms[lifting].complex_dim
+                return [num_features] * (transforms[lifting].complex_dim + 1)
         # Case when the dataset has edge attributes (cells attributes)
         else:
             assert (
-                type(dataset.parameters.num_features) is omegaconf.listconfig.ListConfig
-            ), f'num_features should be a list of integers, not {type(dataset.parameters.num_features)}'
+                type(num_features) is omegaconf.listconfig.ListConfig
+            ), f'num_features should be a list of integers, not {type(num_features)}'
             # If preserve_edge_attr == False
             if not transforms[lifting].preserve_edge_attr:
                 if feature_lifting == 'Concatenation':
-                    return_value = [dataset.parameters.num_features[0]]
-                    for i in range(2, transforms[lifting].complex_dim + 1):
+                    return_value = [num_features[0]]
+                    for i in range(2, transforms[lifting].complex_dim + 2):
                         return_value += [int(return_value[-1]) * i]
 
                     return return_value
 
                 else:
                     # ProjectionSum feature lifting by default
-                    return [dataset.parameters.num_features[0]] * transforms[lifting].complex_dim
+                    return [num_features[0]] * (transforms[lifting].complex_dim + 1)
             # If preserve_edge_attr == True
             else:
-                return list(dataset.parameters.num_features) + [
-                    dataset.parameters.num_features[1]
-                ] * (transforms[lifting].complex_dim - len(dataset.parameters.num_features))
+                return list(num_features) + [num_features[1]] * (
+                    transforms[lifting].complex_dim + 1 - len(num_features)
+                )
 
     # Case when there is no lifting
     elif not there_is_complex_lifting:
-        if isinstance(dataset.parameters.num_features, int):
-            return [dataset.parameters.num_features]
+        # Check if dataset and model are from the same domain and data_domain is higher-order
+
+        # TODO: Does this if statement ever execute? model_domain == data_domain and data_domain in ["simplicial", "cell", "combinatorial", "hypergraph"]
+        # BUT get_default_transform() returns "no_transform" when model_domain == data_domain
+        if dataset.loader.parameters.get(
+            'model_domain', 'graph'
+        ) == dataset.loader.parameters.data_domain and dataset.loader.parameters.data_domain in [
+            'simplicial',
+            'cell',
+            'combinatorial',
+            'hypergraph',
+        ]:
+            if isinstance(
+                num_features,
+                omegaconf.listconfig.ListConfig,
+            ):
+                return list(num_features)
+            else:
+                raise ValueError(
+                    'The dataset and model are from the same domain but the data_domain is not higher-order.'
+                )
+
+        elif isinstance(num_features, int):
+            return [num_features]
+
         else:
-            return [dataset.parameters.num_features[0]]
+            pe_features = check_pses_in_transforms(transforms) if transforms is not None else 0
+            return [num_features[0] + pe_features]
+
+    # This else is never executed
+    else:
+        raise ValueError(
+            'There is a problem with the complex lifting. Please check the configuration file.'
+        )
 
 
 def infer_num_cell_dimensions(selected_dimensions, in_channels):
