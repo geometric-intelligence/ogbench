@@ -133,7 +133,19 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
 
     # Load data
     proteomics_df = pd.read_excel(os.path.join(output_dir, 'motrpac_proteomics.xlsx'), header=3)
+    mapping_df = pd.read_excel(os.path.join(output_dir, 'motrpac_proteomics.xlsx'), sheet_name=1)
     analytes_df = pd.read_excel(os.path.join(output_dir, 'motrpac_analytes.xlsx'))
+
+    # Map somaIDs to UniProt for PPI graph
+    soma_uniprot_map = mapping_df[['Soma ID', 'UniProt']].copy()
+    soma_uniprot_map = soma_uniprot_map.rename(
+        columns={
+            'Soma ID': 'node_id',
+            'UniProt': 'string_id',
+        }
+    )
+    soma_uniprot_map['node_id'] = soma_uniprot_map['node_id'].astype(str)
+    soma_uniprot_map = soma_uniprot_map.dropna(subset=['node_id'])
 
     # 1) Use analytes.xlsx to select & name protein columns
     # The analytes file has Baseline/Post-training/Response columns with IDs
@@ -238,6 +250,8 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
 
     cov.reset_index(drop=True).to_parquet(os.path.join(out, 'motrpac_covariates.parquet'))
 
+    soma_uniprot_map.to_parquet(os.path.join(out, 'motrpac_map.parquet'), index=False)
+
     # 8) Create metadata
     target_stats = {
         'responder15': {
@@ -264,6 +278,7 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
     data_files = {
         'data': os.path.join(out, 'motrpac_data.parquet'),
         'targets': os.path.join(out, 'motrpac_targets.parquet'),
+        'map': os.path.join(out, 'motrpac_map.parquet'),
     }
 
     upload_to_huggingface('motrpac', data_files, metadata)
