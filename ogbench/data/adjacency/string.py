@@ -83,7 +83,12 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         print(f'  Retrieved {len(interactions)} interactions')
 
         # 5. Build reverse map: STRING internal ID → original identifier
-        string_id_to_id = {v: k for k, v in id_to_string_id.items()}
+        # 5. Build reverse map: STRING internal ID → list of original identifiers
+        string_id_to_id: dict[str, list[str]] = {}
+        for orig_id, string_id in id_to_string_id.items():
+            if string_id not in string_id_to_id:
+                string_id_to_id[string_id] = []
+            string_id_to_id[string_id].append(orig_id)
 
         # 6. Build identifier-pair → normalized score lookup
         #    Key is always sorted tuple (a, b) with a < b for consistent lookup
@@ -92,14 +97,14 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         for item in interactions:
             sid_a = item.get('stringId_A', '')
             sid_b = item.get('stringId_B', '')
-            score = item.get('score', 0)  # normalize to [0, 1]
-            ia = string_id_to_id.get(sid_a)
-            ib = string_id_to_id.get(sid_b)
-            if ia and ib and ia != ib:
-                key = (ia, ib) if ia < ib else (ib, ia)
-                id_interactions[key] = max(
-                    id_interactions.get(key, 0.0), score
-                )  # handles multiple edges between the same pair of nodes
+            score = item.get('score', 0)
+            for ia in string_id_to_id.get(sid_a, []):
+                for ib in string_id_to_id.get(sid_b, []):
+                    if ia != ib:
+                        key = (ia, ib) if ia < ib else (ib, ia)
+                        id_interactions[key] = max(
+                            id_interactions.get(key, 0.0), score
+                        )  # handles multiple edges between the same pair of nodes
 
         # 7. Build node-level adjacency matrix
         # Convert interaction lookup to a DataFrame for vectorized merge
