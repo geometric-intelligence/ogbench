@@ -2,13 +2,17 @@
 
 import hashlib
 import json
+import logging
 import os
+import time
 
 import numpy as np
 import pandas as pd
 import requests
 
 from ogbench.data.adjacency.base import AbstractAdjacencyBuilder
+
+logger = logging.getLogger(__name__)
 
 
 class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
@@ -44,7 +48,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         self.cache_dir = cache_dir
         os.makedirs(cache_dir, exist_ok=True)
 
-    def build(self, node_features: pd.DataFrame, map_df: pd.DataFrame) -> np.ndarray:
+    def build(self, node_features: pd.DataFrame, map_df: pd.DataFrame | None = None) -> np.ndarray:
         """Build adjacency matrix using STRING PPI.
 
         Args:
@@ -59,30 +63,32 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
             Values are STRING combined scores normalized to [0, 1].
             Zero means no interaction above threshold.
         """
+        if map_df is None:
+            raise ValueError('map_df is required for STRING adjacency builder')
+
         node_ids = list(node_features.columns)
         n = len(node_ids)
 
         # 1. Load node_id → list of STRING identifiers
         #    Handles pipe-delimited complexes: "P02671|P02675|P02679" → ["P02671", "P02675", "P02679"]
         node_to_ids = self._load_mapping(node_ids, map_df)
-        print(f'  Mapped {len(node_to_ids)}/{n} nodes to STRING identifiers')
+        logger.info('Mapped %d/%d nodes to STRING identifiers', len(node_to_ids), n)
 
         # 2. Collect all unique identifiers across all nodes
         all_ids = list({i for ids in node_to_ids.values() for i in ids})
-        print(f'  Querying STRING for {len(all_ids)} unique identifiers ')
+        logger.info('Querying STRING for %d unique identifiers', len(all_ids))
 
         # 3. Map identifiers → STRING internal IDs via API
         #    STRING auto-detects identifier format (UniProt, Entrez, symbol, etc.)
         #    limit=1 takes the single best hit per query
         id_to_string_id = self._map_to_string_ids(all_ids)
-        print(f'  STRING ID mapping: {len(id_to_string_id)}/{len(all_ids)} resolved')
+        logger.info('STRING ID mapping: %d/%d resolved', len(id_to_string_id), len(all_ids))
 
         # 4. Fetch all interactions among the resolved STRING IDs
         string_ids = list(id_to_string_id.values())
         interactions = self._fetch_interactions(string_ids)
-        print(f'  Retrieved {len(interactions)} interactions')
+        logger.info('Retrieved %d interactions', len(interactions))
 
-        # 5. Build reverse map: STRING internal ID → original identifier
         # 5. Build reverse map: STRING internal ID → list of original identifiers
         string_id_to_id: dict[str, list[str]] = {}
         for orig_id, string_id in id_to_string_id.items():
@@ -146,7 +152,12 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
 
         n_edges = int((adj > 0).sum() // 2)
         isolated = int((adj.sum(axis=1) == 0).sum())
-        print(f'  Adjacency matrix: {n} nodes, {n_edges} edges, {isolated} isolated nodes')
+        logger.info(
+            'Adjacency matrix: %d nodes, %d edges, %d isolated nodes',
+            n,
+            n_edges,
+            isolated,
+        )
 
         return adj
 
@@ -172,7 +183,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
 
         unmapped = len(node_ids) - len(result)
         if unmapped > 0:
-            print(f'  Warning: {unmapped} nodes have no STRING mapping — will be isolated')
+            logger.warning('%d nodes have no STRING mapping — will be isolated', unmapped)
 
         return result
 
@@ -212,7 +223,12 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
                         if query and string_id:
                             cached[query] = string_id
                 except requests.RequestException as e:
-                    print(f'  Warning: STRING ID mapping batch {i // batch_size} failed: {e}')
+                    logger.warning(
+                        'STRING ID mapping batch %d failed: %s',
+                        i // batch_size,
+                        e,
+                    )
+                time.sleep(1)
 
             with open(cache_file, 'w') as f:
                 json.dump(cached, f)
@@ -231,21 +247,21 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         )
 
         if os.path.exists(cache_file):
-            print('  Loading interactions from cache...')
+            logger.info('Loading interactions from cache...')
             with open(cache_file) as f:
                 return json.load(f)
 
         # Download full STRING bulk file once — reused across all datasets
         bulk_file = os.path.join(self.cache_dir, f'{self.species}.protein.links.v12.0.txt.gz')
         if not os.path.exists(bulk_file):
-            print('  Downloading STRING bulk interaction file (one-time download ~100MB)...')
+            logger.info('Downloading STRING bulk interaction file (one-time download ~100MB)...')
             url = f'https://stringdb-downloads.org/download/protein.links.v12.0/{self.species}.protein.links.v12.0.txt.gz'
             r = requests.get(url, timeout=300, stream=True)
             r.raise_for_status()
             with open(bulk_file, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
-            print('  Download complete.')
+            logger.info('Download complete.')
 
         # Parse bulk file and filter to our proteins
         import gzip
@@ -253,7 +269,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         string_id_set = set(string_ids)
         interactions = []
 
-        print('  Filtering STRING bulk file for our proteins...')
+        logger.info('Filtering STRING bulk file for our proteins...')
         with gzip.open(bulk_file, 'rt') as f:
             next(f)  # skip header
             for line in f:
@@ -271,7 +287,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
                         }
                     )
 
-        print(f'  Found {len(interactions)} interactions.')
+        logger.info('Found %d interactions.', len(interactions))
 
         # Cache the filtered result so we never parse the bulk file again for this config
         with open(cache_file, 'w') as f:

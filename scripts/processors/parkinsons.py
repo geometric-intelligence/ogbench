@@ -9,7 +9,9 @@ import pandas as pd
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
 
 
-def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True) -> pd.DataFrame:
+def _map_probes_to_genes(
+    df: pd.DataFrame, data_dir: str, collapse: bool = True
+) -> tuple[pd.DataFrame, dict[str, str]]:
     """Map Affymetrix probe IDs to gene symbols using GPL570 annotation."""
     url = 'https://ftp.ncbi.nlm.nih.gov/geo/platforms/GPLnnn/GPL570/annot/GPL570.annot.gz'
     annot_path = os.path.join(data_dir, 'GPL570.annot.gz')

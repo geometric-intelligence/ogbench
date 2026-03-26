@@ -198,17 +198,19 @@ class HFOmicsDataset(InMemoryDataset):
             revision=self.revision,
             filename=f'{self.data_name}_targets.parquet',
         )
-        map_file = hf_hub_download(  # nosec
-            repo_id=self.hf_repo_id,
-            repo_type='dataset',
-            revision=self.revision,
-            filename=f'{self.data_name}_map.parquet',
-        )
+        map_df = None
+        if self.adjacency_method == 'string':
+            map_file = hf_hub_download(  # nosec
+                repo_id=self.hf_repo_id,
+                repo_type='dataset',
+                revision=self.revision,
+                filename=f'{self.data_name}_map.parquet',
+            )
+            map_df = pd.read_parquet(map_file)
 
-        # Load data and targets and map using pandas
+        # Load data and targets with pandas
         raw_data = pd.read_parquet(data_file)
         targets_df = pd.read_parquet(targets_file)
-        map_df = pd.read_parquet(map_file)
 
         # Convert to proper format - data should be features only
         if 'target' in raw_data.columns:
@@ -278,6 +280,10 @@ class HFOmicsDataset(InMemoryDataset):
             n_nodes = int(n_training_samples / self.node_sample_ratio)
             if n_nodes > train_data.shape[1]:
                 n_nodes = train_data.shape[1]
+        else:
+            raise ValueError(
+                f'node_sample_ratio must be "full" or numeric, got {self.node_sample_ratio!r}'
+            )
         logger.info(
             f'Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}'
         )
@@ -331,7 +337,7 @@ class HFOmicsDataset(InMemoryDataset):
         return selector.select(data, targets, n_selected)
 
     def calculate_adjacency_matrix(
-        self, node_features: pd.DataFrame, map_df: pd.DataFrame
+        self, node_features: pd.DataFrame, map_df: pd.DataFrame | None = None
     ) -> np.ndarray:
         """Calculate adjacency matrix using a modular adjacency builder system."""
         # Build continuous adjacency matrix using modular builder
