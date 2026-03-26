@@ -14,7 +14,7 @@ class WGCNAAdjacencyBuilder(AbstractAdjacencyBuilder):
     create a signed hybrid adjacency matrix.
     """
 
-    def build(self, node_features: pd.DataFrame) -> np.ndarray:
+    def build(self, node_features: pd.DataFrame, map_df: pd.DataFrame) -> np.ndarray:
         """Build adjacency matrix using WGCNA."""
         # Use WGCNA to find optimal power for scale-free topology
         try:

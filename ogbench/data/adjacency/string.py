@@ -32,17 +32,14 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
 
     def __init__(
         self,
-        score_threshold: int = 400,
         species: int = 9606,
         cache_dir: str = 'temp_data/string_cache',
     ) -> None:
         """
         Args:
-            score_threshold: STRING combined score threshold (400=medium, 700=high, 900=highest)
             species: NCBI taxonomy ID (9606 = human)
             cache_dir: Directory to cache STRING API responses
         """
-        self.score_threshold = score_threshold
         self.species = species
         self.cache_dir = cache_dir
         os.makedirs(cache_dir, exist_ok=True)
@@ -72,10 +69,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
 
         # 2. Collect all unique identifiers across all nodes
         all_ids = list({i for ids in node_to_ids.values() for i in ids})
-        print(
-            f'  Querying STRING for {len(all_ids)} unique identifiers '
-            f'(score >= {self.score_threshold})...'
-        )
+        print(f'  Querying STRING for {len(all_ids)} unique identifiers ')
 
         # 3. Map identifiers → STRING internal IDs via API
         #    STRING auto-detects identifier format (UniProt, Entrez, symbol, etc.)
@@ -98,12 +92,14 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         for item in interactions:
             sid_a = item.get('stringId_A', '')
             sid_b = item.get('stringId_B', '')
-            score = item.get('score', 0) / 1000.0  # normalize to [0, 1]
+            score = item.get('score', 0)  # normalize to [0, 1]
             ia = string_id_to_id.get(sid_a)
             ib = string_id_to_id.get(sid_b)
             if ia and ib and ia != ib:
                 key = (ia, ib) if ia < ib else (ib, ia)
-                id_interactions[key] = max(id_interactions.get(key, 0.0), score)
+                id_interactions[key] = max(
+                    id_interactions.get(key, 0.0), score
+                )  # handles multiple edges between the same pair of nodes
 
         # 7. Build node-level adjacency matrix
         # Convert interaction lookup to a DataFrame for vectorized merge
@@ -118,23 +114,19 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         # Explode node → identifier mapping into a flat DataFrame
         node_id_map = pd.DataFrame(
             [
-                (node, ident, idx)
+                (ident, idx)
                 for idx, node in enumerate(node_ids)
                 for ident in node_to_ids.get(node, [])
             ],
-            columns=['node_id', 'identifier', 'node_idx'],
+            columns=['identifier', 'node_idx'],
         )
 
         # Join interactions to node indices via identifier
         merged = interactions_df.merge(
-            node_id_map.rename(
-                columns={'node_id': 'node_a', 'identifier': 'id_a', 'node_idx': 'idx_a'}
-            ),
+            node_id_map.rename(columns={'identifier': 'id_a', 'node_idx': 'idx_a'}),
             on='id_a',
         ).merge(
-            node_id_map.rename(
-                columns={'node_id': 'node_b', 'identifier': 'id_b', 'node_idx': 'idx_b'}
-            ),
+            node_id_map.rename(columns={'identifier': 'id_b', 'node_idx': 'idx_b'}),
             on='id_b',
         )
 
@@ -223,11 +215,14 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         return {x: cached[x] for x in identifiers if x in cached}
 
     def _fetch_interactions(self, string_ids: list[str]) -> list[dict]:
+        # Per-dataset cache — avoids re-parsing bulk file on repeated runs
         ids_hash = hashlib.md5(
-            json.dumps(sorted(string_ids)).encode(), usedforsecurity=False
+            json.dumps(sorted(string_ids)).encode(),
+            usedforsecurity=False,
         ).hexdigest()[:12]
         cache_file = os.path.join(
-            self.cache_dir, f'interactions_{self.species}_{self.score_threshold}_{ids_hash}.json'
+            self.cache_dir,
+            f'interactions_{self.species}_{ids_hash}.json',
         )
 
         if os.path.exists(cache_file):
@@ -235,8 +230,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
             with open(cache_file) as f:
                 return json.load(f)
 
-        # Download full STRING interaction file for this species
-        # Much more reliable than API for large protein sets
+        # Download full STRING bulk file once — reused across all datasets
         bulk_file = os.path.join(self.cache_dir, f'{self.species}.protein.links.v12.0.txt.gz')
         if not os.path.exists(bulk_file):
             print('  Downloading STRING bulk interaction file (one-time download ~100MB)...')
@@ -248,7 +242,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
                     f.write(chunk)
             print('  Download complete.')
 
-        # Parse bulk file and filter to our proteins + score threshold
+        # Parse bulk file and filter to our proteins
         import gzip
 
         string_id_set = set(string_ids)
@@ -256,7 +250,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
 
         print('  Filtering STRING bulk file for our proteins...')
         with gzip.open(bulk_file, 'rt') as f:
-            next(f)  # skip header: protein1 protein2 combined_score
+            next(f)  # skip header
             for line in f:
                 parts = line.strip().split(' ')
                 if len(parts) != 3:
@@ -264,17 +258,17 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
                 sid_a, sid_b, score_str = parts
                 if sid_a in string_id_set and sid_b in string_id_set:
                     score = int(score_str)
-                    if score >= self.score_threshold:
-                        interactions.append(
-                            {
-                                'stringId_A': sid_a,
-                                'stringId_B': sid_b,
-                                'score': score / 1000.0,
-                            }
-                        )
+                    interactions.append(
+                        {
+                            'stringId_A': sid_a,
+                            'stringId_B': sid_b,
+                            'score': score / 1000.0,  # normalize to [0, 1]
+                        }
+                    )
 
-        print(f'  Found {len(interactions)} interactions above threshold {self.score_threshold}')
+        print(f'  Found {len(interactions)} interactions.')
 
+        # Cache the filtered result so we never parse the bulk file again for this config
         with open(cache_file, 'w') as f:
             json.dump(interactions, f)
 

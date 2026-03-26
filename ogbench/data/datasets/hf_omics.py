@@ -73,7 +73,7 @@ class HFOmicsDataset(InMemoryDataset):
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
-        revision: str = 'cd36144',
+        revision: str = '44136ba',
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
@@ -336,7 +336,7 @@ class HFOmicsDataset(InMemoryDataset):
         """Calculate adjacency matrix using a modular adjacency builder system."""
         # Build continuous adjacency matrix using modular builder
         adjacency_builder = get_adjacency_builder(self.adjacency_method)
-        adjacency = adjacency_builder.build(node_features, map_df=map_df)
+        adjacency = adjacency_builder.build(node_features, map_df)
 
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
