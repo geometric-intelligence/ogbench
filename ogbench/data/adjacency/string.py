@@ -187,10 +187,12 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         return result
 
     def _map_to_string_ids(self, identifiers: list[str]) -> dict[str, str]:
-        """Map identifiers to STRING internal IDs via STRING API.
+        """Map identifiers to STRING internal IDs using local alias file.
 
-        Results cached to disk to avoid redundant API calls.
+        Downloads STRING alias file once — no API dependency.
         """
+        import gzip
+
         cache_file = os.path.join(self.cache_dir, f'string_id_map_{self.species}.json')
 
         cached: dict[str, str] = {}
@@ -201,37 +203,44 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         to_query = [x for x in identifiers if x not in cached]
 
         if to_query:
-            batch_size = 100
-            for i in range(0, len(to_query), batch_size):
-                batch = to_query[i : i + batch_size]
-                try:
-                    r = requests.post(
-                        f'{self.STRING_API}/get_string_ids',
-                        data={
-                            'identifiers': '\r'.join(batch),
-                            'species': self.species,
-                            'limit': 1,
-                            'caller_identity': self.CALLER_ID,
-                        },
-                        timeout=30,
-                    )
-                    r.raise_for_status()
-                    for item in r.json():
-                        query = item.get('queryItem', '')
-                        string_id = item.get('stringId', '')
-                        if query and string_id:
-                            cached[query] = string_id
-                except requests.RequestException as e:
-                    logger.warning(
-                        'STRING ID mapping batch %d failed: %s',
-                        i // batch_size,
-                        e,
-                    )
+            alias_file = os.path.join(
+                self.cache_dir, f'{self.species}.protein.aliases.v12.0.txt.gz'
+            )
+            if not os.path.exists(alias_file):
+                logger.info('Downloading STRING alias file (one-time download)...')
+                url = f'https://stringdb-downloads.org/download/protein.aliases.v12.0/{self.species}.protein.aliases.v12.0.txt.gz'
+                r = requests.get(url, timeout=300, stream=True)
+                r.raise_for_status()
+                with open(alias_file, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                logger.info('Download complete.')
+
+            query_set = set(to_query)
+            logger.info('Mapping %d identifiers from alias file...', len(to_query))
+
+            with gzip.open(alias_file, 'rt') as f:
+                next(f)  # skip header: string_protein_id alias source
+                for line in f:
+                    parts = line.strip().split('\t')
+                    if len(parts) < 2:
+                        continue
+                    string_id, alias = parts[0], parts[1]
+                    if alias in query_set and alias not in cached:
+                        cached[alias] = string_id
+
+            # Mark permanently unmappable identifiers with sentinel
+            for x in to_query:
+                if x not in cached:
+                    cached[x] = ''
 
             with open(cache_file, 'w') as f:
                 json.dump(cached, f)
 
-        return {x: cached[x] for x in identifiers if x in cached}
+            resolved = sum(1 for x in to_query if cached.get(x))
+            logger.info('Resolved %d/%d identifiers', resolved, len(to_query))
+
+        return {x: cached[x] for x in identifiers if cached.get(x)}
 
     def _fetch_interactions(self, string_ids: list[str]) -> list[dict]:
         # Per-dataset cache — avoids re-parsing bulk file on repeated runs
