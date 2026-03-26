@@ -1,6 +1,7 @@
 """Adjacency matrix construction modules."""
 
 from ogbench.data.adjacency.base import AbstractAdjacencyBuilder
+from ogbench.data.adjacency.string import STRINGAdjacencyBuilder
 from ogbench.data.adjacency.wgcna import WGCNAAdjacencyBuilder
 
 __all__ = [
@@ -8,11 +9,13 @@ __all__ = [
     'WGCNAAdjacencyBuilder',
     'get_adjacency_builder',
     'ADJACENCY_BUILDER_REGISTRY',
+    'STRINGAdjacencyBuilder',
 ]
 
 # Registry mapping string names to adjacency builder classes
 ADJACENCY_BUILDER_REGISTRY = {
     'wgcna': WGCNAAdjacencyBuilder,
+    'string': STRINGAdjacencyBuilder,
 }
 
 

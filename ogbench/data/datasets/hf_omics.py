@@ -69,11 +69,11 @@ class HFOmicsDataset(InMemoryDataset):
         method: str = 'correlation',
         imputation_method: str = 'mean',
         adjacency_threshold: float = 0.3,
-        adjacency_method: str = 'wgcna',
+        adjacency_method: str = 'string',
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
-        revision: str = '3abc196',
+        revision: str = 'cd36144',
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
@@ -198,10 +198,17 @@ class HFOmicsDataset(InMemoryDataset):
             revision=self.revision,
             filename=f'{self.data_name}_targets.parquet',
         )
+        map_file = hf_hub_download(  # nosec
+            repo_id=self.hf_repo_id,
+            repo_type='dataset',
+            revision=self.revision,
+            filename=f'{self.data_name}_map.parquet',
+        )
 
-        # Load data and targets using pandas
+        # Load data and targets and map using pandas
         raw_data = pd.read_parquet(data_file)
         targets_df = pd.read_parquet(targets_file)
+        map_df = pd.read_parquet(map_file)
 
         # Convert to proper format - data should be features only
         if 'target' in raw_data.columns:
@@ -304,7 +311,7 @@ class HFOmicsDataset(InMemoryDataset):
 
         # Calculate adjacency matrix based ONLY on training data
         logger.info('Calculating adjacency matrix based on training data only...')
-        adj_matrix = self.calculate_adjacency_matrix(train_selected)
+        adj_matrix = self.calculate_adjacency_matrix(train_selected, map_df=map_df)
         np.save(osp.join(self.raw_dir, 'adj_matrix.npy'), adj_matrix)
 
         # Log statistics
@@ -323,11 +330,13 @@ class HFOmicsDataset(InMemoryDataset):
         selector = get_selector(method)
         return selector.select(data, targets, n_selected)
 
-    def calculate_adjacency_matrix(self, node_features: pd.DataFrame) -> np.ndarray:
+    def calculate_adjacency_matrix(
+        self, node_features: pd.DataFrame, map_df: pd.DataFrame
+    ) -> np.ndarray:
         """Calculate adjacency matrix using a modular adjacency builder system."""
         # Build continuous adjacency matrix using modular builder
         adjacency_builder = get_adjacency_builder(self.adjacency_method)
-        adjacency = adjacency_builder.build(node_features)
+        adjacency = adjacency_builder.build(node_features, map_df=map_df)
 
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
