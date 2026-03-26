@@ -30,6 +30,7 @@ def load_dataset(
     adj_thresh: float = 0.5,
     node_sample_ratio: str = 'full',
     method: str = 'variance',
+    adjacency_method: str = 'wgcna',
 ) -> Any:
     """Load the dataset with specified parameters."""
     from omegaconf import OmegaConf
@@ -48,6 +49,8 @@ def load_dataset(
         node_sample_ratio=ratio_value,
         train_val_test_split=train_val_test_split,
         imputation_method='mean',
+        adjacency_method=adjacency_method,
+
     )
 
     return dataset
@@ -80,6 +83,7 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
                 root,
                 f'{dataset.data_name}',
                 f'adj_thresh_{dataset.adjacency_threshold}',
+                f'adj_method_{dataset.adjacency_method}',
                 f'{dataset.method}',
                 f'p_{dataset.node_sample_ratio}',
                 f'train_split_{dataset.train_val_test_split[0]}',
@@ -124,12 +128,14 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
         return empty_stats
 
 
-def process_single_combination(args_tuple: tuple[str, str, str, float]) -> dict[str, Any]:
+def process_single_combination(
+    args_tuple: tuple[str, str, str, float, str],
+) -> dict[str, Any]:
     """Process a single parameter combination for parallel processing."""
-    dataset_name, node_ratio, method, adj_thresh = args_tuple
+    dataset_name, node_ratio, method, adj_thresh, adjacency_method = args_tuple
 
     try:
-        dataset = load_dataset(dataset_name, adj_thresh, node_ratio, method)
+        dataset = load_dataset(dataset_name, adj_thresh, node_ratio, method, adjacency_method)
         print(f'Dataset loaded: {dataset}, length: {len(dataset)}')
 
         stats = get_graph_stats(dataset)
@@ -138,6 +144,7 @@ def process_single_combination(args_tuple: tuple[str, str, str, float]) -> dict[
             'adj_thresh': adj_thresh,
             'node_sample_ratio': node_ratio,
             'method': method,
+            'adjacency_method': adjacency_method,
         })
         return stats
 
@@ -147,6 +154,7 @@ def process_single_combination(args_tuple: tuple[str, str, str, float]) -> dict[
             'adj_thresh': adj_thresh,
             'node_sample_ratio': node_ratio,
             'method': method,
+            'adjacency_method': adjacency_method,
             'num_nodes': None,
             'num_edges': None,
             'avg_degree': None,
@@ -163,13 +171,14 @@ def compute_stats_for_combinations(
     node_sample_ratios: list[str],
     sampling_methods: list[str],
     adj_thresholds: list[float],
+    adjacency_methods: list[str],
     n_jobs: int = -1,
 ) -> list[dict[str, Any]]:
     """Compute statistics for all combinations of parameters using parallel processing."""
     combinations = [
-        (dataset_name, node_ratio, method, adj_thresh)
-        for node_ratio, method, adj_thresh in itertools.product(
-            node_sample_ratios, sampling_methods, adj_thresholds
+        (dataset_name, node_ratio, method, adj_thresh, adj_m)
+        for node_ratio, method, adj_thresh, adj_m in itertools.product(
+            node_sample_ratios, sampling_methods, adj_thresholds, adjacency_methods
         )
     ]
 
@@ -192,6 +201,7 @@ def save_stats_to_csv(all_stats: list[dict[str, Any]], output_file: str) -> None
         'adj_thresh',
         'node_sample_ratio',
         'method',
+        'adjacency_method',
         'num_nodes',
         'num_edges',
         'avg_degree',
@@ -217,7 +227,8 @@ def save_stats_to_json_for_webapp(
 ) -> None:
     """Save statistics to JSON for webapp consumption.
 
-    The JSON format uses keys like "dataset|node_sample_ratio|method|adj_thresh"
+    The JSON format uses keys like
+    "dataset|node_sample_ratio|method|adj_thresh|adjacency_method"
     for fast lookup in the webapp.
     """
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -228,7 +239,10 @@ def save_stats_to_json_for_webapp(
         if 'error' in stats or stats.get('num_nodes') is None:
             continue
 
-        key = f"{stats['dataset']}|{stats['node_sample_ratio']}|{stats['method']}|{stats['adj_thresh']}"
+        key = (
+            f"{stats['dataset']}|{stats['node_sample_ratio']}|{stats['method']}|"
+            f"{stats['adj_thresh']}|{stats.get('adjacency_method', '')}"
+        )
         result[key] = stats
 
     with open(output_file, 'w') as f:
@@ -248,10 +262,19 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
             return
 
         df = df.sort_values(by='adj_thresh', ascending=True)
-        combinations = df[['node_sample_ratio', 'method']].drop_duplicates()
+        group_cols = ['node_sample_ratio', 'method']
+        if 'adjacency_method' in df.columns:
+            group_cols.append('adjacency_method')
+        combinations = df[group_cols].drop_duplicates()
 
-        for _, (node_ratio, method) in combinations.iterrows():
-            subset_df = df[(df['node_sample_ratio'] == node_ratio) & (df['method'] == method)]
+        for row in combinations.itertuples(index=False):
+            node_ratio = row.node_sample_ratio
+            method = row.method
+            adj_m = getattr(row, 'adjacency_method', None)
+            mask = (df['node_sample_ratio'] == node_ratio) & (df['method'] == method)
+            if adj_m is not None:
+                mask = mask & (df['adjacency_method'] == adj_m)
+            subset_df = df[mask]
             if subset_df.empty:
                 continue
 
@@ -259,8 +282,11 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
             # Hide unused subplots (we have 7 metrics, grid has 9 cells)
             for ax in axes.flatten()[7:]:
                 ax.set_visible(False)
+            title_adj = f', Adjacency: {adj_m}' if adj_m is not None else ''
             fig.suptitle(
-                f'{dataset_name} - Node Ratio: {node_ratio}, Method: {method}', fontsize=16, y=1.02
+                f'{dataset_name} - Node Ratio: {node_ratio}, Method: {method}{title_adj}',
+                fontsize=16,
+                y=1.02,
             )
 
             plot_configs = [
@@ -284,7 +310,10 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
 
             plot_dir = f'./plots/{dataset_name}'
             os.makedirs(plot_dir, exist_ok=True)
-            plot_filename = f'{plot_dir}/{dataset_name}_node_ratio_{node_ratio}_method_{method}.png'
+            safe_adj = f'_adj_{adj_m}' if adj_m is not None else ''
+            plot_filename = (
+                f'{plot_dir}/{dataset_name}_node_ratio_{node_ratio}_method_{method}{safe_adj}.png'
+            )
             plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
             plt.close()
 
@@ -304,7 +333,7 @@ def main():
     parser.add_argument(
         '--n-jobs',
         type=int,
-        default=8,
+        default=1,
         help='Number of parallel jobs (-1 for all CPUs, default: -1)',
     )
     parser.add_argument(
@@ -335,6 +364,13 @@ def main():
         '--skip-plots', action='store_true', help='Skip plot generation (only compute statistics)'
     )
 
+    parser.add_argument(
+        '--adjacency-method',
+        nargs='+',
+        default=['string'],
+        help='One or more adjacency methods (e.g. string wgcna)',
+    )
+
     args = parser.parse_args()
 
     # Define parameters
@@ -342,16 +378,18 @@ def main():
     node_sample_ratios = args.node_ratios
     sampling_methods = args.methods
     adj_thresholds = [round(x, 2) for x in np.linspace(0.0, 1.0, args.adj_thresholds)]
-    print(adj_thresholds)
+    adjacency_methods = list(args.adjacency_method)
     n_jobs = args.n_jobs
 
     print(f'Processing {len(datasets)} datasets')
     print(f'Node sample ratios: {node_sample_ratios}')
     print(f'Sampling methods: {sampling_methods}')
     print(f'Adjacency thresholds: {len(adj_thresholds)} values from 0.0 to 1.0')
+    print(f'Adjacency methods: {adjacency_methods}')
     print(f'Parallel jobs: {n_jobs}')
     print(
-        f'Total combinations: {len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds)}'
+        'Total combinations: '
+        f'{len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds) * len(adjacency_methods)}'
     )
 
     # Collect all stats across all datasets for webapp JSON export
@@ -365,7 +403,12 @@ def main():
 
         # Compute statistics for all combinations
         all_stats = compute_stats_for_combinations(
-            dataset_name, node_sample_ratios, sampling_methods, adj_thresholds, n_jobs
+            dataset_name,
+            node_sample_ratios,
+            sampling_methods,
+            adj_thresholds,
+            adjacency_methods,
+            n_jobs,
         )
 
         # Collect for webapp JSON
@@ -390,7 +433,11 @@ def main():
 
     # Print summary statistics
     total_combinations = (
-        len(datasets) * len(node_sample_ratios) * len(sampling_methods) * len(adj_thresholds)
+        len(datasets)
+        * len(node_sample_ratios)
+        * len(sampling_methods)
+        * len(adj_thresholds)
+        * len(adjacency_methods)
     )
     print('\nSummary:')
     print(f'- Total parameter combinations processed: {total_combinations}')
@@ -398,13 +445,14 @@ def main():
     print(f'- Node sample ratios: {len(node_sample_ratios)}')
     print(f'- Sampling methods: {len(sampling_methods)}')
     print(f'- Adjacency thresholds: {len(adj_thresholds)}')
+    print(f'- Adjacency methods: {len(adjacency_methods)}')
     print(f'- Parallel jobs used: {n_jobs}')
 
 
 if __name__ == '__main__':
     try:
         print('Testing dataset loading...')
-        dataset = load_dataset('addneuromed', 0.5, '0.3', 'variance')
+        dataset = load_dataset('addneuromed', 0.5, '0.3', 'variance', adjacency_method='string')
         print(f'Dataset loaded successfully: {dataset}')
         print(f'Dataset length: {len(dataset)}')
         if len(dataset) > 0:
