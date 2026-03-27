@@ -3,10 +3,15 @@
 from ogbench.transforms.data_manipulations.calculate_simplicial_curvature import (
     CalculateSimplicialCurvature,
 )
+from ogbench.transforms.data_manipulations.combined_positional_and_structural_encodings import (
+    CombinedPSEs,
+)
+from ogbench.transforms.data_manipulations.electrostatic_encodings import ElectrostaticPE
 from ogbench.transforms.data_manipulations.equal_gaus_features import EqualGausFeatures
 from ogbench.transforms.data_manipulations.group_homophily import (
     GroupCombinatorialHomophily,
 )
+from ogbench.transforms.data_manipulations.hkdiag_encodings import HKdiagSE
 from ogbench.transforms.data_manipulations.identity_transform import IdentityTransform
 from ogbench.transforms.data_manipulations.infere_knn_connectivity import (
     InfereKNNConnectivity,
@@ -21,6 +26,7 @@ from ogbench.transforms.data_manipulations.keep_selected_data_fields import (
     KeepSelectedDataFields,
 )
 from ogbench.transforms.data_manipulations.khop_precompute import KHopPrecompute
+from ogbench.transforms.data_manipulations.laplacian_encodings import LapPE
 from ogbench.transforms.data_manipulations.mp_homophily import MessagePassingHomophily
 from ogbench.transforms.data_manipulations.node_degrees import NodeDegrees
 from ogbench.transforms.data_manipulations.node_features_to_float import (
@@ -29,6 +35,7 @@ from ogbench.transforms.data_manipulations.node_features_to_float import (
 from ogbench.transforms.data_manipulations.one_hot_degree_features import (
     OneHotDegreeFeatures,
 )
+from ogbench.transforms.data_manipulations.random_walk_encodings import RWSE
 from ogbench.transforms.data_manipulations.redefine_simplicial_neighbourhoods import (
     RedefineSimplicialNeighbourhoods,
 )
@@ -49,6 +56,11 @@ DATA_MANIPULATIONS: dict[str, type] = {
     'NodeFeaturesToFloat': NodeFeaturesToFloat,
     'OneHotDegreeFeatures': OneHotDegreeFeatures,
     'RedefineSimplicialNeighbourhoods': RedefineSimplicialNeighbourhoods,
+    'HKdiagSE': HKdiagSE,
+    'ElectrostaticPE': ElectrostaticPE,
+    'LapPE': LapPE,
+    'RWSE': RWSE,
+    'CombinedPSEs': CombinedPSEs,
 }
 
 # Generate __all__
@@ -68,4 +80,9 @@ __all__ = [
     'NodeFeaturesToFloat',
     'OneHotDegreeFeatures',
     'RedefineSimplicialNeighbourhoods',
+    'HKdiagSE',
+    'ElectrostaticPE',
+    'LapPE',
+    'RWSE',
+    'CombinedPSEs',
 ]

@@ -1,4 +1,4 @@
-"""Some models implemented for TopoBenchX."""
+"""Some models implemented for OGBenchX."""
 
 from ogbench.nn.backbones.graph import (
     BACKBONE_CLASSES as GRAPH_BACKBONE_CLASSES,
@@ -9,6 +9,7 @@ from ogbench.nn.backbones.graph import (
     ChebNet,
     CustomGATConv,
     GATv4,
+    GPSEncoder,
     GroupMLP,
     IdentityGAT,
     IdentityGCN,
@@ -38,4 +39,5 @@ __all__ = [
     'MultiHeadBatchNorm',
     'MultiHeadLinear',
     'SAGN',
+    'GPSEncoder',
 ]
