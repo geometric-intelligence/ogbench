@@ -59,7 +59,7 @@ class HFOmicsDataset(InMemoryDataset):
         'addneuromed',
         'parkinsons',
         'motrpac',
-        'covidaki',
+        'brca',
     ]
 
     def __init__(
@@ -73,7 +73,7 @@ class HFOmicsDataset(InMemoryDataset):
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
-        revision: str = '44136ba',
+        revision: str = '65d41c2',
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
