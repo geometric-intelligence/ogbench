@@ -7,6 +7,7 @@ import shutil
 import typer
 
 from scripts.processors.addneuromed import process_addneuromed
+from scripts.processors.brca import process_brca
 from scripts.processors.motrpac import process_motrpac
 from scripts.processors.parkinsons import process_parkinsons
 
@@ -59,6 +60,21 @@ def parkinsons(
 
 
 @app.command()
+def brca(
+    output_dir: str = typer.Option(
+        'temp_data',
+        '--output-dir',
+        '-o',
+        help='Output directory for temporary files',
+    ),
+) -> None:
+    """Download and upload BRCA dataset to HuggingFace."""
+    typer.echo('Processing BRCA dataset...')
+    process_brca(output_dir)
+    typer.echo('✅ BRCA dataset processed and uploaded successfully!')
+
+
+@app.command()
 def all(
     output_dir: str = typer.Option(
         'temp_data',
@@ -85,6 +101,9 @@ def all(
 
         typer.echo('\n📊 Processing Parkinsons...')
         process_parkinsons(output_dir)
+
+        typer.echo('\n📊 Processing BRCA...')
+        process_brca(output_dir)
 
         typer.echo('\n✅ All datasets processed and uploaded successfully!')
 

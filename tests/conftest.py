@@ -1,4 +1,6 @@
 """Configuration file for pytest."""
+from unittest.mock import patch
+
 import networkx as nx
 import pytest
 import torch
@@ -261,3 +263,16 @@ def random_graph_input():
     x_2 = torch.randn(num_nodes * 2, d_feat_2)
 
     return x, x_1, x_2, edges_1, edges_2
+
+
+@pytest.fixture(autouse=True)
+def mock_string_network_calls():
+    """Mock STRING network calls to avoid timeouts in CI."""
+    with patch(
+        'ogbench.data.adjacency.string.STRINGAdjacencyBuilder._map_to_string_ids',
+        return_value={},
+    ), patch(
+        'ogbench.data.adjacency.string.STRINGAdjacencyBuilder._fetch_interactions',
+        return_value=[],
+    ):
+        yield
