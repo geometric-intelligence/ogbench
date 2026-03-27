@@ -13,7 +13,7 @@ seeds: [42, 123, 456]
 
 # Fixed parameters (not searched)
 fixed:
-  logger.wandb.project: bgbench_multi_dataset_grid_search
+  logger.wandb.project: bgbench_multi_dataset_grid_search_gps
 
 # Shared hyperparameter grid (applied to all models)
 shared_grid:
