@@ -14,7 +14,7 @@ seeds: [42, 123, 456]
 # Fixed parameters (not searched)
 fixed:
   experiment: omics_readout
-  logger.wandb.project: bgbench_multi_dataset_readout_gps_test
+  logger.wandb.project: bgbench_multi_dataset_readout_gps
 
 # Shared hyperparameter grid (applied to all models)
 shared_grid:
