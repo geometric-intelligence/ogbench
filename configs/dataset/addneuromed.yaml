@@ -33,6 +33,7 @@ parameters:
     - 0.996
     - 1.254
   monitor_metric: f1_weighted
+  shared_graph: true
   task_level: graph
   metrics:
     - accuracy
