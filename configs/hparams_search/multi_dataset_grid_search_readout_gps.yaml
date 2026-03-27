@@ -1,0 +1,302 @@
+# Hyperparameter grid search configuration for parkinsons dataset
+# Used by scripts/hyperparam_search.py
+
+datasets:
+  - parkinsons
+  - addneuromed
+  - motrpac
+
+models:
+  - gps
+
+seeds: [42, 123, 456]
+
+# Fixed parameters (not searched)
+fixed:
+  experiment: omics_readout
+  logger.wandb.project: bgbench_multi_dataset_readout_gps_test
+
+# Shared hyperparameter grid (applied to all models)
+shared_grid:
+  dataset.loader.parameters.node_sample_ratio:
+    - 1.0
+    - 0.8
+    - 0.5
+    - 0.3
+  dataset.loader.parameters.method:
+    - variance
+    - random
+    - correlation
+    - distance_correlation
+  optimizer.parameters.lr:
+    - 0.0001
+    - 0.001
+    # - 0.01
+  optimizer.parameters.weight_decay:
+    - 0.0
+    #- 0.0001 removed for readout grid search
+    - 0.001
+  model.backbone.dropout:
+    - 0.1
+    - 0.3
+  model.readout.readout_name:
+    - OmicsReadOut
+  model.readout.fc_dim:
+    # - [8, 4, 2]
+    - [16, 8, 4]
+  # model.readout.fc_dropout is automatically set to match model.backbone.dropout
+
+# Per-model hyperparameter grids
+per_model_grid:
+  gps:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+    model.backbone.num_layers:
+      - 2
+      - 4
+    model.encodings:
+      - ["LapPE"]
+      - ["RWSE"]
+  gcn:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+
+  gin:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+      # - 8
+
+  gatv2:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+    model.backbone.num_layers:
+      - 2
+      - 4
+    #  - 8 removed for readout grid search
+    model.backbone.heads:
+      - 4
+      - 8
+
+  gatv4:
+    model.backbone.hidden_channels:
+      - [16, 32]
+      - [32, 64]
+    model.backbone.heads:
+      - [4, 4]
+      - [8, 8]
+    model.backbone.use_layer_norm:
+      - true
+      - false
+
+  graph_sage:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+      # - 8
+
+  sagn:
+    model.backbone.hidden_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+      # - 8
+    model.backbone.num_heads:
+      - 1
+      - 3
+
+  chebnet:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+      - 64
+    model.backbone.num_layers:
+      - 2
+      - 4
+
+# Per-dataset, per-node_sample_ratio, per-method hyperparameter grids
+# Format: "dataset,ratio,method" as key (e.g., "parkinsons,1.0,variance")
+# Organized by ratio and method first, then by dataset
+per_dataset_ratio_method_grid:
+  # ratio=1.0, method=variance
+  motrpac,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0926]
+
+  parkinsons,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0350]
+
+  addneuromed,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.2997]
+
+  # ratio=1.0, method=random
+  motrpac,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0093]
+
+  parkinsons,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  addneuromed,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  # ratio=1.0, method=correlation
+  motrpac,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0095]
+
+  parkinsons,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  addneuromed,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0997]
+
+  # ratio=1.0, method=distance_correlation
+  motrpac,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0585]
+
+  parkinsons,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0096]
+
+  addneuromed,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0098]
+
+  # ratio=0.8, method=variance
+  motrpac,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0847]
+
+  parkinsons,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0311]
+
+  addneuromed,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.2535]
+
+  # ratio=0.8, method=random
+  motrpac,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0088]
+
+  parkinsons,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0096]
+
+  addneuromed,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0086]
+
+  # ratio=0.8, method=correlation
+  motrpac,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0786]
+
+  parkinsons,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0089]
+
+  addneuromed,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.1088]
+
+  # ratio=0.8, method=distance_correlation
+  motrpac,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0476]
+
+  parkinsons,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0095]
+
+  addneuromed,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.1769]
+
+  # ratio=0.5, method=variance
+  motrpac,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+  parkinsons,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0463]
+
+  addneuromed,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.1792]
+
+  # ratio=0.5, method=random
+  motrpac,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0988]
+
+  parkinsons,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  addneuromed,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  # ratio=0.5, method=correlation
+  motrpac,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0522]
+
+  parkinsons,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0086]
+
+  addneuromed,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0972]
+
+  # ratio=0.5, method=distance_correlation
+  motrpac,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0370]
+
+  parkinsons,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0086]
+
+  addneuromed,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0097]
+
+  # ratio=0.3, method=variance
+  motrpac,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0138]
+
+  parkinsons,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0279]
+
+  addneuromed,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.2390]
+
+  # ratio=0.3, method=random
+  motrpac,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0917]
+
+  parkinsons,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0082]
+
+  addneuromed,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  # ratio=0.3, method=correlation
+  motrpac,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0302]
+
+  parkinsons,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0082]
+
+  addneuromed,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0856]
+
+  # ratio=0.3, method=distance_correlation
+  motrpac,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0253]
+
+  parkinsons,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0084]
+
+  addneuromed,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.1409]
+
+# Training settings
+training:
+  timeout: 3600 # 1 hour per run
+  output_dir: ./search_results/multi_dataset_grid_search

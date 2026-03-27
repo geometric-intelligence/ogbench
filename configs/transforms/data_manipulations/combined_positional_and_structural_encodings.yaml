@@ -1,6 +1,6 @@
 transform_name: "CombinedPSEs"
 transform_type: "data manipulation"
-encodings: ["LapPE", "RWSE", "ElectrostaticPE", "HKdiagSE"]
+encodings: ${oc.select:model.encodings,["LapPE", "RWSE", "ElectrostaticPE", "HKdiagSE"]}
 parameters:
   LapPE:
     max_pe_dim: 10
