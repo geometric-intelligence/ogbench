@@ -101,7 +101,7 @@ def process_brca(output_dir: str = 'temp_data') -> None:
     data_files = {'data': data_file, 'targets': targets_file, 'map': map_file}
     upload_to_huggingface('brca', data_files, metadata)
 
-    logger.info('Successfully processed and uploaded BRCA dataset')
+    logger.info('  Successfully processed and uploaded BRCA dataset')
     logger.info('  Samples: %d', len(targets))
     logger.info('  Features: %d', raw_data.shape[1])
     logger.info('  Classes: %d (%s)', len(class_names), ', '.join(class_names))
