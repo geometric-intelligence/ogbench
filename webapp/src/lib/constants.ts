@@ -1,4 +1,4 @@
-import type { DatasetInfo, DatasetName, ModelCategory, RankingMetric, DisplayMetric } from './types';
+import type { DatasetInfo, DatasetName, ModelCategory, RankingMetric, DisplayMetric, AdjacencyMethod } from './types';
 
 export const DATASETS: Record<DatasetName, DatasetInfo> = {
   motrpac: { fullName: 'Heritage', color: '#3b82f6', emoji: '🧬' },
@@ -55,6 +55,12 @@ export const MODEL_COLORS: Record<string, string> = {
 export const VALID_RATIOS = [0.3, 0.5, 0.8, 1.0] as const;
 export const VALID_METHODS = ['variance', 'correlation', 'distance_correlation', 'random'] as const;
 export const VALID_READOUTS = ['NoReadOut', 'OmicsReadOut'] as const;
+export const VALID_ADJACENCY_METHODS: readonly AdjacencyMethod[] = ['string', 'wgcna'] as const;
+
+export const ADJACENCY_METHOD_LABELS: Record<string, string> = {
+  string: 'PPI Network',
+  wgcna: 'Co-expression (WGCNA)',
+};
 
 // Display labels for node selection methods
 export const METHOD_LABELS: Record<string, string> = {

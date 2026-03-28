@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Build webapp/public/data/stats.json from the graph_stats_comprehensive_*.csv files.
 
-Key format matches getStatsKey in webapp: dataset|ratio|method|threshold.
+Key format matches getStatsKey in webapp: dataset|ratio|method|threshold[|adjacency_method].
 Node sample ratio "full" is normalized to 1.0 so the Explorer can look up by 1.0.
+If the CSV contains an adjacency_method column, it is appended to the key.
 
 Usage:
   From repo root: python webapp/scripts/build_stats_from_csv.py
@@ -60,8 +61,11 @@ def row_to_key_and_stats(row: dict) -> tuple[str, dict] | None:
     method = row.get("method", "").strip()
     if not method:
         return None
+    adjacency_method = row.get("adjacency_method", "").strip()
 
     key = f"{dataset}|{ratio_key}|{method}|{format_threshold(thresh_val)}"
+    if adjacency_method:
+        key += f"|{adjacency_method}"
 
     def num(val, default=0):
         if val is None or val == "":
@@ -79,10 +83,12 @@ def row_to_key_and_stats(row: dict) -> tuple[str, dict] | None:
         "largest_cc_ratio_pct": num(row.get("largest_cc_ratio_pct")),
         "num_connected_components": int(num(row.get("num_connected_components"), 0)),
         "degree_std": num(row.get("degree_std")),
-        "avg_clustering_coeff": num(row.get("avg_clustering_coeff")),  # 0 if missing
-        "avg_shortest_path_length": num(row.get("avg_shortest_path_length")),  # 0 if missing
+        "avg_clustering_coeff": num(row.get("avg_clustering_coeff")),
+        "avg_shortest_path_length": num(row.get("avg_shortest_path_length")),
         "dataset": dataset,
     }
+    if adjacency_method:
+        stats["adjacency_method"] = adjacency_method
     return (key, stats)
 
 

@@ -122,7 +122,8 @@ export function filterResults(
   results: ResultEntry[],
   dataset: DatasetName | 'all',
   method: string | 'all' = 'all',
-  ratio: number | 'all' = 'all'
+  ratio: number | 'all' = 'all',
+  adjacencyMethod: string | 'all' = 'all'
 ): ResultEntry[] {
   let filtered = results;
 
@@ -131,13 +132,17 @@ export function filterResults(
   }
 
   if (method !== 'all') {
-    // Filter by method, but keep baselines (they don't have a method)
     filtered = filtered.filter((r) => r.method === method || r.method === 'baseline');
   }
 
   if (ratio !== 'all') {
-    // Filter by ratio, but keep baselines (they don't have a ratio)
     filtered = filtered.filter((r) => r.node_sample_ratio === ratio || r.node_sample_ratio === 0.0);
+  }
+
+  if (adjacencyMethod !== 'all') {
+    filtered = filtered.filter(
+      (r) => r.adjacency_method === adjacencyMethod || r.method === 'baseline'
+    );
   }
 
   return filtered;
@@ -147,8 +152,12 @@ export function getStatsKey(
   dataset: string,
   ratio: number,
   method: string,
-  threshold: number
+  threshold: number,
+  adjacencyMethod?: string
 ): string {
+  if (adjacencyMethod) {
+    return `${dataset}|${ratio}|${method}|${threshold}|${adjacencyMethod}`;
+  }
   return `${dataset}|${ratio}|${method}|${threshold}`;
 }
 
@@ -157,9 +166,10 @@ export function getStats(
   dataset: string,
   ratio: number,
   method: string,
-  threshold: number
+  threshold: number,
+  adjacencyMethod?: string
 ): GraphStats | null {
-  const key = getStatsKey(dataset, ratio, method, threshold);
+  const key = getStatsKey(dataset, ratio, method, threshold, adjacencyMethod);
   return allStats[key] || null;
 }
 

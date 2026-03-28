@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 // Dynamically import Plotly to avoid SSR issues
 const Plot = lazy(() => import('react-plotly.js'));
 import type { ResultEntry, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
-import { DATASETS, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS } from '../lib/constants';
+import { DATASETS, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS, ADJACENCY_METHOD_LABELS } from '../lib/constants';
 import { computeLeaderboard, filterResults, getModelsByDataset } from '../lib/data';
 
 export default function Leaderboard() {
@@ -12,6 +12,7 @@ export default function Leaderboard() {
   const [datasetFilter, setDatasetFilter] = useState<DatasetName | 'all'>('all');
   const [methodFilter, setMethodFilter] = useState<string | 'all'>('all');
   const [ratioFilter, setRatioFilter] = useState<number | 'all'>('all');
+  const [adjacencyMethodFilter, setAdjacencyMethodFilter] = useState<string | 'all'>('all');
   // Dual-metric selection
   const [rankBy, setRankBy] = useState<RankingMetric>('val_f1_macro');
   const [displayMetric, setDisplayMetric] = useState<DisplayMetric>('test_f1_macro');
@@ -31,16 +32,25 @@ export default function Leaderboard() {
       });
   }, []);
 
+  // Derive unique adjacency methods from loaded data
+  const availableAdjacencyMethods = useMemo(() => {
+    const methods = new Set<string>();
+    for (const r of results) {
+      if (r.adjacency_method) methods.add(r.adjacency_method);
+    }
+    return [...methods].sort();
+  }, [results]);
+
   // Compute filtered results for leaderboard (respects all filters including dataset)
   const filteredResults = useMemo(
-    () => filterResults(results, datasetFilter, methodFilter, ratioFilter),
-    [results, datasetFilter, methodFilter, ratioFilter]
+    () => filterResults(results, datasetFilter, methodFilter, ratioFilter, adjacencyMethodFilter),
+    [results, datasetFilter, methodFilter, ratioFilter, adjacencyMethodFilter]
   );
 
-  // Compute filtered results for chart (always shows all datasets, but respects method/ratio filters)
+  // Compute filtered results for chart (always shows all datasets, but respects method/ratio/adjacency filters)
   const chartFilteredResults = useMemo(
-    () => filterResults(results, 'all', methodFilter, ratioFilter),
-    [results, methodFilter, ratioFilter]
+    () => filterResults(results, 'all', methodFilter, ratioFilter, adjacencyMethodFilter),
+    [results, methodFilter, ratioFilter, adjacencyMethodFilter]
   );
 
   const leaderboard = useMemo(
@@ -62,8 +72,11 @@ export default function Leaderboard() {
     if (ratioFilter !== 'all') {
       parts.push(`${RATIO_LABELS[ratioFilter]} nodes`);
     }
+    if (adjacencyMethodFilter !== 'all') {
+      parts.push(ADJACENCY_METHOD_LABELS[adjacencyMethodFilter] ?? adjacencyMethodFilter);
+    }
     return parts.join(' • ');
-  }, [datasetFilter, methodFilter, ratioFilter]);
+  }, [datasetFilter, methodFilter, ratioFilter, adjacencyMethodFilter]);
 
   // Get all models data by dataset for the faceted chart (always shows all datasets)
   // Uses the ranking metric to select the best configuration for each model+dataset
@@ -138,26 +151,25 @@ export default function Leaderboard() {
 
   // Build dynamic chart title based on filters
   const chartTitle = useMemo(() => {
-    // Base: "{Display Metric} of Best Models"
     let title = `${displayMetricLabel} of Best Models`;
-    
-    // Add ranking criteria
     title += ` (Ranked by ${rankMetricLabel})`;
     
-    // Add method filter info
     if (methodFilter !== 'all') {
       title += ` using ${METHOD_LABELS[methodFilter]} Selection`;
     } else {
       title += ` across All Selection Methods`;
     }
     
-    // Add ratio filter info
     if (ratioFilter !== 'all') {
       title += ` at ${RATIO_LABELS[ratioFilter]} Sample-to-Node Ratio`;
     }
+
+    if (adjacencyMethodFilter !== 'all') {
+      title += ` — ${ADJACENCY_METHOD_LABELS[adjacencyMethodFilter] ?? adjacencyMethodFilter}`;
+    }
     
     return title;
-  }, [displayMetricLabel, rankMetricLabel, methodFilter, ratioFilter]);
+  }, [displayMetricLabel, rankMetricLabel, methodFilter, ratioFilter, adjacencyMethodFilter]);
 
   if (loading) {
     return (
@@ -411,6 +423,23 @@ export default function Leaderboard() {
               ))}
             </select>
           </div>
+
+          {availableAdjacencyMethods.length > 0 && (
+            <div className="control-group">
+              <div className="control-label">Graph Construction</div>
+              <select
+                value={adjacencyMethodFilter}
+                onChange={(e) => setAdjacencyMethodFilter(e.target.value as string | 'all')}
+              >
+                <option value="all">🔀 All Methods</option>
+                {availableAdjacencyMethods.map((m) => (
+                  <option key={m} value={m}>
+                    🔹 {ADJACENCY_METHOD_LABELS[m] ?? m}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="control-group">
             <div className="control-label">Rank Models By</div>

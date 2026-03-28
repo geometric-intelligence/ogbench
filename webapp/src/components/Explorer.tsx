@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 // Dynamically import Plotly to avoid SSR issues
 const Plot = lazy(() => import('react-plotly.js'));
 import type { GraphStats, DatasetName, NodeSelectionMethod } from '../lib/types';
-import { DATASETS, VALID_RATIOS, VALID_THRESHOLDS, METRIC_LABELS } from '../lib/constants';
+import { DATASETS, VALID_RATIOS, VALID_THRESHOLDS, VALID_ADJACENCY_METHODS, ADJACENCY_METHOD_LABELS, METRIC_LABELS } from '../lib/constants';
 
 /** Metrics shown in the Explorer (2 rows × 3). Order: row1 = nodes, edges, avg_degree; row2 = density_pct, degree_std, largest_cc. */
 const EXPLORER_METRICS: (keyof typeof METRIC_LABELS)[] = [
@@ -16,24 +16,28 @@ const EXPLORER_METRICS: (keyof typeof METRIC_LABELS)[] = [
 ];
 import { getStats, computeMetricMaxValues } from '../lib/data';
 
-/** Parse stats keys "dataset|ratio|method|threshold" to derive unique ratios and thresholds. */
+/** Parse stats keys "dataset|ratio|method|threshold[|adjacency_method]" to derive unique options. */
 function deriveOptionsFromStats(stats: Record<string, GraphStats>): {
   ratios: number[];
   thresholds: number[];
+  adjacencyMethods: string[];
 } {
   const ratioSet = new Set<number>();
   const thresholdSet = new Set<number>();
+  const adjMethodSet = new Set<string>();
   for (const key of Object.keys(stats)) {
     const parts = key.split('|');
-    if (parts.length !== 4) continue;
+    if (parts.length < 4) continue;
     const r = parseFloat(parts[1]);
     const t = parseFloat(parts[3]);
     if (!Number.isNaN(r)) ratioSet.add(r);
     if (!Number.isNaN(t)) thresholdSet.add(t);
+    if (parts.length >= 5 && parts[4]) adjMethodSet.add(parts[4]);
   }
   const ratios = [...ratioSet].sort((a, b) => a - b);
   const thresholds = [...thresholdSet].sort((a, b) => a - b);
-  return { ratios, thresholds };
+  const adjacencyMethods = [...adjMethodSet].sort();
+  return { ratios, thresholds, adjacencyMethods };
 }
 
 export default function Explorer() {
@@ -42,25 +46,30 @@ export default function Explorer() {
   const [nodeSampleRatio, setNodeSampleRatio] = useState<number>(0.5);
   const [nodeSelectionMethod, setNodeSelectionMethod] = useState<NodeSelectionMethod>('variance');
   const [adjacencyThreshold, setAdjacencyThreshold] = useState(0.02);
+  const [adjacencyMethod, setAdjacencyMethod] = useState<string | undefined>(undefined);
 
   // All datasets are always shown
   const datasetOrder: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons'];
 
-  const { ratios: validRatios, thresholds: validThresholds } = useMemo(() => {
+  const { ratios: validRatios, thresholds: validThresholds, adjacencyMethods: validAdjacencyMethods } = useMemo(() => {
     const derived = deriveOptionsFromStats(allStats);
     return {
       ratios: derived.ratios.length > 0 ? derived.ratios : [...VALID_RATIOS],
       thresholds: derived.thresholds.length > 0 ? derived.thresholds : [...VALID_THRESHOLDS],
+      adjacencyMethods: derived.adjacencyMethods.length > 0 ? derived.adjacencyMethods : [...VALID_ADJACENCY_METHODS],
     };
   }, [allStats]);
 
-  // When data loads, ensure selected ratio and threshold exist in the data; otherwise pick first available
+  // When data loads, ensure selected values exist in the data; otherwise pick first available
   useEffect(() => {
     if (loading || Object.keys(allStats).length === 0) return;
-    const { ratios, thresholds } = deriveOptionsFromStats(allStats);
+    const { ratios, thresholds, adjacencyMethods } = deriveOptionsFromStats(allStats);
     if (ratios.length === 0 || thresholds.length === 0) return;
     setNodeSampleRatio((prev) => (ratios.includes(prev) ? prev : ratios[0]));
     setAdjacencyThreshold((prev) => (thresholds.includes(prev) ? prev : thresholds[0]));
+    if (adjacencyMethods.length > 0) {
+      setAdjacencyMethod((prev) => (prev && adjacencyMethods.includes(prev) ? prev : adjacencyMethods[0]));
+    }
   }, [loading, allStats]);
 
   // Load data on mount
@@ -84,13 +93,13 @@ export default function Explorer() {
   const currentStats = useMemo(() => {
     const stats: (GraphStats & { dataset: DatasetName })[] = [];
     for (const ds of datasetOrder) {
-      const s = getStats(allStats, ds, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold);
+      const s = getStats(allStats, ds, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold, adjacencyMethod);
       if (s) {
         stats.push({ ...s, dataset: ds });
       }
     }
     return stats;
-  }, [allStats, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold]);
+  }, [allStats, nodeSampleRatio, nodeSelectionMethod, adjacencyThreshold, adjacencyMethod]);
 
   const metrics = EXPLORER_METRICS.map((key) => [key, METRIC_LABELS[key]] as [keyof GraphStats, string]);
 
@@ -243,6 +252,20 @@ export default function Explorer() {
               <option value="correlation">🔗 Correlation</option>
               <option value="distance_correlation">📐 Distance Correlation</option>
               <option value="random">🎲 Random</option>
+            </select>
+          </div>
+
+          <div className="control-group">
+            <div className="control-label">Graph Construction</div>
+            <select
+              value={adjacencyMethod ?? validAdjacencyMethods[0] ?? 'string'}
+              onChange={(e) => setAdjacencyMethod(e.target.value)}
+            >
+              {validAdjacencyMethods.map((m) => (
+                <option key={m} value={m}>
+                  {ADJACENCY_METHOD_LABELS[m] ?? m}
+                </option>
+              ))}
             </select>
           </div>
 

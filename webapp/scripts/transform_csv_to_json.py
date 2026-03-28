@@ -50,9 +50,12 @@ def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
             method = row['method']
             node_sample_ratio = row['node_sample_ratio']
             readout = row['readout']
+            adjacency_method = row.get('adjacency_method', '').strip()
             
             # Create the graph_config and key
             graph_config = f"{dataset}|{node_sample_ratio}|{method}|{readout}"
+            if adjacency_method:
+                graph_config += f"|{adjacency_method}"
             key = f"{graph_config}|{model}"
             
             # Extract metrics with safe float conversion
@@ -69,6 +72,7 @@ def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
                 'readout': readout,
                 'node_sample_ratio': safe_float(node_sample_ratio),
                 'method': method,
+                'adjacency_method': adjacency_method if adjacency_method else 'string',
                 # Validation metrics (for ranking)
                 'val_accuracy': safe_float(row.get('summary.best_val/accuracy')),
                 'val_accuracy_std': safe_float(row.get('summary.best_val/accuracy_std')),
@@ -98,9 +102,9 @@ def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
                 'model': model,
                 'dataset': dataset,
                 'readout': 'baseline',
-                'node_sample_ratio': 0.0,  # N/A for baselines
+                'node_sample_ratio': 0.0,
                 'method': 'baseline',
-                # Baselines don't have validation metrics in the same way
+                'adjacency_method': 'baseline',
                 'val_accuracy': 0.0,
                 'val_accuracy_std': 0.0,
                 'val_f1_macro': 0.0,

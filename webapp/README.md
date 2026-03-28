@@ -99,7 +99,7 @@ This reads:
 - `tutorials/stats/motrpac/graph_stats_comprehensive_motrpac.csv`
 - `tutorials/stats/parkinsons/graph_stats_comprehensive_parkinsons.csv`
 
-and writes `webapp/public/data/stats.json`. Run this after updating any of those CSVs or when setting up the webapp on a fresh clone so the Dataset Explorer has data. The Explorer’s Node Sample Ratio and Adjacency Threshold sliders will only show values that exist in the generated stats.
+and writes `webapp/public/data/stats.json`. Run this after updating any of those CSVs or when setting up the webapp on a fresh clone so the Dataset Explorer has data. The Explorer’s Node Sample Ratio and Adjacency Threshold sliders will only show values that exist in the generated stats. If the CSVs contain an `adjacency_method` column, it will be included in the key and the Explorer will show a Graph Construction dropdown.
 
 ### Regenerating Graph Statistics (full pipeline)
 
@@ -124,7 +124,8 @@ pip install -e .
 
 ```bash
 cd tutorials
-python dataset_stats_analysis.py
+# Generate stats for both graph construction methods (PPI + co-expression)
+python dataset_stats_analysis.py --adjacency-method string wgcna
 ```
 
 **Note:** If the environment is not properly set up, some selection methods (like `distance_correlation`) may not have data available in the webapp.
@@ -142,6 +143,7 @@ This will:
 | Node sample ratios | `full`, `1.0`, `0.5`, `0.3` |
 | Selection methods | `variance`, `correlation`, `distance_correlation`, `random` |
 | Adjacency thresholds | 10 values from 0.0 to 1.0 |
+| Graph construction | `string` (PPI Network), `wgcna` (Co-expression) |
 
 **Metrics computed per graph:**
 
@@ -163,10 +165,11 @@ This will:
 
 ```json
 {
-  "motrpac|0.5|variance|0.02|SVM": {
-    "graph_config": "motrpac|0.5|variance|0.02",
+  "motrpac|0.5|variance|NoReadOut|string|SVM": {
+    "graph_config": "motrpac|0.5|variance|NoReadOut|string",
     "model": "SVM",
     "dataset": "motrpac",
+    "adjacency_method": "string",
     "test_accuracy": 0.8549,
     "f1_macro": 0.8159,
     "f1_weighted": 0.8198,
@@ -182,7 +185,7 @@ This will:
 
 ```json
 {
-  "motrpac|0.5|variance|0.02": {
+  "motrpac|0.5|variance|0.02|string": {
     "num_nodes": 914,
     "num_edges": 135087,
     "density_pct": 32.37,
@@ -192,7 +195,8 @@ This will:
     "largest_cc_ratio_pct": 77.68,
     "avg_clustering_coeff": 0.72,
     "avg_shortest_path_length": 2.59,
-    "dataset": "motrpac"
+    "dataset": "motrpac",
+    "adjacency_method": "string"
   }
 }
 ```
@@ -210,15 +214,19 @@ This will:
 
 ### Key Format
 
-Results key: `{dataset}|{ratio}|{method}|{threshold}|{model}`
-Stats key: `{dataset}|{ratio}|{method}|{threshold}`
+Results key: `{dataset}|{ratio}|{method}|{readout}|{adjacency_method}|{model}`
+Stats key: `{dataset}|{ratio}|{method}|{threshold}|{adjacency_method}`
 
 Where:
 - `dataset`: `motrpac`, `addneuromed`, `parkinsons`, or `covidaki`
 - `ratio`: node sample ratio (`full`, `1.0`, `0.5`, `0.3`)
 - `method`: `variance`, `correlation`, `distance_correlation`, or `random`
 - `threshold`: adjacency threshold (0.0–1.0)
+- `readout`: `NoReadOut`, `OmicsReadOut`, or `baseline`
+- `adjacency_method`: `string` (PPI Network) or `wgcna` (Co-expression)
 - `model`: `SVM`, `ElasticNet`, `MLP`, `GATv4`, `GATv2`, `GIN`, `GCN`, `GraphSAGE`, `SAGN`, `Random`
+
+The `adjacency_method` segment is optional for backward compatibility — keys without it are treated as having a single graph construction method.
 
 ## Tech Stack
 
