@@ -539,7 +539,9 @@ def ensure_serializable(obj):
     elif isinstance(obj, str | int | float | bool | type(None)):
         return obj
     elif isinstance(obj, omegaconf.dictconfig.DictConfig):
-        return dict(obj)
+        return ensure_serializable(dict(obj))
+    elif isinstance(obj, omegaconf.listconfig.ListConfig):
+        return [ensure_serializable(item) for item in obj]
     else:
         return None
 

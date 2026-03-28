@@ -2,6 +2,7 @@
 
 from ogbench.nn.backbones.graph.chebnet import ChebNet
 from ogbench.nn.backbones.graph.gat_v4 import CustomGATConv, GATv4
+from ogbench.nn.backbones.graph.gps import GPSEncoder
 from ogbench.nn.backbones.graph.identity_gnn import (
     IdentityGAT,
     IdentityGCN,
@@ -30,6 +31,7 @@ BACKBONE_CLASSES: dict[str, type] = {
     'MultiHeadBatchNorm': MultiHeadBatchNorm,
     'MultiHeadLinear': MultiHeadLinear,
     'SAGN': SAGN,
+    'GPSEncoder': GPSEncoder,
 }
 
 # Generate __all__
@@ -47,4 +49,5 @@ __all__ = [
     'MultiHeadBatchNorm',
     'MultiHeadLinear',
     'SAGN',
+    'GPSEncoder',
 ]

@@ -192,3 +192,6 @@ logs/
 *.parquet
 datasets/
 run_data/
+
+# Scripts
+scripts/rerun_best_configs

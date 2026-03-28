@@ -1,4 +1,4 @@
-"""TopoBench: A library for benchmarking topological models."""
+"""OGBench: A library for benchmarking topological models."""
 
 import time
 
