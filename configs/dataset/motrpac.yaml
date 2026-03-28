@@ -37,6 +37,7 @@ parameters:
     - auroc
     - f1_weighted
     - f1_macro
+  shared_graph: true
   task_level: graph
 split_params:
   learning_setting: inductive
