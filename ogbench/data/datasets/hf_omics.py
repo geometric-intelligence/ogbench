@@ -74,6 +74,7 @@ class HFOmicsDataset(InMemoryDataset):
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
         revision: str = '65d41c2',
+        string_data_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
@@ -88,11 +89,13 @@ class HFOmicsDataset(InMemoryDataset):
             node_sample_ratio: Ratio of nodes to sample
             hf_repo_id: HuggingFace repository ID
             revision: HuggingFace dataset revision/commit hash
+            string_data_dir: Optional path to pre-downloaded STRING bulk files
             **kwargs: Additional keyword arguments
         """
         self.data_name = data_name
         self.adjacency_threshold = adjacency_threshold
         self.adjacency_method = adjacency_method
+        self.string_data_dir = string_data_dir
         self.node_sample_ratio = node_sample_ratio
         self.method = method
         self.train_val_test_split = train_val_test_split or [0.7, 0.15, 0.15]
@@ -341,7 +344,10 @@ class HFOmicsDataset(InMemoryDataset):
     ) -> np.ndarray:
         """Calculate adjacency matrix using a modular adjacency builder system."""
         # Build continuous adjacency matrix using modular builder
-        adjacency_builder = get_adjacency_builder(self.adjacency_method)
+        builder_kwargs = {}
+        if self.adjacency_method == 'string' and self.string_data_dir:
+            builder_kwargs['string_data_dir'] = self.string_data_dir
+        adjacency_builder = get_adjacency_builder(self.adjacency_method, **builder_kwargs)
         adjacency = adjacency_builder.build(node_features, map_df)
 
         # Binarize adjacency matrix

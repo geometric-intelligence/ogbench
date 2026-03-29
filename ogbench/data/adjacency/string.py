@@ -37,14 +37,19 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         self,
         species: int = 9606,
         cache_dir: str = 'temp_data/string_cache',
+        string_data_dir: str | None = None,
     ) -> None:
         """
         Args:
             species: NCBI taxonomy ID (9606 = human)
             cache_dir: Directory to cache STRING API responses
+            string_data_dir: Optional path to a directory containing pre-downloaded
+                STRING bulk files (e.g. ``9606.protein.aliases.v12.0.txt.gz``).
+                When set, files are read from here instead of downloading.
         """
         self.species = species
         self.cache_dir = cache_dir
+        self.string_data_dir = string_data_dir
         os.makedirs(cache_dir, exist_ok=True)
 
     def build(self, node_features: pd.DataFrame, map_df: pd.DataFrame | None = None) -> np.ndarray:
@@ -203,12 +208,16 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         to_query = [x for x in identifiers if x not in cached]
 
         if to_query:
-            alias_file = os.path.join(
-                self.cache_dir, f'{self.species}.protein.aliases.v12.0.txt.gz'
-            )
+            alias_name = f'{self.species}.protein.aliases.v12.0.txt.gz'
+            alias_file = os.path.join(self.cache_dir, alias_name)
+            if not os.path.exists(alias_file) and self.string_data_dir:
+                local = os.path.join(self.string_data_dir, alias_name)
+                if os.path.exists(local):
+                    alias_file = local
+                    logger.info('Using local alias file: %s', alias_file)
             if not os.path.exists(alias_file):
                 logger.info('Downloading STRING alias file (one-time download)...')
-                url = f'https://stringdb-downloads.org/download/protein.aliases.v12.0/{self.species}.protein.aliases.v12.0.txt.gz'
+                url = f'https://stringdb-downloads.org/download/protein.aliases.v12.0/{alias_name}'
                 r = requests.get(url, timeout=300, stream=True)
                 r.raise_for_status()
                 with open(alias_file, 'wb') as f:
@@ -258,11 +267,16 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
             with open(cache_file) as f:
                 return json.load(f)
 
-        # Download full STRING bulk file once — reused across all datasets
-        bulk_file = os.path.join(self.cache_dir, f'{self.species}.protein.links.v12.0.txt.gz')
+        bulk_name = f'{self.species}.protein.links.v12.0.txt.gz'
+        bulk_file = os.path.join(self.cache_dir, bulk_name)
+        if not os.path.exists(bulk_file) and self.string_data_dir:
+            local = os.path.join(self.string_data_dir, bulk_name)
+            if os.path.exists(local):
+                bulk_file = local
+                logger.info('Using local bulk file: %s', bulk_file)
         if not os.path.exists(bulk_file):
             logger.info('Downloading STRING bulk interaction file (one-time download ~100MB)...')
-            url = f'https://stringdb-downloads.org/download/protein.links.v12.0/{self.species}.protein.links.v12.0.txt.gz'
+            url = f'https://stringdb-downloads.org/download/protein.links.v12.0/{bulk_name}'
             r = requests.get(url, timeout=300, stream=True)
             r.raise_for_status()
             with open(bulk_file, 'wb') as f:

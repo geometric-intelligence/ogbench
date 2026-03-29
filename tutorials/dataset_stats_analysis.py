@@ -31,6 +31,7 @@ def load_dataset(
     node_sample_ratio: str = 'full',
     method: str = 'variance',
     adjacency_method: str = 'wgcna',
+    string_data_dir: str | None = None,
 ) -> Any:
     """Load the dataset with specified parameters."""
     from omegaconf import OmegaConf
@@ -50,7 +51,7 @@ def load_dataset(
         train_val_test_split=train_val_test_split,
         imputation_method='mean',
         adjacency_method=adjacency_method,
-
+        string_data_dir=string_data_dir,
     )
 
     return dataset
@@ -129,13 +130,13 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
 
 
 def process_single_combination(
-    args_tuple: tuple[str, str, str, float, str],
+    args_tuple: tuple[str, str, str, float, str, str | None],
 ) -> dict[str, Any]:
     """Process a single parameter combination for parallel processing."""
-    dataset_name, node_ratio, method, adj_thresh, adjacency_method = args_tuple
+    dataset_name, node_ratio, method, adj_thresh, adjacency_method, string_data_dir = args_tuple
 
     try:
-        dataset = load_dataset(dataset_name, adj_thresh, node_ratio, method, adjacency_method)
+        dataset = load_dataset(dataset_name, adj_thresh, node_ratio, method, adjacency_method, string_data_dir=string_data_dir)
         print(f'Dataset loaded: {dataset}, length: {len(dataset)}')
 
         stats = get_graph_stats(dataset)
@@ -173,10 +174,11 @@ def compute_stats_for_combinations(
     adj_thresholds: list[float],
     adjacency_methods: list[str],
     n_jobs: int = -1,
+    string_data_dir: str | None = None,
 ) -> list[dict[str, Any]]:
     """Compute statistics for all combinations of parameters using parallel processing."""
     combinations = [
-        (dataset_name, node_ratio, method, adj_thresh, adj_m)
+        (dataset_name, node_ratio, method, adj_thresh, adj_m, string_data_dir)
         for node_ratio, method, adj_thresh, adj_m in itertools.product(
             node_sample_ratios, sampling_methods, adj_thresholds, adjacency_methods
         )
@@ -370,6 +372,11 @@ def main():
         default=['string'],
         help='One or more adjacency methods (e.g. string wgcna)',
     )
+    parser.add_argument(
+        '--string-data-dir',
+        default=None,
+        help='Path to pre-downloaded STRING bulk files (avoids downloading from stringdb-downloads.org)',
+    )
 
     args = parser.parse_args()
 
@@ -409,6 +416,7 @@ def main():
             adj_thresholds,
             adjacency_methods,
             n_jobs,
+            string_data_dir=args.string_data_dir,
         )
 
         # Collect for webapp JSON
@@ -452,7 +460,7 @@ def main():
 if __name__ == '__main__':
     try:
         print('Testing dataset loading...')
-        dataset = load_dataset('addneuromed', 0.5, '0.3', 'variance', adjacency_method='string')
+        dataset = load_dataset('addneuromed', 0.5, '0.3', 'variance', adjacency_method='string', string_data_dir='/home/johmathe/bgbench/data')
         print(f'Dataset loaded successfully: {dataset}')
         print(f'Dataset length: {len(dataset)}')
         if len(dataset) > 0:

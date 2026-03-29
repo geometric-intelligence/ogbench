@@ -22,10 +22,17 @@ REPO_ROOT = WEBAPP_DIR.parent
 STATS_DIR = REPO_ROOT / "tutorials" / "stats"
 OUTPUT_PATH = WEBAPP_DIR / "public" / "data" / "stats.json"
 
-CSV_FILES = [
+WGCNA_CSV_FILES = [
     STATS_DIR / "addneuromed" / "graph_stats_comprehensive_addneuro.csv",
     STATS_DIR / "motrpac" / "graph_stats_comprehensive_motrpac.csv",
     STATS_DIR / "parkinsons" / "graph_stats_comprehensive_parkinsons.csv",
+]
+
+STRING_STATS_DIR = REPO_ROOT / "stats"
+STRING_CSV_FILES = [
+    STRING_STATS_DIR / "addneuromed" / "graph_stats_comprehensive.csv",
+    STRING_STATS_DIR / "motrpac" / "graph_stats_comprehensive.csv",
+    STRING_STATS_DIR / "parkinsons" / "graph_stats_comprehensive.csv",
 ]
 
 
@@ -47,7 +54,9 @@ def format_threshold(adj_thresh: float) -> str:
     return str(t)
 
 
-def row_to_key_and_stats(row: dict) -> tuple[str, dict] | None:
+def row_to_key_and_stats(
+    row: dict, *, default_adjacency_method: str = ""
+) -> tuple[str, dict] | None:
     """Convert a CSV row to (key, stats) for the webapp JSON. Returns None to skip row."""
     dataset = row.get("dataset", "").strip()
     if not dataset:
@@ -61,7 +70,7 @@ def row_to_key_and_stats(row: dict) -> tuple[str, dict] | None:
     method = row.get("method", "").strip()
     if not method:
         return None
-    adjacency_method = row.get("adjacency_method", "").strip()
+    adjacency_method = row.get("adjacency_method", "").strip() or default_adjacency_method
 
     key = f"{dataset}|{ratio_key}|{method}|{format_threshold(thresh_val)}"
     if adjacency_method:
@@ -92,22 +101,36 @@ def row_to_key_and_stats(row: dict) -> tuple[str, dict] | None:
     return (key, stats)
 
 
-def main() -> None:
-    result: dict[str, dict] = {}
-    for csv_path in CSV_FILES:
+def _read_csvs(
+    csv_files: list[Path],
+    result: dict[str, dict],
+    *,
+    default_adjacency_method: str = "",
+) -> None:
+    import csv as csv_module
+
+    for csv_path in csv_files:
         if not csv_path.exists():
             print(f"Skip (not found): {csv_path}")
             continue
+        count = 0
         with open(csv_path, newline="", encoding="utf-8") as f:
-            import csv as csv_module
-
             reader = csv_module.DictReader(f)
             for row in reader:
-                pair = row_to_key_and_stats(row)
+                pair = row_to_key_and_stats(
+                    row, default_adjacency_method=default_adjacency_method
+                )
                 if pair:
                     key, stats = pair
                     result[key] = stats
-        print(f"Read {csv_path.name}")
+                    count += 1
+        print(f"Read {csv_path} ({count} entries)")
+
+
+def main() -> None:
+    result: dict[str, dict] = {}
+    _read_csvs(WGCNA_CSV_FILES, result, default_adjacency_method="wgcna")
+    _read_csvs(STRING_CSV_FILES, result, default_adjacency_method="string")
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
