@@ -963,50 +963,80 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     :return: Tuple with metrics and object dict
     """
     logger.info('Starting Sklearn Baseline Runner')
-    logger.info(f'Loading dataset: {cfg.dataset.loader.parameters.data_name}')
-
-    # Load datasets: standard and optionally GNN-preprocessed
-    dataset_standard = load_and_prepare_data(cfg)
-    dataset_gnn: DatasetContainer | None = None
+    logger.info('Loading dataset: %s', cfg.dataset.loader.parameters.data_name)
 
     if 'baselines' not in cfg.dataset:
         raise ValueError('No baselines defined in dataset config')
 
+    baseline_filter = cfg.get('baseline_filter', None)
+
+    baselines_to_run = {
+        name: bl_cfg
+        for name, bl_cfg in cfg.dataset.baselines.items()
+        if baseline_filter is None or bl_cfg.get('preprocessing', 'standard') == baseline_filter
+    }
+
+    if not baselines_to_run:
+        logger.info('No baselines match filter=%s, skipping.', baseline_filter)
+        return {}, {'cfg': cfg, 'all_results': {}, 'best_baseline': None}
+
+    dataset_standard: DatasetContainer | None = None
+    dataset_gnn: DatasetContainer | None = None
+
+    needs_standard = any(
+        bl_cfg.get('preprocessing', 'standard') == 'standard'
+        for bl_cfg in baselines_to_run.values()
+    )
     needs_gnn = any(
         bl_cfg.get('preprocessing', 'standard') == 'gnn_features'
-        for bl_cfg in cfg.dataset.baselines.values()
+        for bl_cfg in baselines_to_run.values()
     )
+
+    if needs_standard:
+        dataset_standard = load_and_prepare_data(cfg)
     if needs_gnn:
         logger.info('GNN-features preprocessing requested, loading GNN-preprocessed data...')
         dataset_gnn = load_and_prepare_data_gnn_features(cfg)
 
-    # Run baselines
     all_results = {}
 
-    for baseline_name, baseline_config in cfg.dataset.baselines.items():
+    for baseline_name, baseline_config in baselines_to_run.items():
         preprocessing = baseline_config.get('preprocessing', 'standard')
         if preprocessing == 'gnn_features':
-            assert dataset_gnn is not None
+            if dataset_gnn is None:
+                raise RuntimeError('GNN dataset not loaded but gnn_features baseline requested')
             dataset = dataset_gnn
-            logger.info(f'Running baseline: {baseline_name} (GNN-features preprocessing)')
+            logger.info('Running baseline: %s (GNN-features preprocessing)', baseline_name)
         else:
+            if dataset_standard is None:
+                raise RuntimeError('Standard dataset not loaded but standard baseline requested')
             dataset = dataset_standard
-            logger.info(f'Running baseline: {baseline_name}')
+            logger.info('Running baseline: %s', baseline_name)
 
-        # Initialize wandb run for this baseline
-        run_name = f'baseline_{baseline_name}_{cfg.dataset.loader.parameters.data_name}'
+        params = cfg.dataset.loader.parameters
+        data_name = params.data_name
 
-        # Prepare config for wandb (avoid resolving custom resolvers)
+        if preprocessing == 'gnn_features':
+            nsr = params.node_sample_ratio
+            method = params.method
+            run_name = f'baseline_{baseline_name}_{data_name}_r{nsr}_m{method}'
+        else:
+            run_name = f'baseline_{baseline_name}_{data_name}'
+
         wandb_config = {
             'baseline_name': baseline_name,
-            'dataset': cfg.dataset.loader.parameters.data_name,
+            'dataset': data_name,
             'seed': cfg.seed,
-            'train_val_test_split': list(cfg.dataset.loader.parameters.train_val_test_split),
+            'train_val_test_split': list(params.train_val_test_split),
             'task': cfg.dataset.parameters.task,
             'monitor_metric': cfg.dataset.parameters.get('monitor_metric', 'f1_weighted'),
             'preprocessing': preprocessing,
             'n_features': dataset.n_features,
         }
+
+        if preprocessing == 'gnn_features':
+            wandb_config['node_sample_ratio'] = params.node_sample_ratio
+            wandb_config['method'] = params.method
 
         wandb.init(
             project=cfg.logger.wandb.project,

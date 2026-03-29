@@ -17,3 +17,6 @@ tags: ["baseline", "sklearn"]
 
 # seed for random number generators
 seed: 42
+
+# Filter which baselines to run: "standard", "gnn_features", or null (all)
+baseline_filter: null
