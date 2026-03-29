@@ -18,30 +18,6 @@ BGBench focuses on benchmarking GNNs for classification tasks using omics datase
 
 ## Installation
 
-### Quick Setup with Environment Script
-
-The easiest way to set up BGBench is using the provided environment setup script:
-
-```bash
-# Clone the repository
-git clone git@github.com:geometric-intelligence/bgbench.git
-cd bgbench
-
-# Run the automated setup script
-bash env_setup.sh
-```
-
-This script will:
-
-- Install Miniconda if not present
-- Create a `bgbench` conda environment with Python 3.12
-- Install all dependencies including development tools
-- Set up pre-commit hooks
-
-### Manual Installation
-
-If you prefer manual setup:
-
 ```bash
 # Clone the repository
 git clone git@github.com:geometric-intelligence/bgbench.git
