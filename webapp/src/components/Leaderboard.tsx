@@ -118,7 +118,7 @@ export default function Leaderboard() {
       addneuromed: {},
       parkinsons: {},
     };
-    
+
     for (const ds of ['motrpac', 'addneuromed', 'parkinsons'] as DatasetName[]) {
       for (const model of BASELINE_MODELS) {
         const entries = results.filter((r) => r.model === model && r.dataset === ds);
@@ -153,13 +153,13 @@ export default function Leaderboard() {
   const chartTitle = useMemo(() => {
     let title = `${displayMetricLabel} of Best Models`;
     title += ` (Ranked by ${rankMetricLabel})`;
-    
+
     if (methodFilter !== 'all') {
       title += ` using ${METHOD_LABELS[methodFilter]} Selection`;
     } else {
       title += ` across All Selection Methods`;
     }
-    
+
     if (ratioFilter !== 'all') {
       title += ` at ${RATIO_LABELS[ratioFilter]} Sample-to-Node Ratio`;
     }
@@ -167,7 +167,7 @@ export default function Leaderboard() {
     if (adjacencyMethodFilter !== 'all') {
       title += ` — ${ADJACENCY_METHOD_LABELS[adjacencyMethodFilter] ?? adjacencyMethodFilter}`;
     }
-    
+
     return title;
   }, [displayMetricLabel, rankMetricLabel, methodFilter, ratioFilter, adjacencyMethodFilter]);
 
@@ -188,12 +188,12 @@ export default function Leaderboard() {
   datasets.forEach((ds, dsIdx) => {
     const xAxisId = dsIdx === 0 ? 'x' : `x${dsIdx + 1}`;
     const yAxisId = dsIdx === 0 ? 'y' : `y${dsIdx + 1}`;
-    
+
     const values: number[] = [];
     const errors: number[] = [];
     const colors: string[] = [];
     const textLabels: string[] = [];
-    
+
     for (const model of filteredModels) {
       const data = allModelsData[ds][model];
       if (data) {
@@ -233,7 +233,7 @@ export default function Leaderboard() {
 
     // Add horizontal lines for baselines using scatter with category names
     const baselineData = baselinesByDataset[ds];
-    
+
     // ElasticNet line (dashed) - use first and last model names
     if (baselineData.ElasticNet && filteredModels.length > 0) {
       facetedChartData.push({

@@ -120,7 +120,7 @@ repos:
     hooks:
       - id: codespell
         args:
-          - --skip=logs/**,data/**,*.ipynb
+          - --skip=logs/**,data/**,*.ipynb,**/package-lock.json
           # - --ignore-words-list=abc,def
 
   # jupyter notebook cell output clearing

@@ -19,52 +19,43 @@ MODEL_NAME_MAP = {
 
 # ML Baselines with fixed test F1 macro scores (don't depend on graph config)
 BASELINES = {
-    'parkinsons': {
-        'ElasticNet': {'test_f1_macro': 0.64518},
-        'SVM': {'test_f1_macro': 0.66422}
-    },
-    'motrpac': {
-        'ElasticNet': {'test_f1_macro': 0.57419},
-        'SVM': {'test_f1_macro': 0.54287}
-    },
-    'addneuromed': {
-        'ElasticNet': {'test_f1_macro': 0.55762},
-        'SVM': {'test_f1_macro': 0.46252}
-    }
+    'parkinsons': {'ElasticNet': {'test_f1_macro': 0.64518}, 'SVM': {'test_f1_macro': 0.66422}},
+    'motrpac': {'ElasticNet': {'test_f1_macro': 0.57419}, 'SVM': {'test_f1_macro': 0.54287}},
+    'addneuromed': {'ElasticNet': {'test_f1_macro': 0.55762}, 'SVM': {'test_f1_macro': 0.46252}},
 }
 
 
 def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
     """Transform CSV to JSON format for the webapp."""
     results = {}
-    
-    with open(csv_path, 'r') as f:
+
+    with open(csv_path) as f:
         reader = csv.DictReader(f)
-        
+
         for row in reader:
             # Get and map model name
             model_csv = row['model']
             model = MODEL_NAME_MAP.get(model_csv, model_csv)
-            
+
             dataset = row['dataset']
             method = row['method']
             node_sample_ratio = row['node_sample_ratio']
             readout = row['readout']
             adjacency_method = row.get('adjacency_method', '').strip()
-            
+
             # Create the graph_config and key
-            graph_config = f"{dataset}|{node_sample_ratio}|{method}|{readout}"
+            graph_config = f'{dataset}|{node_sample_ratio}|{method}|{readout}'
             if adjacency_method:
-                graph_config += f"|{adjacency_method}"
-            key = f"{graph_config}|{model}"
-            
+                graph_config += f'|{adjacency_method}'
+            key = f'{graph_config}|{model}'
+
             # Extract metrics with safe float conversion
             def safe_float(val, default=0.0):
                 try:
                     return float(val) if val else default
                 except (ValueError, TypeError):
                     return default
-            
+
             entry = {
                 'graph_config': graph_config,
                 'model': model,
@@ -88,15 +79,15 @@ def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
                 'auroc': safe_float(row.get('summary.best_test/auroc')),
                 'auroc_std': safe_float(row.get('summary.best_test/auroc_std')),
             }
-            
+
             results[key] = entry
-    
+
     # Add baseline entries for each dataset
     for dataset, models in BASELINES.items():
         for model, metrics in models.items():
-            graph_config = f"{dataset}|baseline"
-            key = f"{graph_config}|{model}"
-            
+            graph_config = f'{dataset}|baseline'
+            key = f'{graph_config}|{model}'
+
             entry = {
                 'graph_config': graph_config,
                 'model': model,
@@ -119,25 +110,25 @@ def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
                 'auroc': 0.0,
                 'auroc_std': 0.0,
             }
-            
+
             results[key] = entry
-    
+
     # Write to JSON
     with open(output_path, 'w') as f:
         json.dump(results, f, indent=2)
-    
-    print(f"Transformed {len(results)} entries to {output_path}")
-    print(f"  - CSV entries: {len(results) - sum(len(m) for m in BASELINES.values())}")
-    print(f"  - Baseline entries: {sum(len(m) for m in BASELINES.values())}")
-    
+
+    print(f'Transformed {len(results)} entries to {output_path}')
+    print(f'  - CSV entries: {len(results) - sum(len(m) for m in BASELINES.values())}')
+    print(f'  - Baseline entries: {sum(len(m) for m in BASELINES.values())}')
+
     # Print unique models
-    models = set(entry['model'] for entry in results.values())
-    print(f"  - Models: {sorted(models)}")
-    
+    models = {entry['model'] for entry in results.values()}
+    print(f'  - Models: {sorted(models)}')
+
     # Print unique datasets
-    datasets = set(entry['dataset'] for entry in results.values())
-    print(f"  - Datasets: {sorted(datasets)}")
-    
+    datasets = {entry['dataset'] for entry in results.values()}
+    print(f'  - Datasets: {sorted(datasets)}')
+
     return results
 
 
@@ -145,14 +136,14 @@ def main():
     # Paths relative to script location
     script_dir = Path(__file__).parent
     repo_root = script_dir.parent.parent
-    
+
     csv_path = repo_root / 'tutorials' / 'stats' / 'best_configs_summary.csv'
     output_path = script_dir.parent / 'public' / 'data' / 'results.json'
-    
+
     if not csv_path.exists():
-        print(f"Error: CSV file not found at {csv_path}")
+        print(f'Error: CSV file not found at {csv_path}')
         return 1
-    
+
     transform_csv_to_json(csv_path, output_path)
     return 0
 

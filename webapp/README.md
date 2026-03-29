@@ -131,19 +131,20 @@ python dataset_stats_analysis.py --adjacency-method string wgcna
 **Note:** If the environment is not properly set up, some selection methods (like `distance_correlation`) may not have data available in the webapp.
 
 This will:
+
 1. Load datasets using the HFOmicsDataset loader
 2. Compute graph statistics for all parameter combinations
 3. Save results to both CSV files (in `./stats/`) and JSON for the webapp (`webapp/public/data/stats.json`)
 
 **Parameters computed:**
 
-| Parameter | Values |
-|-----------|--------|
-| Datasets | `motrpac`, `addneuromed`, `parkinsons`, `covidaki` |
-| Node sample ratios | `full`, `1.0`, `0.5`, `0.3` |
-| Selection methods | `variance`, `correlation`, `distance_correlation`, `random` |
-| Adjacency thresholds | 10 values from 0.0 to 1.0 |
-| Graph construction | `string` (PPI Network), `wgcna` (Co-expression) |
+| Parameter            | Values                                                      |
+| -------------------- | ----------------------------------------------------------- |
+| Datasets             | `motrpac`, `addneuromed`, `parkinsons`, `covidaki`          |
+| Node sample ratios   | `full`, `1.0`, `0.5`, `0.3`                                 |
+| Selection methods    | `variance`, `correlation`, `distance_correlation`, `random` |
+| Adjacency thresholds | 10 values from 0.0 to 1.0                                   |
+| Graph construction   | `string` (PPI Network), `wgcna` (Co-expression)             |
 
 **Metrics computed per graph:**
 
@@ -204,10 +205,12 @@ This will:
 ### How to Update
 
 1. **Replace or regenerate the JSON files** in `public/data/`:
+
    - For **stats.json** (Dataset Explorer): run `python webapp/scripts/build_stats_from_csv.py` from the repo root if you have the graph-statistics CSVs (see [Building stats.json from existing CSVs](#building-statsjson-from-existing-csvs)), or copy a pre-built file: `cp /path/to/new/stats.json public/data/stats.json`
    - For **results.json** (Leaderboard): `cp /path/to/new/results.json public/data/results.json`
 
 2. **Rebuild and deploy**:
+
    ```bash
    make deploy
    ```
@@ -218,6 +221,7 @@ Results key: `{dataset}|{ratio}|{method}|{readout}|{adjacency_method}|{model}`
 Stats key: `{dataset}|{ratio}|{method}|{threshold}|{adjacency_method}`
 
 Where:
+
 - `dataset`: `motrpac`, `addneuromed`, `parkinsons`, or `covidaki`
 - `ratio`: node sample ratio (`full`, `1.0`, `0.5`, `0.3`)
 - `method`: `variance`, `correlation`, `distance_correlation`, or `random`

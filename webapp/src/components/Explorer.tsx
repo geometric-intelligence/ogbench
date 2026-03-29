@@ -165,7 +165,7 @@ export default function Explorer() {
     // Add subplot title as annotation - centered above each subplot (2 rows × 3 columns)
     const colCenters = [0.14, 0.5, 0.86];
     const rowTops = [1.0, 0.48]; // Top positions for 2 rows
-    
+
     annotations.push({
       text: `<b>${label}</b>`,
       xref: 'paper',
