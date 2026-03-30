@@ -3,7 +3,7 @@
 # Mean degree: 67.1
 
 loader:
-  _target_: ogbench.data.loaders.graph.OmicsDatasetLoader
+  _target_: ogbench.data.loaders.graph.omics_datasets.OmicsDatasetLoader
   parameters:
     data_type: omics
     data_domain: graph
@@ -30,7 +30,7 @@ parameters:
   task: classification
   loss_type: cross_entropy
   class_weights: null
-  monitor_metric: f1_macro
+  monitor_metric: f1_weighted
   metrics:
     - accuracy
     - precision
