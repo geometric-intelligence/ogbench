@@ -1,3 +1,5 @@
+export type AdjacencyMethod = 'string' | 'wgcna';
+
 export interface ResultEntry {
   graph_config: string;
   model: string;
@@ -5,6 +7,7 @@ export interface ResultEntry {
   readout: string; // 'NoReadOut' | 'OmicsReadOut' | 'baseline'
   node_sample_ratio: number;
   method: string;
+  adjacency_method?: string;
   // Validation metrics (for ranking/selection)
   val_accuracy: number;
   val_accuracy_std: number;

@@ -112,3 +112,50 @@ baselines:
         - 0.7
     scoring: f1_macro
     n_jobs: -1
+  svm_gnn_features:
+    preprocessing: gnn_features
+    pipeline:
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: calibrated_svm
+        _target_: sklearn.calibration.CalibratedClassifierCV
+        estimator:
+          _target_: sklearn.svm.LinearSVC
+          class_weight: balanced
+          max_iter: 5000
+          random_state: ${seed}
+        method: sigmoid
+    param_grid:
+      calibrated_svm__estimator__C:
+        - 0.001
+        - 0.01
+        - 0.1
+        - 1.0
+    scoring: f1_macro
+    n_jobs: -1
+  elastic_net_gnn_features:
+    preprocessing: gnn_features
+    pipeline:
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: elastic_net
+        _target_: sklearn.linear_model.LogisticRegression
+        penalty: elasticnet
+        solver: saga
+        class_weight: balanced
+        max_iter: 5000
+        random_state: ${seed}
+    param_grid:
+      elastic_net__C:
+        - 0.001
+        - 0.01
+        - 0.1
+        - 1.0
+      elastic_net__l1_ratio:
+        - 0.0
+        - 0.1
+        - 0.3
+        - 0.5
+        - 0.7
+    scoring: f1_macro
+    n_jobs: -1

@@ -14,7 +14,7 @@ class AbstractAdjacencyBuilder(ABC):
     """
 
     @abstractmethod
-    def build(self, node_features: pd.DataFrame) -> np.ndarray:
+    def build(self, node_features: pd.DataFrame, map_df: pd.DataFrame | None = None) -> np.ndarray:
         """Build adjacency matrix from node features."""
         pass
 

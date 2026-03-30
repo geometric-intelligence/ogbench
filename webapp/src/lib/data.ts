@@ -43,7 +43,7 @@ export function getDisplayMetricValue(entry: ResultEntry, metric: DisplayMetric)
  * Compute leaderboard with dual-metric support
  * For each model, selects the BEST configuration (highest ranking metric value)
  * rather than averaging across all configurations.
- * 
+ *
  * @param results - Array of result entries
  * @param rankBy - Metric used to rank/order models and select best config
  * @param displayMetric - Metric displayed in the leaderboard (from the best config)
@@ -63,11 +63,11 @@ export function computeLeaderboard(
   // For each model, find the BEST configuration (highest ranking metric)
   const aggregates: LeaderboardEntry[] = Object.entries(byModel).map(([model, entries]) => {
     const isBaseline = entries.some((e) => e.readout === 'baseline');
-    
+
     // Find the entry with the highest ranking metric value
     let bestEntry = entries[0];
     let bestRankValue = getRankingMetricValue(bestEntry, rankBy).value;
-    
+
     for (const entry of entries) {
       const rankValue = getRankingMetricValue(entry, rankBy).value;
       if (rankValue > bestRankValue) {
@@ -75,7 +75,7 @@ export function computeLeaderboard(
         bestRankValue = rankValue;
       }
     }
-    
+
     // Use the best entry's values for both ranking and display
     const rankMetric = getRankingMetricValue(bestEntry, rankBy);
     const displayMetricVal = getDisplayMetricValue(bestEntry, displayMetric);
@@ -122,7 +122,8 @@ export function filterResults(
   results: ResultEntry[],
   dataset: DatasetName | 'all',
   method: string | 'all' = 'all',
-  ratio: number | 'all' = 'all'
+  ratio: number | 'all' = 'all',
+  adjacencyMethod: string | 'all' = 'all'
 ): ResultEntry[] {
   let filtered = results;
 
@@ -131,13 +132,17 @@ export function filterResults(
   }
 
   if (method !== 'all') {
-    // Filter by method, but keep baselines (they don't have a method)
     filtered = filtered.filter((r) => r.method === method || r.method === 'baseline');
   }
 
   if (ratio !== 'all') {
-    // Filter by ratio, but keep baselines (they don't have a ratio)
     filtered = filtered.filter((r) => r.node_sample_ratio === ratio || r.node_sample_ratio === 0.0);
+  }
+
+  if (adjacencyMethod !== 'all') {
+    filtered = filtered.filter(
+      (r) => r.adjacency_method === adjacencyMethod || r.method === 'baseline'
+    );
   }
 
   return filtered;
@@ -147,8 +152,12 @@ export function getStatsKey(
   dataset: string,
   ratio: number,
   method: string,
-  threshold: number
+  threshold: number,
+  adjacencyMethod?: string
 ): string {
+  if (adjacencyMethod) {
+    return `${dataset}|${ratio}|${method}|${threshold}|${adjacencyMethod}`;
+  }
   return `${dataset}|${ratio}|${method}|${threshold}`;
 }
 
@@ -157,9 +166,10 @@ export function getStats(
   dataset: string,
   ratio: number,
   method: string,
-  threshold: number
+  threshold: number,
+  adjacencyMethod?: string
 ): GraphStats | null {
-  const key = getStatsKey(dataset, ratio, method, threshold);
+  const key = getStatsKey(dataset, ratio, method, threshold, adjacencyMethod);
   return allStats[key] || null;
 }
 
@@ -195,7 +205,7 @@ export interface ModelDataByDataset {
  * Get model performance data by dataset for charts.
  * For each model+dataset combination, selects the BEST configuration
  * (highest ranking metric value) rather than averaging.
- * 
+ *
  * @param results - Array of result entries
  * @param modelOrder - Order of models to include
  * @param displayMetric - Metric to display in the chart
@@ -209,7 +219,7 @@ export function getModelsByDataset(
 ): Record<DatasetName, Record<string, ModelDataByDataset>> {
   // Use displayMetric as rankBy if not specified (for consistency)
   const rankMetric = rankBy || displayMetric;
-  
+
   // Group by dataset and model
   const byDatasetModel: Record<DatasetName, Record<string, ResultEntry[]>> = {
     motrpac: {},
@@ -236,7 +246,7 @@ export function getModelsByDataset(
         // Find the best entry based on ranking metric
         let bestEntry = entries[0];
         let bestRankValue = getRankingMetricValue(bestEntry, rankMetric).value;
-        
+
         for (const entry of entries) {
           const rankValue = getRankingMetricValue(entry, rankMetric).value;
           if (rankValue > bestRankValue) {
@@ -244,7 +254,7 @@ export function getModelsByDataset(
             bestRankValue = rankValue;
           }
         }
-        
+
         // Use the best entry's display metric values
         const { value, std } = getDisplayMetricValue(bestEntry, displayMetric);
         result[ds][model] = { value, std };

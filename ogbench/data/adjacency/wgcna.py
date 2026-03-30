@@ -14,8 +14,11 @@ class WGCNAAdjacencyBuilder(AbstractAdjacencyBuilder):
     create a signed hybrid adjacency matrix.
     """
 
-    def build(self, node_features: pd.DataFrame) -> np.ndarray:
-        """Build adjacency matrix using WGCNA."""
+    def build(self, node_features: pd.DataFrame, map_df: pd.DataFrame | None = None) -> np.ndarray:
+        """Build adjacency matrix using WGCNA.
+
+        ``map_df`` is ignored; WGCNA uses correlation structure in ``node_features`` only.
+        """
         # Use WGCNA to find optimal power for scale-free topology
         try:
             soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features)
