@@ -10,13 +10,14 @@ loader:
     data_name: parkinsons
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
     adjacency_threshold: 0.0463
+    adjacency_method: wgcna
     node_sample_ratio: 0.5
     method: variance
     imputation_method: mean
     train_val_test_split:
       - 0.7
-      - 0.15
-      - 0.15
+      - 0.2
+      - 0.1
     revision: ${hf.revision}
 parameters:
   num_features: 1
