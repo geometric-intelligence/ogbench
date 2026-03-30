@@ -35,8 +35,6 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.utils import shuffle
 
-from ogbench.data.selectors import get_selector
-
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 
 # Set matplotlib style
@@ -190,6 +188,41 @@ def load_metadata(data_name: str, cfg: DictConfig) -> dict[str, Any] | None:
         return None
 
 
+def _get_hf_omics_raw_dir(cfg: DictConfig) -> str:
+    """Construct the path to HFOmicsDataset's raw directory.
+
+    Mirrors the path logic in HFOmicsDataset.__init__ so we can read saved artifacts
+    (selected_data.parquet, targets.npy, split_info.json) without instantiating the full dataset.
+
+    :param cfg: Hydra configuration
+    :return: Path to the raw directory
+    """
+    params = cfg.dataset.loader.parameters
+    data_dir = params.data_dir
+    name = osp.join(
+        f'{params.data_name}',
+        f'adj_thresh_{params.adjacency_threshold}',
+        f'adj_method_{params.get("adjacency_method", "string")}',
+        f'{params.method}',
+        f'p_{params.node_sample_ratio}',
+        f'train_split_{params.train_val_test_split[0]}',
+    )
+    return osp.join(data_dir, name, 'raw')
+
+
+def _load_split_info(raw_dir: str) -> dict[str, int] | None:
+    """Load split indices saved by HFOmicsDataset.download().
+
+    :param raw_dir: Path to HFOmicsDataset's raw directory
+    :return: Dict with 'train_idx' and 'val_idx', or None if not found
+    """
+    split_info_path = osp.join(raw_dir, 'split_info.json')
+    if not osp.exists(split_info_path):
+        return None
+    with open(split_info_path) as f:
+        return json.load(f)
+
+
 def prepare_param_grid(baseline_config: DictConfig) -> dict[str, list]:
     """Prepare parameter grid from config.
 
@@ -277,13 +310,22 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 
     logger.info(f'Loaded {len(targets)} samples with {data.shape[1]} features')
 
-    # Apply shuffling (same random_state as in hf_omics.py process())
+    # Apply shuffling (same random_state as in hf_omics.py download())
     data, targets = shuffle(data, targets, random_state=42)
 
-    # Calculate split indices
-    train_val_test_split = cfg.dataset.loader.parameters.train_val_test_split
-    train_idx = int(len(data) * train_val_test_split[0])
-    val_idx = int(len(data) * (train_val_test_split[0] + train_val_test_split[1]))
+    # Use saved split indices from HFOmicsDataset when available to guarantee
+    # identical splits with the GNN pipeline; fall back to recomputing.
+    raw_dir = _get_hf_omics_raw_dir(cfg)
+    split_info = _load_split_info(raw_dir)
+    if split_info is not None:
+        train_idx = split_info['train_idx']
+        val_idx = split_info['val_idx']
+        logger.info(f'Using saved split indices from {raw_dir}/split_info.json')
+    else:
+        train_val_test_split = cfg.dataset.loader.parameters.train_val_test_split
+        train_idx = int(len(data) * train_val_test_split[0])
+        val_idx = int(len(data) * (train_val_test_split[0] + train_val_test_split[1]))
+        logger.info('split_info.json not found, computing split indices from config')
 
     # Split data
     X_train = data.iloc[:train_idx].values
@@ -351,15 +393,14 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 def load_and_prepare_data_gnn_features(cfg: DictConfig) -> DatasetContainer:
     """Load and prepare data using the same feature preprocessing as GNNs.
 
-    Replicates the HFOmicsDataset preprocessing: imputation, variance-based
-    feature selection (same node_sample_ratio formula), then returns a
-    DatasetContainer with the selected feature subset.
+    Uses the artifacts saved by HFOmicsDataset.download() (selected_data.parquet, targets.npy,
+    split_info.json) to guarantee identical preprocessing and splits as the GNN pipeline. The saved
+    data is already shuffled, imputed, and feature-selected.
 
     :param cfg: Configuration composed by Hydra
     :return: DatasetContainer with GNN-preprocessed features
     """
     data_name = cfg.dataset.loader.parameters.data_name
-    params = cfg.dataset.loader.parameters
 
     metadata = load_metadata(data_name, cfg)
     class_names = None
@@ -369,103 +410,45 @@ def load_and_prepare_data_gnn_features(cfg: DictConfig) -> DatasetContainer:
             class_names = target_stats['class_names']
             logger.info(f'Found class names: {class_names}')
 
-    local_data_dir = 'temp_data'
-    local_data_file = osp.join(local_data_dir, data_name, f'{data_name}_data.parquet')
-    target_filename = f'{data_name}_targets.parquet'
-    local_targets_file = osp.join(local_data_dir, data_name, target_filename)
+    raw_dir = _get_hf_omics_raw_dir(cfg)
+    selected_data_path = osp.join(raw_dir, 'selected_data.parquet')
+    targets_path = osp.join(raw_dir, 'targets.npy')
 
-    if osp.exists(local_data_file) and osp.exists(local_targets_file):
-        logger.info('Loading from local temp_data...')
-        data_file = local_data_file
-        targets_file = local_targets_file
-    else:
-        logger.info('Downloading from HuggingFace...')
-        hf_repo_id = 'geometric-intelligence/bgbench'
-        revision = params.get('revision', '3abc196')
-        data_file = hf_hub_download(  # nosec
-            repo_id=hf_repo_id,
-            repo_type='dataset',
-            revision=revision,
-            filename=f'{data_name}_data.parquet',
-        )
-        targets_file = hf_hub_download(  # nosec
-            repo_id=hf_repo_id,
-            repo_type='dataset',
-            revision=revision,
-            filename=target_filename,
+    if not osp.exists(selected_data_path) or not osp.exists(targets_path):
+        raise FileNotFoundError(
+            f'GNN dataset artifacts not found at {raw_dir}. '
+            'Run the GNN pipeline first to generate selected_data.parquet and targets.npy.'
         )
 
-    data = pd.read_parquet(data_file)
-    targets_df = pd.read_parquet(targets_file)
+    split_info = _load_split_info(raw_dir)
+    if split_info is None:
+        raise FileNotFoundError(
+            f'split_info.json not found at {raw_dir}. '
+            'Run the GNN pipeline first to generate split artifacts.'
+        )
 
-    if 'target' in data.columns:
-        data = data.drop('target', axis=1)
+    data = pd.read_parquet(selected_data_path)
+    targets = np.load(targets_path)
+    train_idx = split_info['train_idx']
+    val_idx = split_info['val_idx']
 
-    targets = targets_df['target'].values
+    logger.info(
+        f'[GNN features] Loaded {len(targets)} samples with {data.shape[1]} features '
+        f'from HFOmicsDataset artifacts at {raw_dir}'
+    )
 
-    logger.info(f'[GNN features] Loaded {len(targets)} samples with {data.shape[1]} features')
-
-    data, targets = shuffle(data, targets, random_state=42)
-
-    train_val_test_split = params.train_val_test_split
-    train_idx = int(len(data) * train_val_test_split[0])
-    val_idx = int(len(data) * (train_val_test_split[0] + train_val_test_split[1]))
-
-    X_train_df = data.iloc[:train_idx]
+    X_train = data.iloc[:train_idx].values
     y_train = targets[:train_idx]
-    X_val_df = data.iloc[train_idx:val_idx]
+    X_val = data.iloc[train_idx:val_idx].values
     y_val = targets[train_idx:val_idx]
-    X_test_df = data.iloc[val_idx:]
+    X_test = data.iloc[val_idx:].values
     y_test = targets[val_idx:]
 
     logger.info(
         f'[GNN features] Split: Train={len(y_train)}, Val={len(y_val)}, Test={len(y_test)}'
     )
 
-    # Impute missing values (fit on train only, same as HFOmicsDataset)
-    imputer = SimpleImputer(strategy=params.imputation_method)
-    X_train_imputed = pd.DataFrame(
-        imputer.fit_transform(X_train_df), columns=X_train_df.columns, index=X_train_df.index
-    )
-    X_val_imputed = pd.DataFrame(
-        imputer.transform(X_val_df), columns=X_val_df.columns, index=X_val_df.index
-    )
-    X_test_imputed = pd.DataFrame(
-        imputer.transform(X_test_df), columns=X_test_df.columns, index=X_test_df.index
-    )
-
-    # Variance-based feature selection (mirrors HFOmicsDataset.download lines 266-282)
-    node_sample_ratio = params.node_sample_ratio
-    method = params.method
-    n_training_samples = len(y_train)
-
-    if node_sample_ratio == 'full':
-        n_nodes = X_train_imputed.shape[1]
-    elif isinstance(node_sample_ratio, int | float):
-        n_nodes = int(n_training_samples / node_sample_ratio)
-        if n_nodes > X_train_imputed.shape[1]:
-            n_nodes = X_train_imputed.shape[1]
-    else:
-        n_nodes = X_train_imputed.shape[1]
-
-    logger.info(
-        f'[GNN features] node_sample_ratio={node_sample_ratio}, method={method}, '
-        f'selecting {n_nodes} features from {X_train_imputed.shape[1]}'
-    )
-
-    selector = get_selector(method)
-    selected_indices = selector.select(X_train_imputed.values, y_train, n_selected=n_nodes)
-
-    X_train_selected = X_train_imputed.iloc[:, selected_indices].values
-    X_val_selected = X_val_imputed.iloc[:, selected_indices].values
-    X_test_selected = X_test_imputed.iloc[:, selected_indices].values
-
-    logger.info(
-        f'[GNN features] After selection: Train={X_train_selected.shape}, '
-        f'Val={X_val_selected.shape}, Test={X_test_selected.shape}'
-    )
-
-    X_combined = np.vstack([X_train_selected, X_val_selected])
+    X_combined = np.vstack([X_train, X_val])
     y_combined = np.concatenate([y_train, y_val])
 
     unique_train, counts_train = np.unique(y_train, return_counts=True)
@@ -477,20 +460,22 @@ def load_and_prepare_data_gnn_features(cfg: DictConfig) -> DatasetContainer:
         'test': dict(zip(unique_test, counts_test, strict=True)),
     }
 
+    n_features = data.shape[1]
+
     return DatasetContainer(
-        X_train_raw=X_train_df.values,
-        X_val_raw=X_val_df.values,
-        X_test_raw=X_test_df.values,
+        X_train_raw=X_train,
+        X_val_raw=X_val,
+        X_test_raw=X_test,
         y_train=y_train,
         y_val=y_val,
         y_test=y_test,
-        X_train_processed=X_train_selected,
-        X_val_processed=X_val_selected,
-        X_test_processed=X_test_selected,
+        X_train_processed=X_train,
+        X_val_processed=X_val,
+        X_test_processed=X_test,
         X_combined=X_combined,
         y_combined=y_combined,
         dataset_name=data_name,
-        n_features=n_nodes,
+        n_features=n_features,
         n_samples=len(targets),
         class_distribution=class_distribution,
         class_names=class_names,
