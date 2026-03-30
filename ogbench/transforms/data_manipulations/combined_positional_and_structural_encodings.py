@@ -1,5 +1,6 @@
 """Combined Positional and Structural Encodings Transform."""
 
+import torch
 from torch_geometric.data import Data
 from torch_geometric.transforms import BaseTransform
 
@@ -14,6 +15,12 @@ class CombinedPSEs(BaseTransform):
     (LapPE, RWSE) to a graph, storing their outputs and optionally
     concatenating them to `data.x`.
 
+    When ``shared_graph=True``, the encodings are computed only once (on the
+    first sample) and reused for all subsequent samples. This is useful when
+    all samples share the same graph structure (e.g. omics datasets), since
+    all PSE encodings depend only on ``edge_index`` and ``num_nodes``, not on
+    the per-sample node features ``data.x``.
+
     Parameters
     ----------
     encodings : list of str
@@ -22,6 +29,9 @@ class CombinedPSEs(BaseTransform):
         Random Walk Structural Encoding.
     parameters : dict, optional
         Additional parameters for the encoding transforms.
+    shared_graph : bool, optional
+        If True, compute PSEs once and cache them for reuse across samples
+        that share the same graph structure. Default is False.
     **kwargs : dict, optional
         Additional keyword arguments.
     """
@@ -30,10 +40,13 @@ class CombinedPSEs(BaseTransform):
         self,
         encodings: list[str],
         parameters: dict | None = None,
+        shared_graph: bool = False,
         **kwargs,
     ):
         self.encodings = encodings
         self.parameters = parameters if parameters is not None else {}
+        self.shared_graph = shared_graph
+        self._pse_cache: dict | None = None
 
     def forward(self, data: Data) -> Data:
         r"""Apply the transform to the input data.
@@ -48,6 +61,9 @@ class CombinedPSEs(BaseTransform):
         torch_geometric.data.Data
             The transformed data with added structural encodings.
         """
+        if self.shared_graph and self._pse_cache is not None:
+            return self._apply_cached_pses(data)
+
         from ogbench.transforms.data_manipulations import (
             RWSE,
             ElectrostaticPE,
@@ -72,12 +88,70 @@ class CombinedPSEs(BaseTransform):
                 f'Missing in PSE_ENCODINGS: {missing_in_set}.'
             )
 
+        # Record original feature dimension to extract PSE columns later
+        original_x_dim = data.x.shape[-1] if data.x is not None else 0
+
         for enc in self.encodings:
             if enc not in encoding_classes:
                 raise ValueError(f'Unsupported encoding type: {enc}')
 
             encoder = encoding_classes[enc](**self.parameters.get(enc, {}))
             data = encoder(data)
+
+        if self.shared_graph:
+            self._build_cache(data, original_x_dim)
+
+        return data
+
+    def _build_cache(self, data: Data, original_x_dim: int) -> None:
+        """Extract and cache the PSE tensors from the first processed sample.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            The processed data (after all encodings have been applied).
+        original_x_dim : int
+            The feature dimension of ``data.x`` before encodings were applied.
+        """
+        cache: dict = {}
+
+        # Cache concatenated PSE columns (from concat_to_x=True encodings)
+        if data.x is not None and data.x.shape[-1] > original_x_dim:
+            cache['_concat_pse'] = data.x[:, original_x_dim:].clone()
+
+        # Cache attribute-based PSEs (from concat_to_x=False encodings)
+        for enc in self.encodings:
+            if hasattr(data, enc):
+                cache[enc] = getattr(data, enc).clone()
+
+        self._pse_cache = cache
+
+    def _apply_cached_pses(self, data: Data) -> Data:
+        """Apply previously cached PSE tensors to a new sample.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            The input data (with per-sample node features but no PSEs yet).
+
+        Returns
+        -------
+        torch_geometric.data.Data
+            The data with cached PSEs applied.
+        """
+        cache = self._pse_cache
+
+        # Apply concatenated PSE columns
+        if '_concat_pse' in cache:
+            if data.x is None:
+                data.x = cache['_concat_pse']
+            else:
+                data.x = torch.cat([data.x, cache['_concat_pse']], dim=-1)
+
+        # Apply attribute-based PSEs
+        for enc in self.encodings:
+            if enc in cache:
+                setattr(data, enc, cache[enc])
 
         return data
 

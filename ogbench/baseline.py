@@ -351,9 +351,9 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 def load_and_prepare_data_gnn_features(cfg: DictConfig) -> DatasetContainer:
     """Load and prepare data using the same feature preprocessing as GNNs.
 
-    Replicates the HFOmicsDataset preprocessing: imputation, variance-based
-    feature selection (same node_sample_ratio formula), then returns a
-    DatasetContainer with the selected feature subset.
+    Replicates the HFOmicsDataset preprocessing: imputation, feature
+    selection (same node_sample_ratio formula via defined method),
+    then returns a DatasetContainer with the selected feature subset.
 
     :param cfg: Configuration composed by Hydra
     :return: DatasetContainer with GNN-preprocessed features

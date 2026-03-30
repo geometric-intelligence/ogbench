@@ -2,6 +2,7 @@ _target_: ogbench.model.TBModel
 
 model_name: GPS
 model_domain: graph
+encodings: ["LapPE", "RWSE", "ElectrostaticPE"]
 
 feature_encoder:
   _target_: ogbench.nn.encoders.${model.feature_encoder.encoder_name}
