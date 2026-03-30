@@ -7,7 +7,6 @@ datasets:
   - motrpac
 
 models:
-  - gps
   - gcn
   - gin
   - gatv2
@@ -15,6 +14,7 @@ models:
   - graph_sage
   - sagn
   - chebnet
+  - gps
 
 seeds: [42, 123, 456]
 

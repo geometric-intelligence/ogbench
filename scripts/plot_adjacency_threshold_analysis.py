@@ -18,6 +18,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.utils import shuffle
 from tqdm import tqdm
 
+from ogbench.data.selectors import get_selector
+
 # Set style
 sns.set_style('whitegrid')
 plt.rcParams['figure.dpi'] = 100
@@ -26,28 +28,29 @@ plt.rcParams['figure.figsize'] = (12, 8)
 
 # Dataset configurations
 DATASETS = {
-    'motrpac': {
-        'data_name': 'motrpac',
-        'revision': '3abc196',
-        'train_val_test_split': [0.7, 0.2, 0.1],
-        'node_sample_ratio': 0.5,
-        'method': 'variance',
-    },
-    'parkinsons': {
-        'data_name': 'parkinsons',
-        'revision': '3abc196',
-        'train_val_test_split': [0.7, 0.15, 0.15],
-        'node_sample_ratio': 0.5,
-        'method': 'variance',
-    },
     'addneuromed': {
         'data_name': 'addneuromed',
-        'revision': '3abc196',
+        'revision': '65d41c2',
         'train_val_test_split': [0.7, 0.2, 0.1],
-        'node_sample_ratio': 0.5,
-        'method': 'variance',
+        'node_sample_ratio': 0.3,
+        'method': 'correlation',
     },
 }
+#     'parkinsons': {
+#         'data_name': 'parkinsons',
+#         'revision': '65d41c2',
+#         'train_val_test_split': [0.7, 0.15, 0.15],
+#         'node_sample_ratio': 0.5,
+#         'method': 'variance',
+#     },
+#     'addneuromed': {
+#         'data_name': 'addneuromed',
+#         'revision': '65d41c2',
+#         'train_val_test_split': [0.7, 0.2, 0.1],
+#         'node_sample_ratio': 0.5,
+#         'method': 'variance',
+#     },
+# }
 
 HF_REPO_ID = 'geometric-intelligence/bgbench'
 
@@ -130,21 +133,9 @@ def load_and_preprocess_dataset(
 def select_nodes(
     data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = 'variance'
 ) -> np.ndarray:
-    """Select nodes based on feature importance."""
-    if method == 'variance':
-        variances = np.std(data, axis=0)
-        ranked_nodes = np.argsort(variances)[::-1]
-    elif method == 'correlation':
-        correlations = np.abs(
-            np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
-        )
-        ranked_nodes = np.argsort(correlations)[::-1]
-    elif method == 'random':
-        ranked_nodes = np.random.permutation(data.shape[1])
-    else:
-        raise ValueError(f'Invalid method: {method}')
-
-    return ranked_nodes[:n_selected]
+    """Select nodes using the same registry as ``HFOmicsDataset`` (variance, correlation, etc.)."""
+    selector = get_selector(method)
+    return selector.select(data, targets, n_selected)
 
 
 def calculate_adjacency_matrix_with_threshold(
@@ -576,12 +567,13 @@ def main():
     # Focus on range where most interesting behavior happens
     thresholds = np.concatenate(
         [
-            np.linspace(0.0, 0.1, 11),  # Fine resolution in low range
-            np.linspace(0.15, 0.5, 8),  # Medium resolution in mid range
-            np.linspace(0.6, 0.9, 4),  # Coarse resolution in high range
+            np.linspace(0.0, 0.01, 20),  # very fine resolution at ultra-low range
+            np.linspace(0.01, 0.1, 20),  # fine resolution in low range
+            np.linspace(0.1, 0.5, 10),  # medium resolution in mid range
+            np.linspace(0.5, 0.9, 5),  # coarse resolution in high range
         ]
     )
-    thresholds = np.unique(thresholds)  # Remove duplicates
+    thresholds = np.unique(thresholds)
 
     print(f'\nAnalyzing {len(thresholds)} thresholds: [{thresholds[0]:.2f}, {thresholds[-1]:.2f}]')
     print(f'Datasets: {list(DATASETS.keys())}')

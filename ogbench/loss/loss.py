@@ -22,11 +22,10 @@ class TBLoss(AbstractLoss):
         super().__init__()
         if modules_losses is None:
             modules_losses = {}
-        self.losses = []
-        # Dataset loss
-        self.losses.append(DatasetLoss(dataset_loss))
-        # Model losses
-        self.losses.extend([loss for loss in modules_losses.values() if loss is not None])
+        # ModuleList so DatasetLoss / criterion buffers move with model.to(device)
+        loss_modules: list = [DatasetLoss(dataset_loss)]
+        loss_modules.extend([loss for loss in modules_losses.values() if loss is not None])
+        self.losses = torch.nn.ModuleList(loss_modules)
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(losses={self.losses})'
