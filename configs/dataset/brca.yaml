@@ -31,7 +31,6 @@ parameters:
   loss_type: cross_entropy
   class_weights: null
   monitor_metric: f1_weighted
-  shared_graph: true
   metrics:
     - accuracy
     - precision
@@ -39,6 +38,7 @@ parameters:
     - auroc
     - f1_weighted
     - f1_macro
+  shared_graph: true
   task_level: graph
 split_params:
   learning_setting: inductive
