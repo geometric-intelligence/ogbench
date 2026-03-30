@@ -22,7 +22,7 @@ backbone:
   local_conv_type: gin # no sweep.
 
 backbone_wrapper:
-  _target_: ogbench.nn.wrappers.${model.backbone_wrapper.wrapper_name}
+  _target_: ogbench.nn.wrappers.GNNWrapper
   _partial_: true
   wrapper_name: GNNWrapper
   out_channels: ${model.feature_encoder.out_channels}

@@ -28,10 +28,10 @@ backbone_wrapper:
   _partial_: true
   wrapper_name: GATv4Wrapper
   out_channels: ${get_flattened_channels:${model.backbone.out_channels},3}
-  num_nodes: ${dataset.parameters.num_nodes}
+  residual_connections: false
   num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}}
-  features_to_keep: ${oc.select:dataset.parameters.features_to_keep,null} # list of features to keep in the final output
-  residual_connections: false # whether to use residual connections in the GNN
+  num_nodes: ${dataset.parameters.num_nodes}
+  features_to_keep: ${oc.select:dataset.parameters.features_to_keep,null}
 
 readout:
   _target_: ogbench.nn.readouts.${model.readout.readout_name}
