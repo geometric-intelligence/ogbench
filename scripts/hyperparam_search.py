@@ -434,7 +434,6 @@ def build_run_configs(
                         overrides.append(to_override(key, value))
 
                     # Add hyperparameters
-                    # Auto-set fc_dropout to match backbone.dropout if not explicitly set
                     readout_name = hp_combo.get('model.readout.readout_name')
                     if (
                         readout_name
@@ -482,16 +481,17 @@ def warmup_caches(dataset_configs: list[dict[str, Any]], data_dir: str) -> None:
         print(
             f'  [{i}/{len(dataset_configs)}] {config["data_name"]} | '
             f'ratio={config["node_sample_ratio"]} | method={config["method"]} | '
-            f'threshold={config["adjacency_threshold"]}'
+            f'threshold={config["adjacency_threshold"]} | '
+            f'adj_method={config["adjacency_method"]}'
         )
 
-        # Instantiation triggers download() and process() if cache missing
         HFOmicsDataset(
             root=data_dir,
             data_name=config['data_name'],
             node_sample_ratio=config['node_sample_ratio'],
             method=config['method'],
             adjacency_threshold=config['adjacency_threshold'],
+            adjacency_method=config['adjacency_method'],
         )
 
     print('Cache warmup complete.')
@@ -504,6 +504,13 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
     from the search config to pre-generate caches before parallel training.
     """
     unique_configs: set[tuple[str, float, str, float]] = set()
+    adj_method_key = 'dataset.loader.parameters.adjacency_method'
+    if adj_method_key not in search_config.fixed:
+        raise ValueError(
+            f"'{adj_method_key}' must be set in the search config's 'fixed' section "
+            f'for cache warmup to work correctly.'
+        )
+    adjacency_method = search_config.fixed[adj_method_key]
 
     for dataset in search_config.datasets:
         ratios = search_config.shared_grid.get(
@@ -529,6 +536,7 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
             'node_sample_ratio': r,
             'method': m,
             'adjacency_threshold': t,
+            'adjacency_method': adjacency_method,
         }
         for d, r, m, t in sorted(unique_configs)
     ]
@@ -577,7 +585,7 @@ def run_search(
 
     # Warmup dataset caches to avoid race conditions in parallel training
     if not dry_run and not skip_warmup:
-        data_dir = os.path.join(os.environ.get('PROJECT_ROOT', '.'), 'run_data', 'data', 'omics')
+        data_dir = os.path.join(os.environ.get('PROJECT_ROOT', '.'), 'data', 'omics')
         dataset_configs = extract_unique_dataset_configs(search_config)
         print(f'\nUnique dataset configs to cache: {len(dataset_configs)}')
         warmup_caches(dataset_configs, data_dir)
