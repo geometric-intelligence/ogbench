@@ -400,9 +400,15 @@ def build_run_configs(
 
                                 # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
                                 readout_name = final_hp_combo.get('model.readout.readout_name')
+                                experiment = final_hp_combo.get(
+                                    'experiment', search_config.fixed.get('experiment')
+                                )
+                                is_no_readout = (
+                                    readout_name == 'NoReadOut' or experiment == 'no_readout'
+                                )
                                 # Auto-set fc_dropout to match backbone.dropout if not explicitly set
                                 if (
-                                    readout_name != 'NoReadOut'
+                                    not is_no_readout
                                     and 'model.readout.fc_dropout' not in final_hp_combo
                                     and 'model.backbone.dropout' in final_hp_combo
                                 ):
@@ -411,7 +417,7 @@ def build_run_configs(
                                     ]
 
                                 for key, value in final_hp_combo.items():
-                                    if readout_name == 'NoReadOut' and key in (
+                                    if is_no_readout and key in (
                                         'model.readout.fc_dim',
                                         'model.readout.fc_dropout',
                                     ):
@@ -470,17 +476,23 @@ def build_run_configs(
                     for key, value in search_config.fixed.items():
                         overrides.append(to_override(key, value))
 
-                    # Add hyperparameters
+                    # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
                     readout_name = hp_combo.get('model.readout.readout_name')
+                    experiment = hp_combo.get('experiment', search_config.fixed.get('experiment'))
+                    is_no_readout = readout_name == 'NoReadOut' or experiment == 'no_readout'
                     if (
-                        readout_name
-                        and readout_name != 'NoReadOut'
+                        not is_no_readout
                         and 'model.readout.fc_dropout' not in hp_combo
                         and 'model.backbone.dropout' in hp_combo
                     ):
                         hp_combo['model.readout.fc_dropout'] = hp_combo['model.backbone.dropout']
 
                     for key, value in hp_combo.items():
+                        if is_no_readout and key in (
+                            'model.readout.fc_dim',
+                            'model.readout.fc_dropout',
+                        ):
+                            continue
                         overrides.append(to_override(key, value))
 
                     # Assign GPU round-robin
