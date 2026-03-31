@@ -345,8 +345,10 @@ class HFOmicsDataset(InMemoryDataset):
         """Calculate adjacency matrix using a modular adjacency builder system."""
         # Build continuous adjacency matrix using modular builder
         builder_kwargs = {}
-        if self.adjacency_method == 'string' and self.string_data_dir:
-            builder_kwargs['string_data_dir'] = self.string_data_dir
+        if self.adjacency_method == 'string':
+            builder_kwargs['cache_dir'] = osp.join(self.root, 'string_cache')
+            if self.string_data_dir:
+                builder_kwargs['string_data_dir'] = self.string_data_dir
         adjacency_builder = get_adjacency_builder(self.adjacency_method, **builder_kwargs)
         adjacency = adjacency_builder.build(node_features, map_df)
 
