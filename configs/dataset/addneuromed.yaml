@@ -23,7 +23,7 @@ parameters:
   num_features: 1
   num_classes: 3
   num_samples: 711
-  full_num_nodes: 17112
+  full_num_nodes: 17198
   num_nodes:
     ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio},
     ${dataset.parameters.full_num_nodes}}
