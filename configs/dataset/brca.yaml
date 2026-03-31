@@ -29,7 +29,12 @@ parameters:
     ${dataset.parameters.full_num_nodes}}
   task: classification
   loss_type: cross_entropy
-  class_weights: null
+  class_weights:
+    - 0.384
+    - 2.842
+    - 1.042
+    - 4.467
+    - 1.158
   monitor_metric: f1_macro
   metrics:
     - accuracy

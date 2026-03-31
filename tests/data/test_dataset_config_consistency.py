@@ -3,10 +3,13 @@
 import copy
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import yaml
 from huggingface_hub import hf_hub_download
+from sklearn.utils import shuffle
+from sklearn.utils.class_weight import compute_class_weight
 
 DATASET_CONFIG_DIR = Path(__file__).resolve().parents[2] / 'configs' / 'dataset'
 HF_CONFIG_PATH = Path(__file__).resolve().parents[2] / 'configs' / 'hf' / 'default.yaml'
@@ -171,6 +174,32 @@ class TestDatasetConfigMatchesHuggingFace:
         assert (
             actual == expected
         ), f'{dataset_name}: config num_classes={actual} but HF data has {expected} classes'
+
+    @pytest.mark.parametrize('dataset_name', [p.stem for p in DATASET_CONFIGS])
+    def test_class_weights_match_training_data(self, hf_revision, dataset_name):
+        cfg = _load_config(DATASET_CONFIG_DIR / f'{dataset_name}.yaml')
+        config_weights = cfg['parameters']['class_weights']
+        if config_weights is None:
+            pytest.skip(f'{dataset_name} has class_weights=null')
+
+        targets_df = _download_parquet(
+            cfg['loader']['parameters']['data_name'], 'targets', hf_revision
+        )
+        targets = targets_df.iloc[:, 0].values
+        targets = shuffle(targets, random_state=42)
+
+        split = cfg['loader']['parameters']['train_val_test_split']
+        train_idx = int(len(targets) * split[0])
+        train_targets = targets[:train_idx]
+
+        classes = np.unique(train_targets)
+        expected_weights = compute_class_weight('balanced', classes=classes, y=train_targets)
+        expected_weights = np.round(expected_weights, 3).tolist()
+
+        assert config_weights == expected_weights, (
+            f'{dataset_name}: config class_weights={config_weights} '
+            f'but computed from training data={expected_weights}'
+        )
 
 
 def _diff(a, b, path='') -> list[str]:
