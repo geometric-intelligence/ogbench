@@ -30,7 +30,7 @@ parameters:
   task: classification
   loss_type: cross_entropy
   class_weights: null
-  monitor_metric: f1_weighted
+  monitor_metric: f1_macro
   metrics:
     - accuracy
     - precision
