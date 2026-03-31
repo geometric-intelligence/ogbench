@@ -613,7 +613,8 @@ def run_search(
 
     # Warmup dataset caches to avoid race conditions in parallel training
     if not dry_run and not skip_warmup:
-        data_dir = os.path.join(os.environ.get('PROJECT_ROOT', '.'), 'data', 'omics')
+        root_dir = search_config.fixed.get('paths.root_dir', os.environ.get('PROJECT_ROOT', '.'))
+        data_dir = os.path.join(root_dir, 'data', 'omics')
         dataset_configs = extract_unique_dataset_configs(search_config)
         print(f'\nUnique dataset configs to cache: {len(dataset_configs)}')
         warmup_caches(dataset_configs, data_dir)
