@@ -16,8 +16,8 @@ loader:
     imputation_method: mean
     train_val_test_split:
       - 0.7
-      - 0.2
-      - 0.1
+      - 0.15
+      - 0.15
     revision: ${hf.revision}
 parameters:
   num_features: 1
