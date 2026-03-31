@@ -358,6 +358,14 @@ def build_run_configs(
                         for ratio_hp_combo in product_dict(dataset_ratio_grid):
                             final_hp_combo = {**hp_combo, **ratio_hp_combo}
 
+                            if (
+                                final_hp_combo.get('dataset.loader.parameters.adjacency_method')
+                                == 'string'
+                            ):
+                                final_hp_combo[
+                                    'dataset.loader.parameters.adjacency_threshold'
+                                ] = 0.4
+
                             for seed in search_config.seeds:
                                 run_id += 1
 
@@ -416,6 +424,20 @@ def build_run_configs(
                         continue  # Skip the else block below
 
                 # No per_dataset_ratio_method_grid match, use hp_combo as-is
+                if hp_combo.get('dataset.loader.parameters.adjacency_method') == 'string':
+                    hp_combo['dataset.loader.parameters.adjacency_threshold'] = 0.4
+                elif 'dataset.loader.parameters.adjacency_threshold' not in hp_combo:
+                    adj_method = hp_combo.get(
+                        'dataset.loader.parameters.adjacency_method', 'unknown'
+                    )
+                    ratio = hp_combo.get('dataset.loader.parameters.node_sample_ratio', '?')
+                    method = hp_combo.get('dataset.loader.parameters.method', '?')
+                    raise ValueError(
+                        f'No adjacency_threshold found in per_dataset_ratio_method_grid for '
+                        f'({dataset}, {ratio}, {method}) with adjacency_method={adj_method}. '
+                        f"Add an entry to per_dataset_ratio_method_grid or set adjacency_method to 'string'."
+                    )
+
                 for seed in search_config.seeds:
                     run_id += 1
 
@@ -531,8 +553,9 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
 
                 for threshold in thresholds:
                     for adj_method in adjacency_methods:
+                        effective_threshold = 0.4 if adj_method == 'string' else float(threshold)
                         unique_configs.add(
-                            (dataset, float(ratio), method, float(threshold), adj_method)
+                            (dataset, float(ratio), method, effective_threshold, adj_method)
                         )
 
     return [
