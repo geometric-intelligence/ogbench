@@ -41,14 +41,10 @@ shared_grid:
   optimizer.parameters.lr:
     - 0.0001
     - 0.001
-    # - 0.01
   optimizer.parameters.weight_decay:
     - 0.0
-    #- 0.0001 removed for readout grid search
-    - 0.001
   model.backbone.dropout:
     - 0.1
-    - 0.3
   # model.readout.fc_dropout is automatically set to match model.backbone.dropout
 
 # Per-model hyperparameter grids
@@ -102,7 +98,6 @@ per_model_grid:
   sagn:
     model.backbone.hidden_channels:
       - 16
-      - 32
       - 64
     model.backbone.num_layers:
       - 2
