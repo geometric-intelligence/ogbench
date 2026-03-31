@@ -503,14 +503,17 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
     Identifies all unique (dataset, node_sample_ratio, method, adjacency_threshold) combinations
     from the search config to pre-generate caches before parallel training.
     """
-    unique_configs: set[tuple[str, float, str, float]] = set()
+    unique_configs: set[tuple[str, float, str, float, str]] = set()
     adj_method_key = 'dataset.loader.parameters.adjacency_method'
-    if adj_method_key not in search_config.fixed:
+    if adj_method_key in search_config.fixed:
+        adjacency_methods = [search_config.fixed[adj_method_key]]
+    elif adj_method_key in search_config.shared_grid:
+        adjacency_methods = search_config.shared_grid[adj_method_key]
+    else:
         raise ValueError(
-            f"'{adj_method_key}' must be set in the search config's 'fixed' section "
-            f'for cache warmup to work correctly.'
+            f"'{adj_method_key}' must be set in the search config's "
+            f"'fixed' or 'shared_grid' section for cache warmup to work correctly."
         )
-    adjacency_method = search_config.fixed[adj_method_key]
 
     for dataset in search_config.datasets:
         ratios = search_config.shared_grid.get(
@@ -520,7 +523,6 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
 
         for ratio in ratios:
             for method in methods:
-                # Look up threshold from per_dataset_ratio_method_grid
                 ratio_key = (dataset, float(ratio), method)
                 threshold_grid = search_config.per_dataset_ratio_method_grid.get(ratio_key, {})
                 thresholds = threshold_grid.get(
@@ -528,7 +530,10 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
                 )
 
                 for threshold in thresholds:
-                    unique_configs.add((dataset, float(ratio), method, float(threshold)))
+                    for adj_method in adjacency_methods:
+                        unique_configs.add(
+                            (dataset, float(ratio), method, float(threshold), adj_method)
+                        )
 
     return [
         {
@@ -536,9 +541,9 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
             'node_sample_ratio': r,
             'method': m,
             'adjacency_threshold': t,
-            'adjacency_method': adjacency_method,
+            'adjacency_method': am,
         }
-        for d, r, m, t in sorted(unique_configs)
+        for d, r, m, t, am in sorted(unique_configs)
     ]
 
 
