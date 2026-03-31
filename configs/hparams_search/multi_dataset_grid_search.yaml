@@ -39,14 +39,10 @@ shared_grid:
   optimizer.parameters.lr:
     - 0.0001
     - 0.001
-    # - 0.01
   optimizer.parameters.weight_decay:
     - 0.0
-    #- 0.0001 removed for readout grid search
-    - 0.001
   model.backbone.dropout:
     - 0.1
-    - 0.3
 
 # Per-model hyperparameter grids
 per_model_grid:
@@ -65,7 +61,6 @@ per_model_grid:
     model.backbone.num_layers:
       - 2
       - 4
-      #- 8
 
   gatv2:
     model.feature_encoder.out_channels:
@@ -74,7 +69,6 @@ per_model_grid:
     model.backbone.num_layers:
       - 2
       - 4
-      #- 8
     model.backbone.heads:
       - 4
       - 8
@@ -97,7 +91,6 @@ per_model_grid:
     model.backbone.num_layers:
       - 2
       - 4
-      #- 8
 
   mlp:
     model.backbone.hidden_channels:
@@ -111,12 +104,10 @@ per_model_grid:
   sagn:
     model.backbone.hidden_channels:
       - 16
-      - 32
       - 64
     model.backbone.num_layers:
       - 2
       - 4
-      # - 8
     model.backbone.num_heads:
       - 1
       - 3
