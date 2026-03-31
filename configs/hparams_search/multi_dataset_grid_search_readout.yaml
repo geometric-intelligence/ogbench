@@ -1,4 +1,4 @@
-# Hyperparameter grid search configuration for parkinsons dataset
+# Hyperparameter grid search for all experiments
 # Used by scripts/hyperparam_search.py
 
 datasets:
