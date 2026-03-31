@@ -50,7 +50,6 @@ per_model_grid:
   gcn:
     model.feature_encoder.out_channels:
       - 16
-      - 32
       - 64
     model.backbone.num_layers:
       - 2
@@ -59,7 +58,6 @@ per_model_grid:
   gin:
     model.feature_encoder.out_channels:
       - 16
-      - 32
       - 64
     model.backbone.num_layers:
       - 2
@@ -69,7 +67,7 @@ per_model_grid:
   gatv2:
     model.feature_encoder.out_channels:
       - 16
-      - 32
+      - 64
     model.backbone.num_layers:
       - 2
       - 4
@@ -81,7 +79,6 @@ per_model_grid:
   graph_sage:
     model.feature_encoder.out_channels:
       - 16
-      - 32
       - 64
     model.backbone.num_layers:
       - 2
@@ -91,7 +88,6 @@ per_model_grid:
   chebnet:
     model.feature_encoder.out_channels:
       - 16
-      - 32
       - 64
     model.backbone.num_layers:
       - 2
