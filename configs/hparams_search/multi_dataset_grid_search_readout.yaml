@@ -2,8 +2,8 @@
 # Used by scripts/hyperparam_search.py
 
 datasets:
-  # - parkinsons
-  # - addneuromed
+  - parkinsons
+  - addneuromed
   - motrpac
 
 models:
@@ -14,6 +14,7 @@ models:
   - graph_sage
   - sagn
   - chebnet
+  - gps
 
 seeds: [42, 123, 456]
 
@@ -45,11 +46,6 @@ shared_grid:
   model.backbone.dropout:
     - 0.1
     - 0.3
-  model.readout.readout_name:
-    - OmicsReadOut
-  model.readout.fc_dim:
-    # - [8, 4, 2]
-    - [16, 8, 4]
   # model.readout.fc_dropout is automatically set to match model.backbone.dropout
 
 # Per-model hyperparameter grids
@@ -127,6 +123,17 @@ per_model_grid:
     model.backbone.num_layers:
       - 2
       - 4
+
+  gps:
+    model.feature_encoder.out_channels:
+      - 16
+      - 32
+    model.backbone.num_layers:
+      - 2
+      - 4
+    model.encodings:
+      - ["LapPE"]
+      - ["RWSE"]
 
 # Per-dataset, per-node_sample_ratio, per-method hyperparameter grids
 # Format: "dataset,ratio,method" as key (e.g., "parkinsons,1.0,variance")
