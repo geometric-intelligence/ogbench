@@ -13,6 +13,7 @@ Usage:
 import argparse
 import itertools
 import json
+import multiprocessing
 import os
 import subprocess  # nosec B404
 import time
@@ -288,6 +289,20 @@ def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
         print(f'         Error: {error_msg[:100]}...')
 
     return result
+
+
+def _execute_with_gpu_pool(config: RunConfig, gpu_queue, dry_run: bool = False) -> dict[str, Any]:
+    """Execute a run with dynamic GPU assignment from a shared pool.
+
+    Acquires a GPU slot from the queue before running and releases it after,
+    guaranteeing that no more than `jobs_per_gpu` jobs share a single GPU.
+    """
+    gpu_id = gpu_queue.get()
+    try:
+        config.gpu_id = gpu_id
+        return execute_run(config, dry_run)
+    finally:
+        gpu_queue.put(gpu_id)
 
 
 def build_run_configs(
@@ -576,11 +591,13 @@ def run_search(
     dry_run: bool = False,
     parallel: bool = True,
     n_jobs: int | None = None,
+    jobs_per_gpu: int = 1,
     skip_warmup: bool = False,
 ) -> pd.DataFrame:
     """Run the full hyperparameter search."""
     n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    n_jobs = n_jobs or max(n_gpus, 1)
+    if n_jobs is None:
+        n_jobs = max(n_gpus * jobs_per_gpu, 1)
 
     # Cap CPU threads per job to avoid thrashing when running in parallel.
     # Each job gets an equal share of available cores.
@@ -606,7 +623,7 @@ def run_search(
     print(f'Seeds: {search_config.seeds}')
     print(f'Total runs: {len(configs)}')
     print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
-    print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus})')
+    print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, jobs_per_gpu={jobs_per_gpu})')
     print(f'CPU threads per job: {n_threads} (of {n_cpu} total cores)')
     print(f'Output: {search_config.output_dir}')
     print('=' * 60)
@@ -625,9 +642,19 @@ def run_search(
     # Execute runs
     if parallel and not dry_run and n_jobs > 1:
         print(f'\nRunning {len(configs)} configs in parallel...')
-        results = Parallel(n_jobs=n_jobs, verbose=10)(
-            delayed(execute_run)(config, dry_run) for config in configs
-        )
+        if n_gpus > 0:
+            manager = multiprocessing.Manager()
+            gpu_queue = manager.Queue()
+            for gpu_id in range(n_gpus):
+                for _ in range(jobs_per_gpu):
+                    gpu_queue.put(gpu_id)
+            results = Parallel(n_jobs=n_jobs, verbose=10)(
+                delayed(_execute_with_gpu_pool)(config, gpu_queue) for config in configs
+            )
+        else:
+            results = Parallel(n_jobs=n_jobs, verbose=10)(
+                delayed(execute_run)(config, dry_run) for config in configs
+            )
     else:
         print(f'\nRunning {len(configs)} configs sequentially...')
         results = [execute_run(config, dry_run) for config in configs]
@@ -722,7 +749,13 @@ Examples:
     parser.add_argument(
         '--n-jobs',
         type=int,
-        help='Number of parallel jobs (default: number of GPUs)',
+        help='Number of parallel jobs (default: n_gpus * jobs_per_gpu)',
+    )
+    parser.add_argument(
+        '--jobs-per-gpu',
+        type=int,
+        default=1,
+        help='Max concurrent jobs per GPU (default: 1). Total jobs = n_gpus * jobs_per_gpu.',
     )
     parser.add_argument(
         '--output-dir',
@@ -757,6 +790,7 @@ Examples:
         dry_run=args.dry_run,
         parallel=not args.no_parallel,
         n_jobs=args.n_jobs,
+        jobs_per_gpu=args.jobs_per_gpu,
         skip_warmup=args.skip_warmup,
     )
 
