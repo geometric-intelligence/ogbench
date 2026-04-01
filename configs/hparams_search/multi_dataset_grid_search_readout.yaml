@@ -14,25 +14,30 @@ models:
   - graph_sage
   - sagn
   - chebnet
+  - mlp
   - gps
 
 seeds: [42, 123, 456]
 
 # Fixed parameters (not searched)
 fixed:
-  experiment: omics_readout
-  logger.wandb.project: bgbench_multi_dataset_grid_search_readout_rest
+  logger.wandb.project: bgbench_dataset_grid_search
+  logger.wandb.entity: bioshape-lab
+  paths.root_dir: /scratch/lcornelis/bgbench
 
 # Shared hyperparameter grid (applied to all models)
 shared_grid:
+  experiment:
+    - omics_readout
+    - no_readout
   dataset.loader.parameters.adjacency_method:
     - wgcna
     - string
   dataset.loader.parameters.node_sample_ratio:
     - 1.0
     - 0.8
-    - 0.5
-    - 0.3
+    # - 0.5
+    # - 0.3
   dataset.loader.parameters.method:
     - variance
     - random
@@ -113,6 +118,15 @@ per_model_grid:
     model.backbone.num_layers:
       - 2
       - 4
+
+  mlp:
+    model.backbone.hidden_channels:
+      - [16, 32, 8]
+      - [32, 64, 16]
+      - [64, 128, 32]
+    model.backbone.norm:
+      - null
+      - batch
 
   gps:
     model.feature_encoder.out_channels:
@@ -288,6 +302,9 @@ per_dataset_ratio_method_grid:
 
   addneuromed,0.3,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.1399]
+
+# Fixed threshold used for all STRING adjacency runs (ignores per_dataset_ratio_method_grid)
+string_adjacency_threshold: 0.4
 
 # Training settings
 training:

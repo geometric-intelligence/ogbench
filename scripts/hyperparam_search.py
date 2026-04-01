@@ -48,6 +48,7 @@ class SearchConfig:
     per_model_grid: dict[str, dict[str, list[Any]]]
     per_model_dataset_grid: dict[tuple[str, str], dict[str, list[Any]]]
     per_dataset_ratio_method_grid: dict[tuple[str, float | str, str], dict[str, list[Any]]]
+    string_adjacency_threshold: float
     timeout: int
     output_dir: str
     tags: list[str]
@@ -110,6 +111,7 @@ class SearchConfig:
             per_model_grid=config.get('per_model_grid', {}),
             per_model_dataset_grid=per_model_dataset_grid,
             per_dataset_ratio_method_grid=per_dataset_ratio_method_grid,
+            string_adjacency_threshold=config.get('string_adjacency_threshold', 0.4),
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
             tags=config.get('tags', []),
@@ -379,7 +381,7 @@ def build_run_configs(
                             ):
                                 final_hp_combo[
                                     'dataset.loader.parameters.adjacency_threshold'
-                                ] = 0.4
+                                ] = search_config.string_adjacency_threshold
 
                             for seed in search_config.seeds:
                                 run_id += 1
@@ -446,7 +448,9 @@ def build_run_configs(
 
                 # No per_dataset_ratio_method_grid match, use hp_combo as-is
                 if hp_combo.get('dataset.loader.parameters.adjacency_method') == 'string':
-                    hp_combo['dataset.loader.parameters.adjacency_threshold'] = 0.4
+                    hp_combo[
+                        'dataset.loader.parameters.adjacency_threshold'
+                    ] = search_config.string_adjacency_threshold
                 elif 'dataset.loader.parameters.adjacency_threshold' not in hp_combo:
                     adj_method = hp_combo.get(
                         'dataset.loader.parameters.adjacency_method', 'unknown'
@@ -580,7 +584,11 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
 
                 for threshold in thresholds:
                     for adj_method in adjacency_methods:
-                        effective_threshold = 0.4 if adj_method == 'string' else float(threshold)
+                        effective_threshold = (
+                            search_config.string_adjacency_threshold
+                            if adj_method == 'string'
+                            else float(threshold)
+                        )
                         unique_configs.add(
                             (dataset, float(ratio), method, effective_threshold, adj_method)
                         )
