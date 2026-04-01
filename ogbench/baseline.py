@@ -146,9 +146,14 @@ def compute_classification_metrics(
         'balanced_accuracy': balanced_accuracy_score(y_true, y_pred),
     }
 
-    if y_proba is not None and len(np.unique(y_true)) == 2:  # Binary classification
-        metrics['auroc'] = roc_auc_score(y_true, y_proba)
-        metrics['pr_auc'] = average_precision_score(y_true, y_proba)
+    if y_proba is not None:
+        n_classes = len(np.unique(y_true))
+        if n_classes == 2:
+            metrics['auroc'] = roc_auc_score(y_true, y_proba)
+            metrics['pr_auc'] = average_precision_score(y_true, y_proba)
+        elif n_classes > 2 and y_proba.ndim == 2:
+            metrics['auroc'] = roc_auc_score(y_true, y_proba, multi_class='ovr', average='macro')
+            metrics['pr_auc'] = average_precision_score(y_true, y_proba, average='macro')
 
     return metrics
 
@@ -512,6 +517,8 @@ def evaluate_and_log_metrics(
         y_val_proba_full = pipeline.predict_proba(X_val)
         if y_val_proba_full.shape[1] == 2:  # Binary classification
             y_val_proba = y_val_proba_full[:, 1]
+        else:  # Multi-class: pass full probability matrix
+            y_val_proba = y_val_proba_full
     elif hasattr(pipeline, 'decision_function'):
         y_val_proba = pipeline.decision_function(X_val)
 
@@ -532,6 +539,8 @@ def evaluate_and_log_metrics(
         y_test_proba_full = pipeline.predict_proba(X_test)
         if y_test_proba_full.shape[1] == 2:  # Binary classification
             y_test_proba = y_test_proba_full[:, 1]
+        else:  # Multi-class: pass full probability matrix
+            y_test_proba = y_test_proba_full
     elif hasattr(pipeline, 'decision_function'):
         y_test_proba = pipeline.decision_function(X_test)
 
