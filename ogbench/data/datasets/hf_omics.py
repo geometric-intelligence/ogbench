@@ -85,7 +85,7 @@ class HFOmicsDataset(InMemoryDataset):
             method: Method for node selection ("variance", "correlation", "distance_correlation", "random")
             imputation_method: Method for handling missing values
             adjacency_threshold: Threshold for adjacency matrix binarization
-            adjacency_method: Method for adjacency matrix construction (default: "wgcna")
+            adjacency_method: Method for adjacency matrix construction (default: "string")
             node_sample_ratio: Ratio of nodes to sample
             hf_repo_id: HuggingFace repository ID
             revision: HuggingFace dataset revision/commit hash

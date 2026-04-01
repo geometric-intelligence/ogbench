@@ -7,12 +7,14 @@ adjacency thresholds and visualizes how they change.
 
 import os
 from itertools import product
+from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import yaml
 from huggingface_hub import hf_hub_download
 from sklearn.impute import SimpleImputer
 from sklearn.utils import shuffle
@@ -27,29 +29,28 @@ plt.rcParams['figure.dpi'] = 100
 plt.rcParams['savefig.dpi'] = 300
 plt.rcParams['figure.figsize'] = (12, 8)
 
-# Dataset configurations
-DATASETS = {
-    'addneuromed': {
-        'data_name': 'addneuromed',
-        'revision': '4372bc5',
-        'train_val_test_split': [0.7, 0.15, 0.15],
-    },
-    # 'brca': {
-    #     'data_name': 'brca',
-    #     'revision': '65d41c2',
-    #     'train_val_test_split': [0.7, 0.15, 0.15],
-    # },
-    'motrpac': {
-        'data_name': 'motrpac',
-        'revision': '4372bc5',
-        'train_val_test_split': [0.7, 0.15, 0.15],
-    },
-    'parkinsons': {
-        'data_name': 'parkinsons',
-        'revision': '4372bc5',
-        'train_val_test_split': [0.7, 0.15, 0.15],
-    },
-}
+CONFIGS_DIR = Path(__file__).resolve().parent.parent / 'configs'
+
+
+def load_dataset_config(dataset_name: str) -> dict[str, Any]:
+    """Load dataset configuration from the YAML config file."""
+    config_path = CONFIGS_DIR / 'dataset' / f'{dataset_name}.yaml'
+    with open(config_path) as f:
+        cfg = yaml.safe_load(f)
+
+    hf_config_path = CONFIGS_DIR / 'hf' / 'default.yaml'
+    with open(hf_config_path) as f:
+        hf_cfg = yaml.safe_load(f)
+
+    return {
+        'data_name': dataset_name,
+        'revision': hf_cfg.get('revision', '65d41c2'),
+        'train_val_test_split': cfg['loader']['parameters']['train_val_test_split'],
+    }
+
+
+DATASET_NAMES = ['addneuromed', 'motrpac', 'parkinsons']
+DATASETS = {name: load_dataset_config(name) for name in DATASET_NAMES}
 
 ADJACENCY_METHOD = 'wgcna'
 METHODS = ['variance', 'random', 'correlation', 'distance_correlation']
