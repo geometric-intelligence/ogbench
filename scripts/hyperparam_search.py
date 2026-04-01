@@ -13,6 +13,7 @@ Usage:
 import argparse
 import itertools
 import json
+import multiprocessing
 import os
 import subprocess  # nosec B404
 import time
@@ -47,6 +48,7 @@ class SearchConfig:
     per_model_grid: dict[str, dict[str, list[Any]]]
     per_model_dataset_grid: dict[tuple[str, str], dict[str, list[Any]]]
     per_dataset_ratio_method_grid: dict[tuple[str, float | str, str], dict[str, list[Any]]]
+    string_adjacency_threshold: float
     timeout: int
     output_dir: str
     tags: list[str]
@@ -109,6 +111,7 @@ class SearchConfig:
             per_model_grid=config.get('per_model_grid', {}),
             per_model_dataset_grid=per_model_dataset_grid,
             per_dataset_ratio_method_grid=per_dataset_ratio_method_grid,
+            string_adjacency_threshold=config.get('string_adjacency_threshold', 0.4),
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
             tags=config.get('tags', []),
@@ -290,6 +293,20 @@ def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
     return result
 
 
+def _execute_with_gpu_pool(config: RunConfig, gpu_queue, dry_run: bool = False) -> dict[str, Any]:
+    """Execute a run with dynamic GPU assignment from a shared pool.
+
+    Acquires a GPU slot from the queue before running and releases it after,
+    guaranteeing that no more than `jobs_per_gpu` jobs share a single GPU.
+    """
+    gpu_id = gpu_queue.get()
+    try:
+        config.gpu_id = gpu_id
+        return execute_run(config, dry_run)
+    finally:
+        gpu_queue.put(gpu_id)
+
+
 def build_run_configs(
     search_config: SearchConfig,
     models_filter: list[str] | None = None,
@@ -358,6 +375,14 @@ def build_run_configs(
                         for ratio_hp_combo in product_dict(dataset_ratio_grid):
                             final_hp_combo = {**hp_combo, **ratio_hp_combo}
 
+                            if (
+                                final_hp_combo.get('dataset.loader.parameters.adjacency_method')
+                                == 'string'
+                            ):
+                                final_hp_combo[
+                                    'dataset.loader.parameters.adjacency_threshold'
+                                ] = search_config.string_adjacency_threshold
+
                             for seed in search_config.seeds:
                                 run_id += 1
 
@@ -377,9 +402,15 @@ def build_run_configs(
 
                                 # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
                                 readout_name = final_hp_combo.get('model.readout.readout_name')
+                                experiment = final_hp_combo.get(
+                                    'experiment', search_config.fixed.get('experiment')
+                                )
+                                is_no_readout = (
+                                    readout_name == 'NoReadOut' or experiment == 'no_readout'
+                                )
                                 # Auto-set fc_dropout to match backbone.dropout if not explicitly set
                                 if (
-                                    readout_name != 'NoReadOut'
+                                    not is_no_readout
                                     and 'model.readout.fc_dropout' not in final_hp_combo
                                     and 'model.backbone.dropout' in final_hp_combo
                                 ):
@@ -388,7 +419,7 @@ def build_run_configs(
                                     ]
 
                                 for key, value in final_hp_combo.items():
-                                    if readout_name == 'NoReadOut' and key in (
+                                    if is_no_readout and key in (
                                         'model.readout.fc_dim',
                                         'model.readout.fc_dropout',
                                     ):
@@ -416,6 +447,22 @@ def build_run_configs(
                         continue  # Skip the else block below
 
                 # No per_dataset_ratio_method_grid match, use hp_combo as-is
+                if hp_combo.get('dataset.loader.parameters.adjacency_method') == 'string':
+                    hp_combo[
+                        'dataset.loader.parameters.adjacency_threshold'
+                    ] = search_config.string_adjacency_threshold
+                elif 'dataset.loader.parameters.adjacency_threshold' not in hp_combo:
+                    adj_method = hp_combo.get(
+                        'dataset.loader.parameters.adjacency_method', 'unknown'
+                    )
+                    ratio = hp_combo.get('dataset.loader.parameters.node_sample_ratio', '?')
+                    method = hp_combo.get('dataset.loader.parameters.method', '?')
+                    raise ValueError(
+                        f'No adjacency_threshold found in per_dataset_ratio_method_grid for '
+                        f'({dataset}, {ratio}, {method}) with adjacency_method={adj_method}. '
+                        f"Add an entry to per_dataset_ratio_method_grid or set adjacency_method to 'string'."
+                    )
+
                 for seed in search_config.seeds:
                     run_id += 1
 
@@ -433,18 +480,23 @@ def build_run_configs(
                     for key, value in search_config.fixed.items():
                         overrides.append(to_override(key, value))
 
-                    # Add hyperparameters
-                    # Auto-set fc_dropout to match backbone.dropout if not explicitly set
+                    # Add hyperparameters (skip OmicsReadOut params if NoReadOut)
                     readout_name = hp_combo.get('model.readout.readout_name')
+                    experiment = hp_combo.get('experiment', search_config.fixed.get('experiment'))
+                    is_no_readout = readout_name == 'NoReadOut' or experiment == 'no_readout'
                     if (
-                        readout_name
-                        and readout_name != 'NoReadOut'
+                        not is_no_readout
                         and 'model.readout.fc_dropout' not in hp_combo
                         and 'model.backbone.dropout' in hp_combo
                     ):
                         hp_combo['model.readout.fc_dropout'] = hp_combo['model.backbone.dropout']
 
                     for key, value in hp_combo.items():
+                        if is_no_readout and key in (
+                            'model.readout.fc_dim',
+                            'model.readout.fc_dropout',
+                        ):
+                            continue
                         overrides.append(to_override(key, value))
 
                     # Assign GPU round-robin
@@ -482,16 +534,17 @@ def warmup_caches(dataset_configs: list[dict[str, Any]], data_dir: str) -> None:
         print(
             f'  [{i}/{len(dataset_configs)}] {config["data_name"]} | '
             f'ratio={config["node_sample_ratio"]} | method={config["method"]} | '
-            f'threshold={config["adjacency_threshold"]}'
+            f'threshold={config["adjacency_threshold"]} | '
+            f'adj_method={config["adjacency_method"]}'
         )
 
-        # Instantiation triggers download() and process() if cache missing
         HFOmicsDataset(
             root=data_dir,
             data_name=config['data_name'],
             node_sample_ratio=config['node_sample_ratio'],
             method=config['method'],
             adjacency_threshold=config['adjacency_threshold'],
+            adjacency_method=config['adjacency_method'],
         )
 
     print('Cache warmup complete.')
@@ -503,7 +556,17 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
     Identifies all unique (dataset, node_sample_ratio, method, adjacency_threshold) combinations
     from the search config to pre-generate caches before parallel training.
     """
-    unique_configs: set[tuple[str, float, str, float]] = set()
+    unique_configs: set[tuple[str, float, str, float, str]] = set()
+    adj_method_key = 'dataset.loader.parameters.adjacency_method'
+    if adj_method_key in search_config.fixed:
+        adjacency_methods = [search_config.fixed[adj_method_key]]
+    elif adj_method_key in search_config.shared_grid:
+        adjacency_methods = search_config.shared_grid[adj_method_key]
+    else:
+        raise ValueError(
+            f"'{adj_method_key}' must be set in the search config's "
+            f"'fixed' or 'shared_grid' section for cache warmup to work correctly."
+        )
 
     for dataset in search_config.datasets:
         ratios = search_config.shared_grid.get(
@@ -513,7 +576,6 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
 
         for ratio in ratios:
             for method in methods:
-                # Look up threshold from per_dataset_ratio_method_grid
                 ratio_key = (dataset, float(ratio), method)
                 threshold_grid = search_config.per_dataset_ratio_method_grid.get(ratio_key, {})
                 thresholds = threshold_grid.get(
@@ -521,7 +583,15 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
                 )
 
                 for threshold in thresholds:
-                    unique_configs.add((dataset, float(ratio), method, float(threshold)))
+                    for adj_method in adjacency_methods:
+                        effective_threshold = (
+                            search_config.string_adjacency_threshold
+                            if adj_method == 'string'
+                            else float(threshold)
+                        )
+                        unique_configs.add(
+                            (dataset, float(ratio), method, effective_threshold, adj_method)
+                        )
 
     return [
         {
@@ -529,8 +599,9 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
             'node_sample_ratio': r,
             'method': m,
             'adjacency_threshold': t,
+            'adjacency_method': am,
         }
-        for d, r, m, t in sorted(unique_configs)
+        for d, r, m, t, am in sorted(unique_configs)
     ]
 
 
@@ -540,11 +611,13 @@ def run_search(
     dry_run: bool = False,
     parallel: bool = True,
     n_jobs: int | None = None,
+    jobs_per_gpu: int = 1,
     skip_warmup: bool = False,
 ) -> pd.DataFrame:
     """Run the full hyperparameter search."""
     n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    n_jobs = n_jobs or max(n_gpus, 1)
+    if n_jobs is None:
+        n_jobs = max(n_gpus * jobs_per_gpu, 1)
 
     # Cap CPU threads per job to avoid thrashing when running in parallel.
     # Each job gets an equal share of available cores.
@@ -570,14 +643,15 @@ def run_search(
     print(f'Seeds: {search_config.seeds}')
     print(f'Total runs: {len(configs)}')
     print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
-    print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus})')
+    print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, jobs_per_gpu={jobs_per_gpu})')
     print(f'CPU threads per job: {n_threads} (of {n_cpu} total cores)')
     print(f'Output: {search_config.output_dir}')
     print('=' * 60)
 
     # Warmup dataset caches to avoid race conditions in parallel training
     if not dry_run and not skip_warmup:
-        data_dir = os.path.join(os.environ.get('PROJECT_ROOT', '.'), 'run_data', 'data', 'omics')
+        root_dir = search_config.fixed.get('paths.root_dir', os.environ.get('PROJECT_ROOT', '.'))
+        data_dir = os.path.join(root_dir, 'data', 'omics')
         dataset_configs = extract_unique_dataset_configs(search_config)
         print(f'\nUnique dataset configs to cache: {len(dataset_configs)}')
         warmup_caches(dataset_configs, data_dir)
@@ -588,9 +662,19 @@ def run_search(
     # Execute runs
     if parallel and not dry_run and n_jobs > 1:
         print(f'\nRunning {len(configs)} configs in parallel...')
-        results = Parallel(n_jobs=n_jobs, verbose=10)(
-            delayed(execute_run)(config, dry_run) for config in configs
-        )
+        if n_gpus > 0:
+            manager = multiprocessing.Manager()
+            gpu_queue = manager.Queue()
+            for gpu_id in range(n_gpus):
+                for _ in range(jobs_per_gpu):
+                    gpu_queue.put(gpu_id)
+            results = Parallel(n_jobs=n_jobs, verbose=10)(
+                delayed(_execute_with_gpu_pool)(config, gpu_queue) for config in configs
+            )
+        else:
+            results = Parallel(n_jobs=n_jobs, verbose=10)(
+                delayed(execute_run)(config, dry_run) for config in configs
+            )
     else:
         print(f'\nRunning {len(configs)} configs sequentially...')
         results = [execute_run(config, dry_run) for config in configs]
@@ -685,7 +769,13 @@ Examples:
     parser.add_argument(
         '--n-jobs',
         type=int,
-        help='Number of parallel jobs (default: number of GPUs)',
+        help='Number of parallel jobs (default: n_gpus * jobs_per_gpu)',
+    )
+    parser.add_argument(
+        '--jobs-per-gpu',
+        type=int,
+        default=1,
+        help='Max concurrent jobs per GPU (default: 1). Total jobs = n_gpus * jobs_per_gpu.',
     )
     parser.add_argument(
         '--output-dir',
@@ -720,6 +810,7 @@ Examples:
         dry_run=args.dry_run,
         parallel=not args.no_parallel,
         n_jobs=args.n_jobs,
+        jobs_per_gpu=args.jobs_per_gpu,
         skip_warmup=args.skip_warmup,
     )
 

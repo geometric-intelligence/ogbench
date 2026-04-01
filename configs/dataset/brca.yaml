@@ -10,6 +10,7 @@ loader:
     data_name: brca
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
     adjacency_threshold: 0.0463
+    adjacency_method: wgcna
     node_sample_ratio: 0.5
     method: variance
     imputation_method: mean
@@ -28,8 +29,13 @@ parameters:
     ${dataset.parameters.full_num_nodes}}
   task: classification
   loss_type: cross_entropy
-  class_weights: null
-  monitor_metric: f1_weighted
+  class_weights:
+    - 0.384
+    - 2.842
+    - 1.042
+    - 4.467
+    - 1.158
+  monitor_metric: f1_macro
   metrics:
     - accuracy
     - precision
@@ -37,6 +43,7 @@ parameters:
     - auroc
     - f1_weighted
     - f1_macro
+  shared_graph: true
   task_level: graph
 split_params:
   learning_setting: inductive

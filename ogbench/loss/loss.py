@@ -22,7 +22,7 @@ class TBLoss(AbstractLoss):
         super().__init__()
         if modules_losses is None:
             modules_losses = {}
-        self.losses = []
+        self.losses = torch.nn.ModuleList()
         # Dataset loss
         self.losses.append(DatasetLoss(dataset_loss))
         # Model losses
