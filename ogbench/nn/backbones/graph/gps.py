@@ -232,8 +232,11 @@ class GPSEncoder(torch.nn.Module):
                 )
                 local_conv = GINConv(nn_module)
             elif local_conv_type == 'pna':
+                # PNA aggregators and scalers
                 aggregators = ['mean', 'min', 'max', 'std']
                 scalers = ['identity', 'amplification', 'attenuation']
+                # Assume degree statistics for PNA (these would normally be computed from data)
+                # For now, use reasonable defaults
                 deg = torch.tensor([1, 2, 3, 4, 5, 10, 20], dtype=torch.long)
                 local_conv = PNAConv(
                     in_channels=hidden_dim,
