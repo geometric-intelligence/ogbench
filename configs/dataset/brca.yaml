@@ -21,8 +21,8 @@ loader:
     revision: ${hf.revision}
 parameters:
   num_features: 1
-  num_classes: 5
-  num_samples: 671
+  num_classes: 4
+  num_samples: 640
   full_num_nodes: 19049
   num_nodes:
     ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio},
@@ -30,11 +30,10 @@ parameters:
   task: classification
   loss_type: cross_entropy
   class_weights:
-    - 0.384
-    - 2.842
-    - 1.042
-    - 4.467
-    - 1.158
+    - 0.444
+    - 4.0
+    - 1.318
+    - 1.349
   monitor_metric: f1_macro
   metrics:
     - accuracy

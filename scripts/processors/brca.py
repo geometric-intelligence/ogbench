@@ -52,8 +52,25 @@ def process_brca(output_dir: str = 'temp_data') -> None:
 
     assert not raw_data.isna().any().any(), 'Raw data contains NaNs'
 
-    # PAM50 subtype mapping
-    class_names = ['LumA', 'Her2', 'LumB', 'Normal', 'Basal']
+    # PAM50 numeric labels in source: 0=LumA, 1=Her2, 2=LumB, 3=Normal, 4=Basal
+    pam50_source_names = ['LumA', 'Her2', 'LumB', 'Normal', 'Basal']
+    normal_label = pam50_source_names.index('Normal')
+
+    n_before = len(targets)
+    keep = targets != normal_label
+    raw_data = raw_data.loc[keep].reset_index(drop=True)
+    targets = targets[keep]
+    n_dropped = int(n_before - len(targets))
+    if n_dropped:
+        logger.info('Dropped %d Normal samples (class label %d)', n_dropped, normal_label)
+
+    # Contiguous labels 0..3 for LumA, Her2, LumB, Basal
+    source_to_model = {0: 0, 1: 1, 2: 2, 4: 3}
+    unknown = set(np.unique(targets)) - set(source_to_model)
+    assert not unknown, f'Unexpected labels after filtering Normal: {unknown}'
+    targets = np.array([source_to_model[int(t)] for t in targets], dtype=int)
+
+    class_names = ['LumA', 'Her2', 'LumB', 'Basal']
     class_mapping = {name: i for i, name in enumerate(class_names)}
 
     logger.info('Classification distribution:')
