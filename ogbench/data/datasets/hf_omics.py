@@ -73,7 +73,7 @@ class HFOmicsDataset(InMemoryDataset):
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
-        revision: str = '65d41c2',
+        revision: str = '83299150394717f0646b1bd44d6a55392ab789db',
         string_data_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -280,7 +280,7 @@ class HFOmicsDataset(InMemoryDataset):
             logger.info('Using full node sample ratio')
             n_nodes = train_data.shape[1]
         elif isinstance(self.node_sample_ratio, float):
-            n_nodes = int(train_data.shape[1] * self.node_sample_ratio)
+            n_nodes = int(n_training_samples / self.node_sample_ratio)
             if n_nodes > train_data.shape[1]:
                 n_nodes = train_data.shape[1]
         else:

@@ -30,7 +30,7 @@ readout:
   hidden_dim: ${model.backbone.out_channels}
   out_channels: ${model.backbone.out_channels}
   task_level: ${dataset.parameters.task_level}
-  pooling_type: sum
+  pooling_type: mean
   logits_linear_layer: false
 
 # compile model for faster training with pytorch 2.0

@@ -88,6 +88,7 @@ class TBDataloader(LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             shuffle=True,
+            drop_last=self.batch_size > 1,
             collate_fn=collate_fn,
             persistent_workers=self.persistent_workers,
         )
