@@ -280,7 +280,7 @@ class HFOmicsDataset(InMemoryDataset):
             logger.info('Using full node sample ratio')
             n_nodes = train_data.shape[1]
         elif isinstance(self.node_sample_ratio, float):
-            n_nodes = int(train_data.shape[1] * self.node_sample_ratio)
+            n_nodes = int(n_training_samples / self.node_sample_ratio)
             if n_nodes > train_data.shape[1]:
                 n_nodes = train_data.shape[1]
         else:
