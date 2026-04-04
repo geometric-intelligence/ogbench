@@ -49,6 +49,7 @@ class SearchConfig:
     per_model_dataset_grid: dict[tuple[str, str], dict[str, list[Any]]]
     per_dataset_ratio_method_grid: dict[tuple[str, float | str, str], dict[str, list[Any]]]
     string_adjacency_threshold: float
+    hf_revision: str
     timeout: int
     output_dir: str
     tags: list[str]
@@ -58,6 +59,12 @@ class SearchConfig:
         """Load search configuration from YAML file."""
         with open(path) as f:
             config = yaml.safe_load(f)
+
+        # Load HF revision from the single source of truth
+        hf_config_path = Path(path).resolve().parent.parent / 'hf' / 'default.yaml'
+        with open(hf_config_path) as f:
+            hf_config = yaml.safe_load(f)
+        hf_revision = str(hf_config['revision'])
 
         # Handle both single dataset (backward compatible) and multiple datasets
         if 'datasets' in config:
@@ -112,6 +119,7 @@ class SearchConfig:
             per_model_dataset_grid=per_model_dataset_grid,
             per_dataset_ratio_method_grid=per_dataset_ratio_method_grid,
             string_adjacency_threshold=config.get('string_adjacency_threshold', 0.4),
+            hf_revision=hf_revision,
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
             tags=config.get('tags', []),
@@ -523,7 +531,9 @@ def build_run_configs(
     return configs
 
 
-def warmup_caches(dataset_configs: list[dict[str, Any]], data_dir: str) -> None:
+def warmup_caches(
+    dataset_configs: list[dict[str, Any]], data_dir: str, hf_revision: str | None = None
+) -> None:
     """Pre-generate dataset caches to avoid race conditions in parallel training.
 
     Sequentially instantiates HFOmicsDataset for each unique config, triggering the download() and
@@ -540,14 +550,17 @@ def warmup_caches(dataset_configs: list[dict[str, Any]], data_dir: str) -> None:
             f'adj_method={config["adjacency_method"]}'
         )
 
-        HFOmicsDataset(
-            root=data_dir,
-            data_name=config['data_name'],
-            node_sample_ratio=config['node_sample_ratio'],
-            method=config['method'],
-            adjacency_threshold=config['adjacency_threshold'],
-            adjacency_method=config['adjacency_method'],
-        )
+        kwargs: dict[str, Any] = {
+            'root': data_dir,
+            'data_name': config['data_name'],
+            'node_sample_ratio': config['node_sample_ratio'],
+            'method': config['method'],
+            'adjacency_threshold': config['adjacency_threshold'],
+            'adjacency_method': config['adjacency_method'],
+        }
+        if hf_revision:
+            kwargs['revision'] = hf_revision
+        HFOmicsDataset(**kwargs)
 
     print('Cache warmup complete.')
 
@@ -656,7 +669,7 @@ def run_search(
         data_dir = os.path.join(root_dir, 'data', 'omics')
         dataset_configs = extract_unique_dataset_configs(search_config)
         print(f'\nUnique dataset configs to cache: {len(dataset_configs)}')
-        warmup_caches(dataset_configs, data_dir)
+        warmup_caches(dataset_configs, data_dir, hf_revision=search_config.hf_revision)
 
     # Create output directory
     os.makedirs(search_config.output_dir, exist_ok=True)
