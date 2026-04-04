@@ -394,6 +394,7 @@ def build_run_configs(
                                     f'dataset={dataset}',
                                     f'seed={seed}',
                                     f'logger.wandb.tags=[{tags_str}]',
+                                    f'hydra.run.dir=${{paths.log_dir}}/${{task_name}}/runs/hpsearch_{run_id:04d}',
                                 ]
 
                                 # Add fixed parameters
@@ -474,6 +475,7 @@ def build_run_configs(
                         f'dataset={dataset}',
                         f'seed={seed}',
                         f'logger.wandb.tags=[{tags_str}]',
+                        f'hydra.run.dir=${{paths.log_dir}}/${{task_name}}/runs/hpsearch_{run_id:04d}',
                     ]
 
                     # Add fixed parameters
