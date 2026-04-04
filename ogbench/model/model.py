@@ -232,10 +232,20 @@ class TBModel(LightningModule):
             raise ValueError('Invalid state_str')
 
         if self.task_level == 'node':
-            # Keep only train data points
+            # Keep only the data points belonging to the current split
             for key, val in model_out.items():
                 if key in ['logits', 'labels']:
                     model_out[key] = val[mask]
+        elif self.task_level == 'graph':
+            # For graph-level tasks in transductive setting, the same dataset
+            # is used for train/val/test with masks indicating the split.
+            # Only filter when masks are boolean (transductive); integer masks
+            # (inductive, set in assign_train_val_test_mask_to_graphs) indicate
+            # the sample already belongs to the correct split.
+            if mask.dtype == torch.bool:
+                for key, val in model_out.items():
+                    if key in ['logits', 'labels']:
+                        model_out[key] = val[mask]
 
         return model_out
 
@@ -386,6 +396,7 @@ class TBModel(LightningModule):
             list(self.backbone.parameters())
             + list(self.readout.parameters())
             + list(self.feature_encoder.parameters())
+            + list(self.loss.parameters())
         )
 
         return optimizer_config

@@ -31,6 +31,8 @@ class GATv4Wrapper(AbstractWrapper):
         )
 
         model_out = {'labels': batch.y, 'batch_0': batch.batch_0}
-        model_out['x_0'] = x_0.view(self.num_nodes * batch.batch_size, -1)
+        # Use actual total number of nodes from the batch instead of assuming
+        # a fixed num_nodes per graph, which would break if graphs vary in size.
+        model_out['x_0'] = x_0.view(batch.x_0.size(0), -1)
 
         return model_out
