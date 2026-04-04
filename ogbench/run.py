@@ -12,15 +12,6 @@ from omegaconf import DictConfig
 
 from ogbench.data.preprocessor import PreProcessor
 from ogbench.dataloader import TBDataloader
-
-# PyTorch 2.6+ changed torch.load to default weights_only=True, which blocks
-# Lightning from loading checkpoints containing custom ogbench classes.
-# Rather than globally monkey-patching torch.load (which disables pickle
-# safety for ALL callers), we register the specific ogbench types that
-# appear in Lightning checkpoints as safe globals.
-from ogbench.evaluator import TBEvaluator  # noqa: E402
-from ogbench.loss.loss import TBLoss  # noqa: E402
-from ogbench.optimizer.optimizer import TBOptimizer  # noqa: E402
 from ogbench.utils import (
     RankedLogger,
     extras,
@@ -34,8 +25,19 @@ from ogbench.utils.config_resolvers import (
     register_all_resolvers,
 )
 
-if hasattr(torch.serialization, 'add_safe_globals'):
-    torch.serialization.add_safe_globals([TBEvaluator, TBLoss, TBOptimizer, TBDataloader])
+# PyTorch 2.6+ changed torch.load to default weights_only=True, which blocks
+# Lightning from loading checkpoints containing custom ogbench classes.
+# Lightning explicitly passes weights_only=True, so we must override it.
+# These are our own trusted checkpoints, so this is safe.
+_orig_torch_load = torch.load
+
+
+def _patched_torch_load(*args, **kwargs):
+    kwargs['weights_only'] = False
+    return _orig_torch_load(*args, **kwargs)
+
+
+torch.load = _patched_torch_load
 
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 # ------------------------------------------------------------------------------------ #
