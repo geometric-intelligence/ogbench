@@ -9,8 +9,8 @@ max_epochs: 200
 accelerator: gpu
 devices: [0]
 
-# mixed precision for extra speed-up
-# precision: 16
+# mixed precision for extra speed-up (bf16 preferred on A100 for stability + speed)
+precision: bf16-mixed
 
 # perform a validation loop every N training epochs
 check_val_every_n_epoch: 1
