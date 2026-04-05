@@ -11,12 +11,12 @@ models:
   - gcn
   - gin
   - gatv2
-  - gatv4
   - graph_sage
-  - sagn
   - chebnet
-  - mlp
   - gps
+  - gatv4
+  - sagn
+  - mlp
 
 seeds: [42, 123, 456]
 
@@ -29,8 +29,8 @@ fixed:
 # Shared hyperparameter grid (applied to all models)
 shared_grid:
   experiment:
-    - omics_readout
     - no_readout
+    - omics_readout
   dataset.loader.parameters.adjacency_method:
     - wgcna
     - string
