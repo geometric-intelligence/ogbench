@@ -399,12 +399,18 @@ def aggregate_across_seeds(
 
     candidate_grouping = [c for c in df.columns if c not in exclude_cols]
 
-    # Explicitly drop the problematic baseline pipeline columns
-    bad_group_cols = [
-        "dataset.baselines.svm.pipeline",
-        "dataset.baselines.elastic_net.pipeline",
+    # Explicitly drop columns that are per-run rather than per-config
+    bad_group_cols = {
+        "paths.output_dir",
+        "logger.wandb.save_dir",
+        "trainer.default_root_dir",
+        "callbacks.model_checkpoint.dirpath",
+    }
+    candidate_grouping = [
+        c for c in candidate_grouping
+        if c not in bad_group_cols
+        and not (c.startswith("dataset.baselines.") and c.endswith(".pipeline"))
     ]
-    candidate_grouping = [c for c in candidate_grouping if c not in bad_group_cols]
 
     print(f"▶ Initial grouping candidates (after dropping bad cols): {len(candidate_grouping)}")
 
@@ -419,7 +425,7 @@ def aggregate_across_seeds(
     grouping_cols = []
     for col in candidate_grouping:
         nunique = df_temp[col].nunique(dropna=False)
-        if nunique < n_rows:
+        if nunique < 0.9 * n_rows:
             grouping_cols.append(col)
 
     print(f"▶ Final grouping columns (after nunique filter): {len(grouping_cols)}")
