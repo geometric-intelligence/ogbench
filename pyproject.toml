@@ -61,7 +61,7 @@ dependencies=[
     "combat>=0.3.3",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
     "toponetx @ git+https://github.com/pyt-team/TopoNetX.git",
-    "lightning>=2.5.0",
+    "lightning>=2.6.1",
 ]
 
 [project.optional-dependencies]
