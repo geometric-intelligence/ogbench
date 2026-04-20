@@ -195,3 +195,4 @@ run_data/
 *.csv
 *.pdf
 *.json
+plotting/plots/
