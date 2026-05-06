@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, lazy } from 'react';
 const Plot = lazy(() => import('react-plotly.js'));
 import type { ResultEntry, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
 import { DATASETS, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS, ADJACENCY_METHOD_LABELS } from '../lib/constants';
-import { computeLeaderboard, filterResults, getModelsByDataset } from '../lib/data';
+import { computeLeaderboard, filterResults, getModelsByDataset, getDisplayMetricValue } from '../lib/data';
 
 const ALL_DATASETS: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons', 'brca'];
 
@@ -88,16 +88,17 @@ export default function Leaderboard() {
 
     for (const ds of ALL_DATASETS) {
       for (const model of BASELINE_MODELS) {
-        const entries = results.filter((r) => r.model === model && r.dataset === ds);
+        const entries = chartFilteredResults.filter((r) => r.model === model && r.dataset === ds);
         if (entries.length > 0) {
-          const value = entries.reduce((sum, e) => sum + e.test_f1_macro, 0) / entries.length;
-          const std = entries.reduce((sum, e) => sum + e.test_f1_macro_std, 0) / entries.length;
+          const metricValues = entries.map((e) => getDisplayMetricValue(e, displayMetric));
+          const value = metricValues.reduce((sum, m) => sum + m.value, 0) / metricValues.length;
+          const std = metricValues.reduce((sum, m) => sum + m.std, 0) / metricValues.length;
           baselines[ds][model] = { value, std };
         }
       }
     }
     return baselines;
-  }, [results]);
+  }, [chartFilteredResults, displayMetric]);
 
   const filteredModels = MODEL_ORDER;
 

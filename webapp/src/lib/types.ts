@@ -14,6 +14,12 @@ export interface ResultEntry {
   test_f1_macro_std: number;
   train_f1_macro: number;
   train_f1_macro_std: number;
+  test_f1_weighted: number;
+  test_f1_weighted_std: number;
+  test_accuracy: number;
+  test_accuracy_std: number;
+  test_auroc: number;
+  test_auroc_std: number;
 }
 
 export interface GraphStats {
@@ -58,4 +64,4 @@ export type SampleNodeRatio = 0.3 | 0.5 | 0.8 | 1.0;
 
 export type RankingMetric = 'val_f1_macro' | 'test_f1_macro';
 
-export type DisplayMetric = 'test_f1_macro' | 'train_f1_macro';
+export type DisplayMetric = 'test_f1_macro' | 'train_f1_macro' | 'test_f1_weighted' | 'test_accuracy' | 'test_auroc';
