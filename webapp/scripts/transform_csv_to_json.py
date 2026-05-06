@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Transform aggregated_final_results_neurips.csv to results.json for the webapp leaderboard.
+"""Transform aggregated CSV files to results.json for the webapp leaderboard.
 
-For each (data_name, model_name, adjacency_method, node_sample_ratio, sampling_method,
-readout_name) combination, selects the hyperparameter config with the best best_val_f1_macro_mean.
+Reads both the GNN results CSV and the baseline CSV, merges them, and for each (data_name,
+model_name, adjacency_method, node_sample_ratio, sampling_method, readout_name) combination selects
+the hyperparameter config with the best best_val_f1_macro_mean.
 """
 
 from __future__ import annotations
@@ -22,13 +23,8 @@ MODEL_NAME_MAP: dict[str, str] = {
     'mlp': 'MLP',
     'chebnet': 'ChebNet',
     'gps': 'GPS',
-}
-
-# ML Baselines with fixed test F1 macro scores (don't depend on graph config)
-BASELINES: dict[str, dict[str, dict[str, float]]] = {
-    'parkinsons': {'ElasticNet': {'test_f1_macro': 0.64518}, 'SVM': {'test_f1_macro': 0.66422}},
-    'motrpac': {'ElasticNet': {'test_f1_macro': 0.57419}, 'SVM': {'test_f1_macro': 0.54287}},
-    'addneuromed': {'ElasticNet': {'test_f1_macro': 0.55762}, 'SVM': {'test_f1_macro': 0.46252}},
+    'elastic_net': 'ElasticNet',
+    'svm': 'SVM',
 }
 
 GROUP_COLS = [
@@ -40,15 +36,48 @@ GROUP_COLS = [
     'readout_name',
 ]
 
+METRIC_PAIRS: list[tuple[str, str, str]] = [
+    ('best_val_f1_macro_mean', 'best_val_f1_macro_std', 'val_f1_macro'),
+    ('best_test_f1_macro_mean', 'best_test_f1_macro_std', 'test_f1_macro'),
+    ('best_train_f1_macro_mean', 'best_train_f1_macro_std', 'train_f1_macro'),
+    ('best_test_f1_weighted_mean', 'best_test_f1_weighted_std', 'test_f1_weighted'),
+    ('best_test_accuracy_mean', 'best_test_accuracy_std', 'test_accuracy'),
+    ('best_test_auroc_mean', 'best_test_auroc_std', 'test_auroc'),
+]
 
-def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
-    """Transform aggregated CSV to JSON format for the webapp."""
+
+def safe_float(val: object, default: float = 0.0) -> float:
+    try:
+        v = float(val)  # type: ignore[arg-type]
+        return default if pd.isna(v) else v
+    except (ValueError, TypeError):
+        return default
+
+
+def load_and_prepare_baseline(csv_path: Path) -> pd.DataFrame:
+    """Load the baseline CSV and add missing columns to match GNN schema."""
     df = pd.read_csv(csv_path)
-    print(f'Loaded {len(df)} rows from {csv_path}')
+    df['adjacency_method'] = 'baseline'
+    df['readout_name'] = 'baseline'
+    df['node_sample_ratio'] = df['node_sample_ratio'].replace('full', '1.0')
+    df['node_sample_ratio'] = df['node_sample_ratio'].astype(float)
+    print(f'Loaded {len(df)} baseline rows from {csv_path}')
+    return df
+
+
+def load_and_prepare_gnn(csv_path: Path) -> pd.DataFrame:
+    """Load the GNN results CSV."""
+    df = pd.read_csv(csv_path)
+    df['node_sample_ratio'] = pd.to_numeric(df['node_sample_ratio'], errors='coerce')
+    print(f'Loaded {len(df)} GNN rows from {csv_path}')
+    return df
+
+
+def transform_to_json(df: pd.DataFrame, output_path: Path) -> dict:
+    """Select best configs and write JSON."""
     print(f'  Datasets: {sorted(df["data_name"].unique())}')
     print(f'  Models: {sorted(df["model_name"].unique())}')
 
-    # For each filter combination, keep the row with highest best_val_f1_macro_mean
     idx_best = df.groupby(GROUP_COLS)['best_val_f1_macro_mean'].idxmax()
     best = df.loc[idx_best].copy()
     print(f'  Best configs selected: {len(best)}')
@@ -65,66 +94,34 @@ def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
         adj_method = row['adjacency_method']
 
         graph_config = f'{dataset}|{ratio}|{method}|{readout}'
-        if adj_method:
+        if adj_method and adj_method != 'baseline':
             graph_config += f'|{adj_method}'
         key = f'{graph_config}|{model}'
 
-        def safe_float(val: object, default: float = 0.0) -> float:
-            try:
-                v = float(val)  # type: ignore[arg-type]
-                return default if pd.isna(v) else v
-            except (ValueError, TypeError):
-                return default
-
-        entry = {
+        entry: dict[str, object] = {
             'graph_config': graph_config,
             'model': model,
             'dataset': dataset,
             'readout': readout,
             'node_sample_ratio': safe_float(ratio),
             'method': method,
-            'adjacency_method': adj_method if adj_method else 'string',
-            'val_f1_macro': safe_float(row.get('best_val_f1_macro_mean')),
-            'val_f1_macro_std': safe_float(row.get('best_val_f1_macro_std')),
-            'test_f1_macro': safe_float(row.get('best_test_f1_macro_mean')),
-            'test_f1_macro_std': safe_float(row.get('best_test_f1_macro_std')),
-            'train_f1_macro': safe_float(row.get('best_train_f1_macro_mean')),
-            'train_f1_macro_std': safe_float(row.get('best_train_f1_macro_std')),
+            'adjacency_method': adj_method if adj_method else 'baseline',
         }
 
+        for csv_mean, csv_std, out_name in METRIC_PAIRS:
+            entry[out_name] = safe_float(row.get(csv_mean))
+            entry[f'{out_name}_std'] = safe_float(row.get(csv_std))
+
         results[key] = entry
-
-    # Add baseline entries for each dataset that has them
-    for dataset, models in BASELINES.items():
-        for model, metrics in models.items():
-            graph_config = f'{dataset}|baseline'
-            key = f'{graph_config}|{model}'
-
-            entry = {
-                'graph_config': graph_config,
-                'model': model,
-                'dataset': dataset,
-                'readout': 'baseline',
-                'node_sample_ratio': 0.0,
-                'method': 'baseline',
-                'adjacency_method': 'baseline',
-                'val_f1_macro': 0.0,
-                'val_f1_macro_std': 0.0,
-                'test_f1_macro': metrics['test_f1_macro'],
-                'test_f1_macro_std': 0.0,
-                'train_f1_macro': 0.0,
-                'train_f1_macro_std': 0.0,
-            }
-
-            results[key] = entry
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(results, f, indent=2)
+        f.write('\n')
 
-    n_baselines = sum(len(m) for m in BASELINES.values())
+    n_baselines = sum(1 for e in results.values() if e['readout'] == 'baseline')
     print(f'Wrote {len(results)} entries to {output_path}')
-    print(f'  - CSV entries: {len(results) - n_baselines}')
+    print(f'  - GNN entries: {len(results) - n_baselines}')
     print(f'  - Baseline entries: {n_baselines}')
     print(f'  - Models: {sorted({e["model"] for e in results.values()})}')
     print(f'  - Datasets: {sorted({e["dataset"] for e in results.values()})}')
@@ -136,14 +133,34 @@ def main() -> int:
     script_dir = Path(__file__).parent
     webapp_dir = script_dir.parent
 
-    csv_path = webapp_dir / 'aggregated_final_results_neurips.csv'
+    gnn_csv = webapp_dir / 'aggregated_final_results_neurips.csv'
+    baseline_csv = webapp_dir / 'baseline_aggregated_gnn_features_neurips.csv'
     output_path = webapp_dir / 'public' / 'data' / 'results.json'
 
-    if not csv_path.exists():
-        print(f'Error: CSV file not found at {csv_path}')
+    if not gnn_csv.exists():
+        print(f'Error: GNN CSV not found at {gnn_csv}')
+        return 1
+    if not baseline_csv.exists():
+        print(f'Error: Baseline CSV not found at {baseline_csv}')
         return 1
 
-    transform_csv_to_json(csv_path, output_path)
+    df_gnn = load_and_prepare_gnn(gnn_csv)
+    df_baseline = load_and_prepare_baseline(baseline_csv)
+
+    # Align columns before concat — baseline CSV may lack _bucket_key etc.
+    common_cols = list(GROUP_COLS)
+    metric_cols = []
+    for csv_mean, csv_std, _ in METRIC_PAIRS:
+        metric_cols.extend([csv_mean, csv_std])
+    keep_cols = common_cols + ['n_runs_seeds'] + metric_cols
+
+    df_gnn_slim = df_gnn[[c for c in keep_cols if c in df_gnn.columns]].copy()
+    df_baseline_slim = df_baseline[[c for c in keep_cols if c in df_baseline.columns]].copy()
+
+    df = pd.concat([df_gnn_slim, df_baseline_slim], ignore_index=True)
+    print(f'\nMerged: {len(df)} total rows')
+
+    transform_to_json(df, output_path)
     return 0
 
 

@@ -18,6 +18,12 @@ export function getDisplayMetricValue(entry: ResultEntry, metric: DisplayMetric)
       return { value: entry.test_f1_macro, std: entry.test_f1_macro_std };
     case 'train_f1_macro':
       return { value: entry.train_f1_macro, std: entry.train_f1_macro_std };
+    case 'test_f1_weighted':
+      return { value: entry.test_f1_weighted, std: entry.test_f1_weighted_std };
+    case 'test_accuracy':
+      return { value: entry.test_accuracy, std: entry.test_accuracy_std };
+    case 'test_auroc':
+      return { value: entry.test_auroc, std: entry.test_auroc_std };
     default:
       return { value: entry.test_f1_macro, std: entry.test_f1_macro_std };
   }
@@ -97,16 +103,16 @@ export function filterResults(
   }
 
   if (method !== 'all') {
-    filtered = filtered.filter((r) => r.method === method || r.method === 'baseline');
+    filtered = filtered.filter((r) => r.method === method);
   }
 
   if (ratio !== 'all') {
-    filtered = filtered.filter((r) => r.node_sample_ratio === ratio || r.node_sample_ratio === 0.0);
+    filtered = filtered.filter((r) => r.node_sample_ratio === ratio);
   }
 
   if (adjacencyMethod !== 'all') {
     filtered = filtered.filter(
-      (r) => r.adjacency_method === adjacencyMethod || r.method === 'baseline'
+      (r) => r.adjacency_method === adjacencyMethod || r.adjacency_method === 'baseline'
     );
   }
 

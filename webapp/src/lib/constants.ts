@@ -101,4 +101,7 @@ export const RANKING_METRICS: Record<RankingMetric, string> = {
 export const DISPLAY_METRICS: Record<DisplayMetric, string> = {
   test_f1_macro: 'Test F1 Macro',
   train_f1_macro: 'Train F1 Macro',
+  test_f1_weighted: 'Test F1 Weighted',
+  test_accuracy: 'Test Accuracy',
+  test_auroc: 'Test AUROC',
 };

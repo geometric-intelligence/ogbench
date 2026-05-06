@@ -341,7 +341,7 @@ def main():
     parser.add_argument(
         '--datasets',
         nargs='+',
-        default=['addneuromed', 'parkinsons', 'motrpac'],
+        default=['addneuromed', 'parkinsons', 'motrpac', 'brca'],
         help='List of datasets to process',
     )
     parser.add_argument(
