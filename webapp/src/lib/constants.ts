@@ -4,10 +4,10 @@ export const DATASETS: Record<DatasetName, DatasetInfo> = {
   motrpac: { fullName: 'Heritage', color: '#3b82f6', emoji: '🧬' },
   addneuromed: { fullName: 'AddNeuroMed', color: '#f97316', emoji: '🧠' },
   parkinsons: { fullName: "Parkinson's", color: '#22c55e', emoji: '🔬' },
+  brca: { fullName: 'BRCA', color: '#a855f7', emoji: '🎗️' },
 };
 
 export const MODEL_CATEGORIES: Record<string, ModelCategory> = {
-  // GNN models
   'MLA-GNN': 'gnn',
   GATv2: 'gnn',
   GCN: 'gnn',
@@ -15,14 +15,12 @@ export const MODEL_CATEGORIES: Record<string, ModelCategory> = {
   GraphSAGE: 'gnn',
   SAGN: 'gnn',
   ChebNet: 'gnn',
-  // Neural network models
+  GPS: 'gnn',
   MLP: 'neural',
-  // Baseline models
   ElasticNet: 'baseline',
   SVM: 'baseline',
 };
 
-// Order for displaying models (non-baseline models for bar charts)
 export const MODEL_ORDER = [
   'MLP',
   'GIN',
@@ -31,25 +29,24 @@ export const MODEL_ORDER = [
   'GraphSAGE',
   'SAGN',
   'ChebNet',
+  'GPS',
   'MLA-GNN',
 ];
 
-// Baseline models shown as horizontal lines
 export const BASELINE_MODELS = ['ElasticNet', 'SVM'];
 
-// Colors for each model (matching reference colormap exactly)
 export const MODEL_COLORS: Record<string, string> = {
-  MLP: '#6baed6',       // light blue
-  GIN: '#e41a1c',       // red
-  GCN: '#ff7f00',       // orange (darkest)
-  GATv2: '#ffab40',     // lighter orange
-  GraphSAGE: '#ffd54f', // light yellow-orange
-  SAGN: '#984ea3',      // purple/violet
-  ChebNet: '#4d9221',   // dark/forest green
-  'MLA-GNN': '#a6d96a', // light green
-  // Baselines
-  ElasticNet: '#000000', // black (dashed line)
-  SVM: '#000000',        // black (dotted line)
+  MLP: '#6baed6',
+  GIN: '#e41a1c',
+  GCN: '#ff7f00',
+  GATv2: '#ffab40',
+  GraphSAGE: '#ffd54f',
+  SAGN: '#984ea3',
+  ChebNet: '#4d9221',
+  GPS: '#17becf',
+  'MLA-GNN': '#a6d96a',
+  ElasticNet: '#000000',
+  SVM: '#000000',
 };
 
 export const VALID_RATIOS = [0.3, 0.5, 0.8, 1.0] as const;
@@ -62,7 +59,6 @@ export const ADJACENCY_METHOD_LABELS: Record<string, string> = {
   wgcna: 'Co-expression (WGCNA)',
 };
 
-// Display labels for node selection methods
 export const METHOD_LABELS: Record<string, string> = {
   variance: 'Variance',
   correlation: 'Correlation',
@@ -70,7 +66,6 @@ export const METHOD_LABELS: Record<string, string> = {
   random: 'Random',
 };
 
-// Display labels for sample-node ratios
 export const RATIO_LABELS: Record<number, string> = {
   0.3: '0.3',
   0.5: '0.5',
@@ -78,7 +73,6 @@ export const RATIO_LABELS: Record<number, string> = {
   1.0: '1.0',
 };
 
-// For Explorer component (may not have all combinations)
 export const VALID_THRESHOLDS = [0.02, 0.1, 0.2, 0.3, 0.4, 0.5];
 
 export const CATEGORY_COLORS: Record<ModelCategory, string> = {
@@ -99,18 +93,12 @@ export const METRIC_LABELS: Record<string, string> = {
   degree_std: 'Degree Standard Deviation',
 };
 
-// Metrics for ranking models (validation or test metrics - used for model selection)
 export const RANKING_METRICS: Record<RankingMetric, string> = {
-  val_accuracy: 'Val Accuracy',
   val_f1_macro: 'Val F1 Macro',
-  test_accuracy: 'Test Accuracy',
   test_f1_macro: 'Test F1 Macro',
-  auroc: 'AUROC',
 };
 
-// Metrics for displaying model performance (test metrics - used for evaluation)
 export const DISPLAY_METRICS: Record<DisplayMetric, string> = {
-  test_accuracy: 'Test Accuracy',
   test_f1_macro: 'Test F1 Macro',
-  auroc: 'AUROC',
+  train_f1_macro: 'Train F1 Macro',
 };

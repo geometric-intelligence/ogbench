@@ -8,20 +8,12 @@ export interface ResultEntry {
   node_sample_ratio: number;
   method: string;
   adjacency_method?: string;
-  // Validation metrics (for ranking/selection)
-  val_accuracy: number;
-  val_accuracy_std: number;
   val_f1_macro: number;
   val_f1_macro_std: number;
-  // Test metrics (for display/evaluation)
-  test_accuracy: number;
-  test_accuracy_std: number;
   test_f1_macro: number;
   test_f1_macro_std: number;
-  test_f1_weighted: number;
-  test_f1_weighted_std: number;
-  auroc: number;
-  auroc_std: number;
+  train_f1_macro: number;
+  train_f1_macro_std: number;
 }
 
 export interface GraphStats {
@@ -41,19 +33,12 @@ export interface LeaderboardEntry {
   rank: number;
   model: string;
   category: ModelCategory;
-  // Ranking metric values (what determines order)
   rankValue: number;
   rankStd: number;
-  // Display metric values (what's shown)
   displayValue: number;
   displayStd: number;
-  // Additional metrics for charts
-  testAccuracy: number;
-  testAccuracyStd: number;
   testF1Macro: number;
   testF1MacroStd: number;
-  auroc: number;
-  aurocStd: number;
   isBaseline: boolean;
 }
 
@@ -65,14 +50,12 @@ export interface DatasetInfo {
   emoji: string;
 }
 
-export type DatasetName = 'motrpac' | 'addneuromed' | 'parkinsons';
+export type DatasetName = 'motrpac' | 'addneuromed' | 'parkinsons' | 'brca';
 
 export type NodeSelectionMethod = 'variance' | 'correlation' | 'distance_correlation' | 'random';
 
 export type SampleNodeRatio = 0.3 | 0.5 | 0.8 | 1.0;
 
-// Metrics for ranking models (validation or test metrics)
-export type RankingMetric = 'val_accuracy' | 'val_f1_macro' | 'test_accuracy' | 'test_f1_macro' | 'auroc';
+export type RankingMetric = 'val_f1_macro' | 'test_f1_macro';
 
-// Metrics for displaying model performance (test metrics)
-export type DisplayMetric = 'test_accuracy' | 'test_f1_macro' | 'auroc';
+export type DisplayMetric = 'test_f1_macro' | 'train_f1_macro';

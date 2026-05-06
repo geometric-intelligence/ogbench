@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Transform best_configs_summary.csv to results.json for the webapp leaderboard."""
+"""Transform aggregated_final_results_neurips.csv to results.json for the webapp leaderboard.
 
-import csv
+For each (data_name, model_name, adjacency_method, node_sample_ratio, sampling_method,
+readout_name) combination, selects the hyperparameter config with the best best_val_f1_macro_mean.
+"""
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
-# Model name mapping: CSV name -> Display name
-MODEL_NAME_MAP = {
-    'GATv4': 'MLA-GNN',
+import pandas as pd
+
+MODEL_NAME_MAP: dict[str, str] = {
+    'gatv4': 'MLA-GNN',
     'gatv2': 'GATv2',
     'gcn': 'GCN',
     'gin': 'GIN',
@@ -15,74 +21,80 @@ MODEL_NAME_MAP = {
     'sagn': 'SAGN',
     'mlp': 'MLP',
     'chebnet': 'ChebNet',
+    'gps': 'GPS',
 }
 
 # ML Baselines with fixed test F1 macro scores (don't depend on graph config)
-BASELINES = {
+BASELINES: dict[str, dict[str, dict[str, float]]] = {
     'parkinsons': {'ElasticNet': {'test_f1_macro': 0.64518}, 'SVM': {'test_f1_macro': 0.66422}},
     'motrpac': {'ElasticNet': {'test_f1_macro': 0.57419}, 'SVM': {'test_f1_macro': 0.54287}},
     'addneuromed': {'ElasticNet': {'test_f1_macro': 0.55762}, 'SVM': {'test_f1_macro': 0.46252}},
 }
 
+GROUP_COLS = [
+    'data_name',
+    'model_name',
+    'adjacency_method',
+    'node_sample_ratio',
+    'sampling_method',
+    'readout_name',
+]
+
 
 def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
-    """Transform CSV to JSON format for the webapp."""
-    results = {}
+    """Transform aggregated CSV to JSON format for the webapp."""
+    df = pd.read_csv(csv_path)
+    print(f'Loaded {len(df)} rows from {csv_path}')
+    print(f'  Datasets: {sorted(df["data_name"].unique())}')
+    print(f'  Models: {sorted(df["model_name"].unique())}')
 
-    with open(csv_path) as f:
-        reader = csv.DictReader(f)
+    # For each filter combination, keep the row with highest best_val_f1_macro_mean
+    idx_best = df.groupby(GROUP_COLS)['best_val_f1_macro_mean'].idxmax()
+    best = df.loc[idx_best].copy()
+    print(f'  Best configs selected: {len(best)}')
 
-        for row in reader:
-            # Get and map model name
-            model_csv = row['model']
-            model = MODEL_NAME_MAP.get(model_csv, model_csv)
+    results: dict[str, dict] = {}
 
-            dataset = row['dataset']
-            method = row['method']
-            node_sample_ratio = row['node_sample_ratio']
-            readout = row['readout']
-            adjacency_method = row.get('adjacency_method', '').strip()
+    for _, row in best.iterrows():
+        dataset = row['data_name']
+        model_csv = row['model_name']
+        model = MODEL_NAME_MAP.get(model_csv, model_csv)
+        method = row['sampling_method']
+        readout = row['readout_name']
+        ratio = row['node_sample_ratio']
+        adj_method = row['adjacency_method']
 
-            # Create the graph_config and key
-            graph_config = f'{dataset}|{node_sample_ratio}|{method}|{readout}'
-            if adjacency_method:
-                graph_config += f'|{adjacency_method}'
-            key = f'{graph_config}|{model}'
+        graph_config = f'{dataset}|{ratio}|{method}|{readout}'
+        if adj_method:
+            graph_config += f'|{adj_method}'
+        key = f'{graph_config}|{model}'
 
-            # Extract metrics with safe float conversion
-            def safe_float(val, default=0.0):
-                try:
-                    return float(val) if val else default
-                except (ValueError, TypeError):
-                    return default
+        def safe_float(val: object, default: float = 0.0) -> float:
+            try:
+                v = float(val)  # type: ignore[arg-type]
+                return default if pd.isna(v) else v
+            except (ValueError, TypeError):
+                return default
 
-            entry = {
-                'graph_config': graph_config,
-                'model': model,
-                'dataset': dataset,
-                'readout': readout,
-                'node_sample_ratio': safe_float(node_sample_ratio),
-                'method': method,
-                'adjacency_method': adjacency_method if adjacency_method else 'string',
-                # Validation metrics (for ranking)
-                'val_accuracy': safe_float(row.get('summary.best_val/accuracy')),
-                'val_accuracy_std': safe_float(row.get('summary.best_val/accuracy_std')),
-                'val_f1_macro': safe_float(row.get('val_f1_macro')),
-                'val_f1_macro_std': safe_float(row.get('summary.best_val/f1_macro_std')),
-                # Test metrics (for display)
-                'test_accuracy': safe_float(row.get('summary.best_test/accuracy')),
-                'test_accuracy_std': safe_float(row.get('summary.best_test/accuracy_std')),
-                'test_f1_macro': safe_float(row.get('summary.best_test/f1_macro')),
-                'test_f1_macro_std': safe_float(row.get('summary.best_test/f1_macro_std')),
-                'test_f1_weighted': safe_float(row.get('summary.best_test/f1_weighted')),
-                'test_f1_weighted_std': safe_float(row.get('summary.best_test/f1_weighted_std')),
-                'auroc': safe_float(row.get('summary.best_test/auroc')),
-                'auroc_std': safe_float(row.get('summary.best_test/auroc_std')),
-            }
+        entry = {
+            'graph_config': graph_config,
+            'model': model,
+            'dataset': dataset,
+            'readout': readout,
+            'node_sample_ratio': safe_float(ratio),
+            'method': method,
+            'adjacency_method': adj_method if adj_method else 'string',
+            'val_f1_macro': safe_float(row.get('best_val_f1_macro_mean')),
+            'val_f1_macro_std': safe_float(row.get('best_val_f1_macro_std')),
+            'test_f1_macro': safe_float(row.get('best_test_f1_macro_mean')),
+            'test_f1_macro_std': safe_float(row.get('best_test_f1_macro_std')),
+            'train_f1_macro': safe_float(row.get('best_train_f1_macro_mean')),
+            'train_f1_macro_std': safe_float(row.get('best_train_f1_macro_std')),
+        }
 
-            results[key] = entry
+        results[key] = entry
 
-    # Add baseline entries for each dataset
+    # Add baseline entries for each dataset that has them
     for dataset, models in BASELINES.items():
         for model, metrics in models.items():
             graph_config = f'{dataset}|baseline'
@@ -96,49 +108,36 @@ def transform_csv_to_json(csv_path: Path, output_path: Path) -> dict:
                 'node_sample_ratio': 0.0,
                 'method': 'baseline',
                 'adjacency_method': 'baseline',
-                'val_accuracy': 0.0,
-                'val_accuracy_std': 0.0,
                 'val_f1_macro': 0.0,
                 'val_f1_macro_std': 0.0,
-                # Test metrics
-                'test_accuracy': 0.0,  # Not provided
-                'test_accuracy_std': 0.0,
                 'test_f1_macro': metrics['test_f1_macro'],
                 'test_f1_macro_std': 0.0,
-                'test_f1_weighted': 0.0,
-                'test_f1_weighted_std': 0.0,
-                'auroc': 0.0,
-                'auroc_std': 0.0,
+                'train_f1_macro': 0.0,
+                'train_f1_macro_std': 0.0,
             }
 
             results[key] = entry
 
-    # Write to JSON
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(results, f, indent=2)
 
-    print(f'Transformed {len(results)} entries to {output_path}')
-    print(f'  - CSV entries: {len(results) - sum(len(m) for m in BASELINES.values())}')
-    print(f'  - Baseline entries: {sum(len(m) for m in BASELINES.values())}')
-
-    # Print unique models
-    models = {entry['model'] for entry in results.values()}
-    print(f'  - Models: {sorted(models)}')
-
-    # Print unique datasets
-    datasets = {entry['dataset'] for entry in results.values()}
-    print(f'  - Datasets: {sorted(datasets)}')
+    n_baselines = sum(len(m) for m in BASELINES.values())
+    print(f'Wrote {len(results)} entries to {output_path}')
+    print(f'  - CSV entries: {len(results) - n_baselines}')
+    print(f'  - Baseline entries: {n_baselines}')
+    print(f'  - Models: {sorted({e["model"] for e in results.values()})}')
+    print(f'  - Datasets: {sorted({e["dataset"] for e in results.values()})}')
 
     return results
 
 
-def main():
-    # Paths relative to script location
+def main() -> int:
     script_dir = Path(__file__).parent
-    repo_root = script_dir.parent.parent
+    webapp_dir = script_dir.parent
 
-    csv_path = repo_root / 'tutorials' / 'stats' / 'best_configs_summary.csv'
-    output_path = script_dir.parent / 'public' / 'data' / 'results.json'
+    csv_path = webapp_dir / 'aggregated_final_results_neurips.csv'
+    output_path = webapp_dir / 'public' / 'data' / 'results.json'
 
     if not csv_path.exists():
         print(f'Error: CSV file not found at {csv_path}')

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, lazy } from 'react';
 
-// Dynamically import Plotly to avoid SSR issues
 const Plot = lazy(() => import('react-plotly.js'));
 import type { ResultEntry, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
 import { DATASETS, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS, ADJACENCY_METHOD_LABELS } from '../lib/constants';
 import { computeLeaderboard, filterResults, getModelsByDataset } from '../lib/data';
+
+const ALL_DATASETS: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons', 'brca'];
 
 export default function Leaderboard() {
   const [results, setResults] = useState<ResultEntry[]>([]);
@@ -13,11 +14,9 @@ export default function Leaderboard() {
   const [methodFilter, setMethodFilter] = useState<string | 'all'>('all');
   const [ratioFilter, setRatioFilter] = useState<number | 'all'>('all');
   const [adjacencyMethodFilter, setAdjacencyMethodFilter] = useState<string | 'all'>('all');
-  // Dual-metric selection
   const [rankBy, setRankBy] = useState<RankingMetric>('val_f1_macro');
   const [displayMetric, setDisplayMetric] = useState<DisplayMetric>('test_f1_macro');
 
-  // Load data on mount
   useEffect(() => {
     fetch('/data/results.json')
       .then((res) => res.json())
@@ -32,7 +31,6 @@ export default function Leaderboard() {
       });
   }, []);
 
-  // Derive unique adjacency methods from loaded data
   const availableAdjacencyMethods = useMemo(() => {
     const methods = new Set<string>();
     for (const r of results) {
@@ -41,13 +39,11 @@ export default function Leaderboard() {
     return [...methods].sort();
   }, [results]);
 
-  // Compute filtered results for leaderboard (respects all filters including dataset)
   const filteredResults = useMemo(
     () => filterResults(results, datasetFilter, methodFilter, ratioFilter, adjacencyMethodFilter),
     [results, datasetFilter, methodFilter, ratioFilter, adjacencyMethodFilter]
   );
 
-  // Compute filtered results for chart (always shows all datasets, but respects method/ratio/adjacency filters)
   const chartFilteredResults = useMemo(
     () => filterResults(results, 'all', methodFilter, ratioFilter, adjacencyMethodFilter),
     [results, methodFilter, ratioFilter, adjacencyMethodFilter]
@@ -58,7 +54,6 @@ export default function Leaderboard() {
     [filteredResults, rankBy, displayMetric]
   );
 
-  // Build subtitle based on filters
   const subtitle = useMemo(() => {
     const parts: string[] = [];
     if (datasetFilter === 'all') {
@@ -78,78 +73,37 @@ export default function Leaderboard() {
     return parts.join(' • ');
   }, [datasetFilter, methodFilter, ratioFilter, adjacencyMethodFilter]);
 
-  // Get all models data by dataset for the faceted chart (always shows all datasets)
-  // Uses the ranking metric to select the best configuration for each model+dataset
   const allModelsData = useMemo(() => {
-    // Include both MODEL_ORDER and BASELINE_MODELS
     const allModels = [...MODEL_ORDER, ...BASELINE_MODELS];
     return getModelsByDataset(chartFilteredResults, allModels, displayMetric, rankBy);
   }, [chartFilteredResults, displayMetric, rankBy]);
 
-  // Get baseline values for horizontal lines (averaged across all data)
-  const baselineValues = useMemo(() => {
-    const baselines: Record<string, { value: number; std: number }> = {};
-    for (const model of BASELINE_MODELS) {
-      const entries = results.filter((r) => r.model === model);
-      if (entries.length > 0) {
-        // For baselines, get the display metric value
-        let value = 0;
-        let std = 0;
-        if (displayMetric === 'test_accuracy') {
-          value = entries.reduce((sum, e) => sum + e.test_accuracy, 0) / entries.length;
-          std = entries.reduce((sum, e) => sum + e.test_accuracy_std, 0) / entries.length;
-        } else if (displayMetric === 'test_f1_macro') {
-          value = entries.reduce((sum, e) => sum + e.test_f1_macro, 0) / entries.length;
-          std = entries.reduce((sum, e) => sum + e.test_f1_macro_std, 0) / entries.length;
-        } else if (displayMetric === 'auroc') {
-          value = entries.reduce((sum, e) => sum + e.auroc, 0) / entries.length;
-          std = entries.reduce((sum, e) => sum + e.auroc_std, 0) / entries.length;
-        }
-        baselines[model] = { value, std };
-      }
-    }
-    return baselines;
-  }, [results, displayMetric]);
-
-  // Get baseline values per dataset for faceted chart
   const baselinesByDataset = useMemo(() => {
     const baselines: Record<DatasetName, Record<string, { value: number; std: number }>> = {
       motrpac: {},
       addneuromed: {},
       parkinsons: {},
+      brca: {},
     };
 
-    for (const ds of ['motrpac', 'addneuromed', 'parkinsons'] as DatasetName[]) {
+    for (const ds of ALL_DATASETS) {
       for (const model of BASELINE_MODELS) {
         const entries = results.filter((r) => r.model === model && r.dataset === ds);
         if (entries.length > 0) {
-          let value = 0;
-          let std = 0;
-          if (displayMetric === 'test_accuracy') {
-            value = entries.reduce((sum, e) => sum + e.test_accuracy, 0) / entries.length;
-            std = entries.reduce((sum, e) => sum + e.test_accuracy_std, 0) / entries.length;
-          } else if (displayMetric === 'test_f1_macro') {
-            value = entries.reduce((sum, e) => sum + e.test_f1_macro, 0) / entries.length;
-            std = entries.reduce((sum, e) => sum + e.test_f1_macro_std, 0) / entries.length;
-          } else if (displayMetric === 'auroc') {
-            value = entries.reduce((sum, e) => sum + e.auroc, 0) / entries.length;
-            std = entries.reduce((sum, e) => sum + e.auroc_std, 0) / entries.length;
-          }
+          const value = entries.reduce((sum, e) => sum + e.test_f1_macro, 0) / entries.length;
+          const std = entries.reduce((sum, e) => sum + e.test_f1_macro_std, 0) / entries.length;
           baselines[ds][model] = { value, std };
         }
       }
     }
     return baselines;
-  }, [results, displayMetric]);
+  }, [results]);
 
-  // All models to display (no category filter)
   const filteredModels = MODEL_ORDER;
 
-  // Get label for the display metric
   const displayMetricLabel = DISPLAY_METRICS[displayMetric];
   const rankMetricLabel = RANKING_METRICS[rankBy];
 
-  // Build dynamic chart title based on filters
   const chartTitle = useMemo(() => {
     let title = `${displayMetricLabel} of Best Models`;
     title += ` (Ranked by ${rankMetricLabel})`;
@@ -179,13 +133,10 @@ export default function Leaderboard() {
     );
   }
 
-  // Build faceted chart data (one subplot per dataset)
-  const datasets: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons'];
   const facetedChartData: Plotly.Data[] = [];
   const facetedAnnotations: Partial<Plotly.Annotations>[] = [];
 
-  // Create bar traces for each dataset
-  datasets.forEach((ds, dsIdx) => {
+  ALL_DATASETS.forEach((ds, dsIdx) => {
     const xAxisId = dsIdx === 0 ? 'x' : `x${dsIdx + 1}`;
     const yAxisId = dsIdx === 0 ? 'y' : `y${dsIdx + 1}`;
 
@@ -231,10 +182,8 @@ export default function Leaderboard() {
       yaxis: yAxisId,
     } as Plotly.Data);
 
-    // Add horizontal lines for baselines using scatter with category names
     const baselineData = baselinesByDataset[ds];
 
-    // ElasticNet line (dashed) - use first and last model names
     if (baselineData.ElasticNet && filteredModels.length > 0) {
       facetedChartData.push({
         type: 'scatter',
@@ -252,7 +201,6 @@ export default function Leaderboard() {
       } as Plotly.Data);
     }
 
-    // SVM line (dotted) - use first and last model names
     if (baselineData.SVM && filteredModels.length > 0) {
       facetedChartData.push({
         type: 'scatter',
@@ -270,8 +218,7 @@ export default function Leaderboard() {
       } as Plotly.Data);
     }
 
-    // Add subplot title annotation with emoji
-    const colCenters = [0.16, 0.5, 0.84];
+    const colCenters = [0.125, 0.375, 0.625, 0.875];
     facetedAnnotations.push({
       text: `<b>${DATASETS[ds].emoji} ${DATASETS[ds].fullName}</b>`,
       xref: 'paper',
@@ -285,28 +232,27 @@ export default function Leaderboard() {
     });
   });
 
-  // Compute y-axis range for faceted chart - tighter range to show differences
-  const allValuesWithError = datasets.flatMap((ds) =>
+  const allValuesWithError = ALL_DATASETS.flatMap((ds) =>
     filteredModels.map((m) => {
       const data = allModelsData[ds][m];
       return data ? data.value + data.std : 0;
     })
   );
-  const allValuesOnly = datasets.flatMap((ds) =>
+  const allValuesOnly = ALL_DATASETS.flatMap((ds) =>
     filteredModels.map((m) => {
       const data = allModelsData[ds][m];
       return data ? data.value : 0;
     }).filter((v) => v > 0)
   );
-  const baselineVals = Object.values(baselineValues).map((b) => b.value).filter((v) => v > 0);
-  const maxValue = Math.max(...allValuesWithError, ...baselineVals);
-  const minValue = Math.min(...allValuesOnly, ...baselineVals);
-  // Tight range: start 5% below minimum, end 10% above max (for text labels)
+  const baselineVals = ALL_DATASETS.flatMap((ds) =>
+    Object.values(baselinesByDataset[ds]).map((b) => b.value)
+  ).filter((v) => v > 0);
+  const maxValue = Math.max(...allValuesWithError, ...baselineVals, 0);
+  const minValue = Math.min(...allValuesOnly, ...baselineVals, 1);
   const yRange = [Math.max(0, minValue - 0.08), Math.min(1, maxValue + 0.12)];
 
-  // Build faceted chart layout
   const facetedLayout: Partial<Plotly.Layout> = {
-    height: 400,
+    height: 420,
     font: { family: 'DM Sans', size: 12, color: '#0f172a' },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: '#ffffff',
@@ -322,26 +268,32 @@ export default function Leaderboard() {
     },
     grid: {
       rows: 1,
-      columns: 3,
+      columns: 4,
       pattern: 'independent',
-      xgap: 0.08,
+      xgap: 0.06,
     },
     xaxis: {
       showgrid: false,
       tickangle: -45,
-      tickfont: { size: 10, color: '#475569' },
+      tickfont: { size: 9, color: '#475569' },
       fixedrange: true,
     },
     xaxis2: {
       showgrid: false,
       tickangle: -45,
-      tickfont: { size: 10, color: '#475569' },
+      tickfont: { size: 9, color: '#475569' },
       fixedrange: true,
     },
     xaxis3: {
       showgrid: false,
       tickangle: -45,
-      tickfont: { size: 10, color: '#475569' },
+      tickfont: { size: 9, color: '#475569' },
+      fixedrange: true,
+    },
+    xaxis4: {
+      showgrid: false,
+      tickangle: -45,
+      tickfont: { size: 9, color: '#475569' },
       fixedrange: true,
     },
     yaxis: {
@@ -362,6 +314,14 @@ export default function Leaderboard() {
       range: yRange,
     },
     yaxis3: {
+      showgrid: true,
+      gridcolor: 'rgba(226,232,240,0.8)',
+      tickformat: '.0%',
+      tickfont: { size: 11, color: '#475569' },
+      fixedrange: true,
+      range: yRange,
+    },
+    yaxis4: {
       showgrid: true,
       gridcolor: 'rgba(226,232,240,0.8)',
       tickformat: '.0%',
@@ -548,14 +508,14 @@ export default function Leaderboard() {
         )}
       </div>
 
-      {/* Faceted Bar Chart - Performance by Dataset */}
+      {/* Faceted Bar Chart */}
       <div className="chart-card" style={{ marginTop: '24px' }}>
         <div className="chart-title">{chartTitle}</div>
         <Plot
           data={facetedChartData}
           layout={facetedLayout}
           config={{ displayModeBar: false, responsive: true }}
-          style={{ width: '100%', height: '400px' }}
+          style={{ width: '100%', height: '420px' }}
         />
       </div>
     </div>

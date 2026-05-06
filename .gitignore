@@ -192,6 +192,7 @@ logs/
 *.parquet
 datasets/
 run_data/
+webapp/aggregated_final_results_neurips.csv
 
 # Scripts
 scripts/rerun_best_configs

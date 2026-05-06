@@ -49,7 +49,7 @@ export default function Explorer() {
   const [adjacencyMethod, setAdjacencyMethod] = useState<string | undefined>(undefined);
 
   // All datasets are always shown
-  const datasetOrder: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons'];
+  const datasetOrder: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons', 'brca'];
 
   const { ratios: validRatios, thresholds: validThresholds, adjacencyMethods: validAdjacencyMethods } = useMemo(() => {
     const derived = deriveOptionsFromStats(allStats);
