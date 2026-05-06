@@ -196,3 +196,4 @@ run_data/
 *.pdf
 *.json
 plotting/plots/
+plotting/tables/
