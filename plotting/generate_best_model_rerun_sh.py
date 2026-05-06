@@ -35,11 +35,10 @@ from generate_main_plots import (
     C_DATA,
     C_MODEL,
     SEED_COL,
-    _compose_bucket_key_frame,
-    prepare_per_run_df_for_fingerprint_grouping,
 )
 from generate_rerun_sh import write_rerun_shell_for_missing_test_f1
 from narrow_schema import EXPECTED_SEEDS
+from winner_fingerprints import compute_winner_fingerprints
 
 DEFAULT_BEST_RERUN_TAG = "best_rerun"
 DEFAULT_LOGGER_WANDB_PROJECT = "best_model_reruns"
@@ -55,40 +54,10 @@ def best_run_ids_per_model_dataset(
 
     ``rank_by``: ``val`` → mean ``best_val_f1_macro``; ``test`` → mean ``best_test_f1_macro``.
     """
-    rb = rank_by.lower().strip()
-    if rb == "test":
-        metric_col = lr.MISSING_TEST_F1_COL
-    elif rb == "val":
-        metric_col = "best_val_f1_macro"
-    else:
-        raise ValueError("rank_by must be 'test' or 'val'")
-
-    if metric_col not in df.columns:
-        raise KeyError(f"CSV missing metric column {metric_col!r}")
-
-    df_prep, group_cols = prepare_per_run_df_for_fingerprint_grouping(df, verbose=False)
-
-    if C_MODEL not in df_prep.columns or C_DATA not in df_prep.columns:
-        raise KeyError(f"Prepared frame must include {C_MODEL!r} and {C_DATA!r}.")
-    if "run_id" not in df_prep.columns:
-        raise KeyError("CSV missing 'run_id'")
-
-    g = df_prep.groupby(group_cols, dropna=False)
-    bucket = pd.DataFrame(
-        {
-            "n_runs": g.size(),
-            "n_seeds": g[SEED_COL].nunique(),
-            "mean_metric": g[metric_col].mean(),
-        }
-    ).reset_index()
-
-    ok = (
-        (bucket["n_runs"] == expected_seeds)
-        & (bucket["n_seeds"] == expected_seeds)
-        & bucket["mean_metric"].notna()
+    winners_df, group_cols, df_prep = compute_winner_fingerprints(
+        df, rank_by=rank_by, expected_seeds=expected_seeds
     )
-    bucket = bucket.loc[ok].copy()
-    if bucket.empty:
+    if winners_df.empty:
         return [], pd.DataFrame(
             columns=[
                 "model_name",
@@ -101,19 +70,9 @@ def best_run_ids_per_model_dataset(
             ]
         )
 
-    if C_MODEL not in bucket.columns or C_DATA not in bucket.columns:
-        raise KeyError(
-            f"Fingerprint group_cols must include {C_MODEL!r} and {C_DATA!r}; got {group_cols!r}."
-        )
+    if "run_id" not in df_prep.columns:
+        raise KeyError("CSV missing 'run_id'")
 
-    bucket["_bk"] = _compose_bucket_key_frame(bucket, group_cols)
-    winner_rows: list[pd.Series] = []
-    for _, sub in bucket.groupby([C_MODEL, C_DATA], dropna=False):
-        w = sub.sort_values(["mean_metric", "_bk"], ascending=[False, True], kind="mergesort").iloc[0]
-        winner_rows.append(w)
-    winners_df = pd.DataFrame(winner_rows).reset_index(drop=True)
-
-    winners_df = winners_df.drop_duplicates(subset=group_cols, keep="first")
     selected = df_prep.merge(winners_df[group_cols], on=group_cols, how="inner")
     sort_cols = [C_MODEL, C_DATA, SEED_COL, "run_id"]
     selected = selected.sort_values([c for c in sort_cols if c in selected.columns], kind="mergesort")

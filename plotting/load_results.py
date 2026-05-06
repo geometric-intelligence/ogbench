@@ -42,6 +42,7 @@ METRIC_KEYS = (
 BASELINE_METRIC_KEYS = METRIC_KEYS
 EXPECTED_BASELINE_SEEDS = 1
 PER_RUN_F1_COLS = ("best_val_f1_macro", "best_test_f1_macro", "best_train_f1_macro")
+OPTIONAL_EXTRA_TEST_METRICS = ("best_test_f1_weighted", "best_test_accuracy", "best_test_auroc")
 MISSING_TEST_F1_COL = "best_test_f1_macro"
 
 
@@ -120,6 +121,9 @@ def _extract_baseline_run_data(run):
             "best_val_f1_macro": ("val/f1_macro",),
             "best_test_f1_macro": ("test/f1_macro",),
             "best_train_f1_macro": ("train/f1_macro", "train/best_cv_score"),
+            "best_test_f1_weighted": ("test/f1_weighted", "best_test/f1_weighted"),
+            "best_test_accuracy": ("test/accuracy", "best_test/accuracy"),
+            "best_test_auroc": ("test/auroc", "best_test/auroc"),
         }
         for out_name, wb_keys in metric_key_candidates.items():
             v = None
@@ -500,6 +504,9 @@ def export_baseline_gnn_features_aggregated(
     )
     for c in PER_RUN_F1_COLS:
         work[c] = pd.to_numeric(df[c].values, errors="coerce")
+    for c in OPTIONAL_EXTRA_TEST_METRICS:
+        if c in df.columns:
+            work[c] = pd.to_numeric(df[c].values, errors="coerce")
 
     work = work.dropna(subset=["data_name", "model_name", "sampling_method", "seed"])
     work = work.loc[work["model_name"].astype(str).str.len() > 0]
@@ -512,15 +519,20 @@ def export_baseline_gnn_features_aggregated(
     dedupe_keys = ["data_name", "model_name", "node_sample_ratio", "sampling_method", "seed"]
     work = work.sort_values("seed", kind="mergesort").drop_duplicates(subset=dedupe_keys, keep="last")
 
+    metric_cols = list(PER_RUN_F1_COLS)
+    for c in OPTIONAL_EXTRA_TEST_METRICS:
+        if c in work.columns and work[c].notna().any() and c not in metric_cols:
+            metric_cols.append(c)
+
     gcols = ["data_name", "model_name", "node_sample_ratio", "sampling_method"]
     gb = work.groupby(gcols, dropna=False)
     n_runs = gb.size()
     n_seeds = gb["seed"].nunique()
 
-    wide = gb.agg({m: ["mean", "std"] for m in PER_RUN_F1_COLS})
+    wide = gb.agg({m: ["mean", "std"] for m in metric_cols})
     wide.columns = [f"{a}_{b}" for a, b in wide.columns]
     if expected_seeds == 1:
-        for m in PER_RUN_F1_COLS:
+        for m in metric_cols:
             std_col = f"{m}_std"
             if std_col in wide.columns:
                 wide[std_col] = 0.0
@@ -545,14 +557,9 @@ def export_baseline_gnn_features_aggregated(
     if verbose and len(wide) < pre_best:
         print(f"Best val slice dedupe: dropped {pre_best - len(wide)}")
 
-    out_cols = slice_cols + ["n_runs_seeds"] + [
-        "best_val_f1_macro_mean",
-        "best_val_f1_macro_std",
-        "best_test_f1_macro_mean",
-        "best_test_f1_macro_std",
-        "best_train_f1_macro_mean",
-        "best_train_f1_macro_std",
-    ]
+    out_cols = slice_cols + ["n_runs_seeds"]
+    for m in metric_cols:
+        out_cols.extend([f"{m}_mean", f"{m}_std"])
     out = wide[out_cols]
     out_dir = os.path.dirname(os.path.abspath(output_csv))
     if out_dir:

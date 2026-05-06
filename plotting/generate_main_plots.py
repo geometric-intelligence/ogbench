@@ -91,6 +91,8 @@ from narrow_schema import EXPECTED_SEEDS, canonical_model_name
 
 RUN_META_COLS = frozenset({"run_id", "run_name", "state"})
 PER_RUN_METRIC_COLS = ("best_val_f1_macro", "best_test_f1_macro", "best_train_f1_macro")
+# When present in the per-run CSV, aggregate mean/std across seeds like the core F1 columns.
+OPTIONAL_EXTRA_TEST_METRICS = ("best_test_f1_weighted", "best_test_accuracy", "best_test_auroc")
 SEED_COL = "seed"
 BUCKET_KEY_COL = "_bucket_key"
 PERFECT_TRAIN_F1_THRESHOLD = 0.98
@@ -339,6 +341,21 @@ def _baseline_mu_sig_per_ratio(
             )
             return (mu, sig)
     return (float("nan"), float("nan"))
+
+
+def _baseline_val_mu_per_ratio(
+    df_b: pd.DataFrame, dataset: str, method: str, r_plot: object, model_key: str
+) -> float:
+    """Validation F1 mean for one aggregated baseline row (dataset, method, ratio, model)."""
+    if df_b.empty:
+        return float("nan")
+    sub = df_b[
+        (df_b[C_DATA] == dataset) & (df_b[C_METHOD] == method) & (df_b[C_MODEL] == model_key)
+    ]
+    for _, row in sub.iterrows():
+        if _baseline_ratio_matches(row[C_RATIO], r_plot):
+            return float(row[VAL_F1]) if pd.notna(row[VAL_F1]) else float("nan")
+    return float("nan")
 
 
 def _baseline_row_best_overall(df_b: pd.DataFrame, dataset: str, model_key: str) -> pd.Series | None:
@@ -637,7 +654,12 @@ def _compose_bucket_key_frame(df: pd.DataFrame, cols: Sequence[str]) -> pd.Serie
     return out
 
 
-def _build_lean_aggregated(wide: pd.DataFrame) -> pd.DataFrame:
+def _build_lean_aggregated(
+    wide: pd.DataFrame,
+    *,
+    metric_cols: Sequence[str] | None = None,
+) -> pd.DataFrame:
+    cols = tuple(metric_cols) if metric_cols is not None else PER_RUN_METRIC_COLS
     lean = pd.DataFrame(index=wide.index)
     for short, long in _SHORT_FROM_LONG:
         if short in wide.columns:
@@ -650,7 +672,7 @@ def _build_lean_aggregated(wide: pd.DataFrame) -> pd.DataFrame:
     if BUCKET_KEY_COL in wide.columns:
         lean[BUCKET_KEY_COL] = wide[BUCKET_KEY_COL]
     lean["n_runs_seeds"] = wide["n_runs_seeds"]
-    for m in PER_RUN_METRIC_COLS:
+    for m in cols:
         lean[f"{m}_mean"] = wide[f"{m}_mean"]
         lean[f"{m}_std"] = wide[f"{m}_std"]
     col_order = [
@@ -663,7 +685,7 @@ def _build_lean_aggregated(wide: pd.DataFrame) -> pd.DataFrame:
         BUCKET_KEY_COL,
         "n_runs_seeds",
     ]
-    for m in PER_RUN_METRIC_COLS:
+    for m in cols:
         col_order.extend([f"{m}_mean", f"{m}_std"])
     return lean[[c for c in col_order if c in lean.columns]]
 
@@ -840,6 +862,9 @@ def prepare_per_run_df_for_fingerprint_grouping(
 
     for m in PER_RUN_METRIC_COLS:
         df[m] = pd.to_numeric(df[m], errors="coerce")
+    for m in OPTIONAL_EXTRA_TEST_METRICS:
+        if m in df.columns:
+            df[m] = pd.to_numeric(df[m], errors="coerce")
     for col in ("node_sample_ratio", C_RATIO):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -895,6 +920,11 @@ def export_aggregated_final_results(
 
     df, group_cols = prepare_per_run_df_for_fingerprint_grouping(df, verbose=verbose)
 
+    metric_cols = list(PER_RUN_METRIC_COLS)
+    for c in OPTIONAL_EXTRA_TEST_METRICS:
+        if c in df.columns and df[c].notna().any() and c not in metric_cols:
+            metric_cols.append(c)
+
     gb = df.groupby(group_cols, dropna=False)
     n_runs = gb.size()
     n_seeds_distinct = gb[SEED_COL].nunique()
@@ -920,7 +950,7 @@ def export_aggregated_final_results(
                 f"> {EXPECTED_SEEDS} runs or seeds."
             )
 
-    wide = gb.agg({m: ["mean", "std"] for m in PER_RUN_METRIC_COLS})
+    wide = gb.agg({m: ["mean", "std"] for m in metric_cols})
     wide.columns = [f"{a}_{b}" for a, b in wide.columns]
     wide = wide.reset_index()
     wide[BUCKET_KEY_COL] = _compose_bucket_key_frame(wide, group_cols)
@@ -932,7 +962,7 @@ def export_aggregated_final_results(
     if verbose:
         print(f"\nLean aggregated rows: {len(wide)} / {pre} config buckets before 3-seed filter")
 
-    out = _build_lean_aggregated(wide)
+    out = _build_lean_aggregated(wide, metric_cols=metric_cols)
 
     if best_val_f1_per_plot_slice:
         slice_cols = [
@@ -2228,8 +2258,13 @@ def plot_mega_method_dataset_ratio(
     out_name: str = "best_performance_by_dataset_method_ratio.pdf",
     *,
     ratios_only: Sequence[float] | None = None,
+    highlight_best_val_per_dataset_model: bool = False,
 ) -> None:
-    """Rows = datasets, columns = sampling methods; bars = GNN models + baseline SVM/EN grays × node ratios."""
+    """Rows = datasets, columns = sampling methods; bars = GNN models + baseline SVM/EN grays × node ratios.
+
+    If *highlight_best_val_per_dataset_model*, each (dataset, model) bar that attains the highest
+    validation F1 over the method × ratio grid is hatched; legend includes ``best val``.
+    """
     models = _ordered_models(df)
     df_b = _load_baseline_agg()
     methods = sorted(df[C_METHOD].dropna().unique().tolist())
@@ -2267,12 +2302,50 @@ def plot_mega_method_dataset_ratio(
                     ]
                     if len(row) >= 1:
                         rr = row.iloc[0]
-                        plot_tensor[meth][d][r][m] = (float(rr[TEST_F1]), float(rr[TEST_F1_STD]))
+                        plot_tensor[meth][d][r][m] = (
+                            float(rr[TEST_F1]),
+                            float(rr[TEST_F1_STD]),
+                            float(rr[VAL_F1]),
+                        )
                     else:
-                        plot_tensor[meth][d][r][m] = (np.nan, np.nan)
+                        plot_tensor[meth][d][r][m] = (np.nan, np.nan, np.nan)
 
     plot_keys: list[str] = list(models) + (list(BASELINE_MODEL_ORDER) if not df_b.empty else [])
     n_keys = max(len(plot_keys), 1)
+
+    best_val_cell: dict[tuple[str, str], tuple[object, object]] = {}
+    if highlight_best_val_per_dataset_model:
+        for d in DATASETS:
+            for m in models:
+                best_v = float("-inf")
+                best_mr: tuple[object, object] | None = None
+                for meth in methods:
+                    for r in ratios:
+                        cell = plot_tensor[meth][d][r].get(m)
+                        if cell is None:
+                            continue
+                        v_mu = cell[2]
+                        if np.isnan(v_mu):
+                            continue
+                        if float(v_mu) > best_v + VAL_SELECTION_TIE_TOL:
+                            best_v = float(v_mu)
+                            best_mr = (meth, r)
+                if best_mr is not None:
+                    best_val_cell[(d, m)] = best_mr
+            if not df_b.empty:
+                for bk in BASELINE_MODEL_ORDER:
+                    best_v = float("-inf")
+                    best_mr = None
+                    for meth in methods:
+                        for r in ratios:
+                            v_mu = _baseline_val_mu_per_ratio(df_b, d, meth, r, bk)
+                            if np.isnan(v_mu):
+                                continue
+                            if float(v_mu) > best_v + VAL_SELECTION_TIE_TOL:
+                                best_v = float(v_mu)
+                                best_mr = (meth, r)
+                    if best_mr is not None:
+                        best_val_cell[(d, bk)] = best_mr
 
     row_mins: dict[str, float] = {}
     row_maxs: dict[str, float] = {}
@@ -2281,7 +2354,8 @@ def plot_mega_method_dataset_ratio(
         for meth in methods:
             for r in ratios:
                 for m in models:
-                    mu, sig = plot_tensor[meth][d][r].get(m, (np.nan, np.nan))
+                    cell = plot_tensor[meth][d][r].get(m, (np.nan, np.nan, np.nan))
+                    mu, sig = cell[0], cell[1]
                     if not np.isnan(mu):
                         s = 0.0 if np.isnan(sig) else sig
                         lo = min(lo, mu - s)
@@ -2317,11 +2391,15 @@ def plot_mega_method_dataset_ratio(
             labeled = {k: False for k in plot_keys}
             for m in models:
                 for ri, r in enumerate(ratios):
-                    mu, sig = plot_tensor[meth][d][r][m]
+                    cell = plot_tensor[meth][d][r][m]
+                    mu, sig = cell[0], cell[1]
                     if np.isnan(mu):
                         continue
                     lbl = _display_model(m) if not labeled[m] else None
                     labeled[m] = True
+                    is_best_val = highlight_best_val_per_dataset_model and best_val_cell.get(
+                        (d, m)
+                    ) == (meth, r)
                     ax.bar(
                         x_by_key[m][ri],
                         mu,
@@ -2331,8 +2409,9 @@ def plot_mega_method_dataset_ratio(
                         label=lbl,
                         color=_model_color(m),
                         edgecolor="black",
-                        linewidth=0.5,
+                        linewidth=1.4 if is_best_val else 0.5,
                         alpha=0.9,
+                        hatch="///" if is_best_val else "",
                         error_kw={"elinewidth": 1, "capthick": 1},
                         zorder=3,
                     )
@@ -2344,6 +2423,9 @@ def plot_mega_method_dataset_ratio(
                             continue
                         lbl = _display_model(bk) if not labeled[bk] else None
                         labeled[bk] = True
+                        is_best_val = highlight_best_val_per_dataset_model and best_val_cell.get(
+                            (d, bk)
+                        ) == (meth, r)
                         ax.bar(
                             x_by_key[bk][ri],
                             mu,
@@ -2353,8 +2435,9 @@ def plot_mega_method_dataset_ratio(
                             label=lbl,
                             color=BASELINE_BAR_COLORS[bk],
                             edgecolor="black",
-                            linewidth=0.5,
+                            linewidth=1.4 if is_best_val else 0.5,
                             alpha=0.95,
+                            hatch="///" if is_best_val else "",
                             error_kw={"elinewidth": 1, "capthick": 1},
                             zorder=3,
                         )
@@ -2408,7 +2491,7 @@ def plot_mega_method_dataset_ratio(
         m
         for m in models
         if any(
-            not np.isnan(plot_tensor[meth][d][r][m][0])
+            not np.isnan(plot_tensor[meth][d][r][m][0])  # test mean
             for meth in methods
             for d in DATASETS
             for r in ratios
@@ -2436,10 +2519,22 @@ def plot_mega_method_dataset_ratio(
         for bk in baselines_in_figure
     ]
     ul_b = [_display_model(bk) for bk in baselines_in_figure]
-    ncol_leg = max(1, min(len(uh) + len(uh_b), 12))
+    leg_handles = list(uh) + list(uh_b)
+    leg_labels = list(ul) + list(ul_b)
+    if highlight_best_val_per_dataset_model:
+        leg_handles.append(
+            mpatches.Patch(
+                facecolor="#DCDCDC",
+                edgecolor="black",
+                hatch="///",
+                linewidth=1.0,
+            )
+        )
+        leg_labels.append("best val")
+    ncol_leg = max(1, min(len(leg_handles), 12))
     fig.legend(
-        uh + uh_b,
-        ul + ul_b,
+        leg_handles,
+        leg_labels,
         loc="upper center",
         bbox_to_anchor=(0.54, 0.94),
         ncol=ncol_leg,
@@ -4127,6 +4222,11 @@ def run_all_plots(df: pd.DataFrame | None = None) -> None:
         grid_2x2=True,
     )
     plot_mega_method_dataset_ratio(df)
+    plot_mega_method_dataset_ratio(
+        df,
+        out_name="best_performance_by_dataset_method_ratio_best_val.pdf",
+        highlight_best_val_per_dataset_model=True,
+    )
     plot_mega_method_dataset_ratio_collapsed_graph_based(df)
     plot_readout_adjacency_compact(
         df,
@@ -4148,7 +4248,7 @@ def run_all_plots(df: pd.DataFrame | None = None) -> None:
         f"val_rank_vs_test_f1_macro_pooled_dl_by_model_top{int(VAL_RANK_ZOOM_TOP_N)}.pdf",
         max_val_rank=float(VAL_RANK_ZOOM_TOP_N),
     )
-    print(f"Saved 13 figures (PDF + PNG) under {PLOTS_DIR}")
+    print(f"Saved 14 figures (PDF + PNG) under {PLOTS_DIR}")
 
 
 def _cli_verbose() -> bool:
