@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Transform aggregated CSV files to results.json for the webapp leaderboard.
 
-Reads both the GNN results CSV and the baseline CSV, merges them, and for each
-(data_name, model_name, adjacency_method, node_sample_ratio, sampling_method,
-readout_name) combination selects the hyperparameter config with the best
-best_val_f1_macro_mean.
+Reads both the GNN results CSV and the baseline CSV, merges them, and for each (data_name,
+model_name, adjacency_method, node_sample_ratio, sampling_method, readout_name) combination selects
+the hyperparameter config with the best best_val_f1_macro_mean.
 """
 
 from __future__ import annotations

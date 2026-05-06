@@ -26,6 +26,7 @@ WGCNA_CSV_FILES = [
     STATS_DIR / 'addneuromed' / 'graph_stats_comprehensive_addneuro.csv',
     STATS_DIR / 'motrpac' / 'graph_stats_comprehensive_motrpac.csv',
     STATS_DIR / 'parkinsons' / 'graph_stats_comprehensive_parkinsons.csv',
+    STATS_DIR / 'brca' / 'graph_stats_comprehensive_brca.csv',
 ]
 
 STRING_STATS_DIR = REPO_ROOT / 'stats'
@@ -33,6 +34,7 @@ STRING_CSV_FILES = [
     STRING_STATS_DIR / 'addneuromed' / 'graph_stats_comprehensive.csv',
     STRING_STATS_DIR / 'motrpac' / 'graph_stats_comprehensive.csv',
     STRING_STATS_DIR / 'parkinsons' / 'graph_stats_comprehensive.csv',
+    STRING_STATS_DIR / 'brca' / 'graph_stats_comprehensive.csv',
 ]
 
 
