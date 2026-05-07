@@ -16,11 +16,11 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 
 ```bash
 git clone <anonymous-repo>
-cd bgbench
+cd ogbench
 
-conda create -n bgbench python=3.12
+conda create -n ogbench python=3.12
 curl -LsSf https://astral.sh/uv/install.sh | sh
-conda activate bgbench
+conda activate ogbench
 
 uv venv
 uv pip install -e '.[all]'
@@ -171,7 +171,7 @@ pytest tests/nn/ -v  # specific module
 ### Project Structure
 
 ```
-bgbench/
+ogbench/
 ├── ogbench/                    # Main Python package
 │   ├── run.py                  # Training entry point
 │   ├── baseline.py             # Sklearn baseline experiments

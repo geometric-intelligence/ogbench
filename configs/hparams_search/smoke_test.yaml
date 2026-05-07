@@ -10,7 +10,7 @@ models:
 seeds: [42]
 
 fixed:
-  logger.wandb.project: bgbench_smoke_test
+  logger.wandb.project: ogbench_smoke_test
 
 shared_grid:
   dataset.loader.parameters.node_sample_ratio:
