@@ -196,3 +196,9 @@ webapp/aggregated_final_results_neurips.csv
 
 # Scripts
 scripts/rerun_best_configs
+
+# Anonymization: exclude files with identifying info for ICML/NeurIPS submission
+search_results/
+outputs/
+wandb_analysis_report.md
+.cursor/

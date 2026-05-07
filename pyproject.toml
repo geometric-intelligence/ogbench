@@ -96,8 +96,8 @@ all = ["ogbench[dev, doc]"]
 ogbench-train = "ogbench.run:main"
 
 [project.urls]
-homepage="https://geometric-intelligence.github.io/bgbench/index.html"
-repository="https://github.com/geometric-intelligence/bgbench"
+homepage="https://huggingface.co/datasets/ogbench-neurips/ogbench-neurips"
+repository="https://huggingface.co/datasets/ogbench-neurips/ogbench-neurips"
 
 [tool.ruff]
 line-length = 99

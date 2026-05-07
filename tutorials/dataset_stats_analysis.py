@@ -43,7 +43,7 @@ def load_dataset(
     # Pass 'full' as string, not None, because HFOmicsDataset checks for 'full' string
     ratio_value = 'full' if node_sample_ratio == 'full' else float(node_sample_ratio)
     dataset = HFOmicsDataset(
-        root='/scratch/lcornelis/bgbench-1/run_data/omics',
+        root='/scratch/anon/bgbench-1/run_data/omics',
         data_name=dataset_name,
         method=method,
         adjacency_threshold=adj_thresh,
@@ -79,7 +79,7 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
             graph.add_nodes_from(range(num_nodes))
             graph.add_edges_from(edge_list)
         else:
-            root = '/home/lcornelis/code/bgbench-1/run_data/omics/'
+            root = '/home/anon/code/bgbench-1/run_data/omics/'
             name = osp.join(
                 root,
                 f'{dataset.data_name}',
@@ -460,7 +460,7 @@ def main():
 if __name__ == '__main__':
     try:
         print('Testing dataset loading...')
-        dataset = load_dataset('addneuromed', 0.5, '0.3', 'variance', adjacency_method='string', string_data_dir='/home/johmathe/bgbench/data')
+        dataset = load_dataset('addneuromed', 0.5, '0.3', 'variance', adjacency_method='string', string_data_dir='/home/anon/bgbench/data')
         print(f'Dataset loaded successfully: {dataset}')
         print(f'Dataset length: {len(dataset)}')
         if len(dataset) > 0:

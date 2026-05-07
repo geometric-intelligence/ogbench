@@ -1,7 +1,3 @@
-[![Code Quality](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml)
-[![Dependencies](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates)
-[![Tests](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml)
-
 # OGBench — Omics Graph Benchmarking
 
 A benchmarking framework for Graph Neural Networks on omics datasets. OGBench provides standardized datasets, graph construction pipelines, GNN architectures, and sklearn baselines to enable fair comparison of models on biological classification tasks (genomics, transcriptomics, proteomics).
@@ -19,7 +15,7 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 ## Installation
 
 ```bash
-git clone git@github.com:geometric-intelligence/bgbench.git
+git clone <anonymous-repo>
 cd bgbench
 
 conda create -n bgbench python=3.12
@@ -36,7 +32,7 @@ A CLI entry point is also installed: `ogbench-train` (equivalent to `python ogbe
 
 ## Datasets
 
-OGBench includes four curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/bgbench`](https://huggingface.co/datasets/geometric-intelligence/bgbench) in Parquet format and downloaded automatically on first use.
+OGBench includes four curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`ogbench-neurips/ogbench-neurips`](https://huggingface.co/datasets/ogbench-neurips/ogbench-neurips) in Parquet format and downloaded automatically on first use.
 
 | Dataset         | Domain                          | Samples | Features        | Classes | Task                          |
 | --------------- | ------------------------------- | ------- | --------------- | ------- | ----------------------------- |
