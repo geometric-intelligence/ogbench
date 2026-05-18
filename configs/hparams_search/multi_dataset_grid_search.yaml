@@ -22,9 +22,9 @@ seeds: [42, 123, 456]
 
 # Fixed parameters (not searched)
 fixed:
-  logger.wandb.project: bgbench_dataset_grid_search_final
+  logger.wandb.project: ogbench_dataset_grid_search_final
   logger.wandb.entity: bioshape-lab
-  paths.root_dir: /scratch/lcornelis/bgbench
+  paths.root_dir: /scratch/lcornelis/ogbench
 
 # Shared hyperparameter grid (applied to all models)
 shared_grid:
