@@ -57,6 +57,14 @@ class HypergraphKNNLifting(Graph2HypergraphLifting):
             The lifted topology.
         """
         num_nodes = data.x.shape[0]
+        # pyg-lib's knn_graph segfaults on empty inputs, so short-circuit.
+        if num_nodes == 0:
+            empty_incidence = torch.zeros(0, 0).to_sparse_coo()
+            return {
+                'incidence_hyperedges': empty_incidence,
+                'num_hyperedges': 0,
+                'x_0': data.x,
+            }
         data.pos = data.x
         num_hyperedges = num_nodes
         incidence_1 = torch.zeros(num_nodes, num_nodes)
