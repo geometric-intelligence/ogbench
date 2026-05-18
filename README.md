@@ -36,7 +36,7 @@ A CLI entry point is also installed: `ogbench-train` (equivalent to `python ogbe
 
 ## Datasets
 
-OGBench includes four curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/bgbench`](https://huggingface.co/datasets/geometric-intelligence/bgbench) in Parquet format and downloaded automatically on first use.
+OGBench includes four curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/ogbench`](https://huggingface.co/datasets/geometric-intelligence/ogbench) in Parquet format and downloaded automatically on first use.
 
 | Dataset         | Domain                          | Samples | Features        | Classes | Task                          |
 | --------------- | ------------------------------- | ------- | --------------- | ------- | ----------------------------- |
