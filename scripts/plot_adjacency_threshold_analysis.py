@@ -56,7 +56,7 @@ ADJACENCY_METHOD = 'wgcna'
 METHODS = ['variance', 'random', 'correlation', 'distance_correlation']
 NODE_SAMPLE_RATIOS = [1.0, 0.8, 0.5, 0.3]
 
-HF_REPO_ID = 'geometric-intelligence/bgbench'
+HF_REPO_ID = 'geometric-intelligence/ogbench'
 
 
 def load_and_preprocess_dataset(

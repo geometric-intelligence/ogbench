@@ -15,7 +15,7 @@ DATASET_CONFIG_DIR = Path(__file__).resolve().parents[2] / 'configs' / 'dataset'
 HF_CONFIG_PATH = Path(__file__).resolve().parents[2] / 'configs' / 'hf' / 'default.yaml'
 DATASET_CONFIGS = sorted(DATASET_CONFIG_DIR.glob('*.yaml'))
 
-HF_REPO_ID = 'geometric-intelligence/bgbench'
+HF_REPO_ID = 'geometric-intelligence/ogbench'
 
 
 def _load_config(path: Path) -> dict:
