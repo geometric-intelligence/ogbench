@@ -1,6 +1,6 @@
-[![Code Quality](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/code-quality-main.yaml)
-[![Dependencies](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/dependabot/dependabot-updates)
-[![Tests](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml/badge.svg)](https://github.com/geometric-intelligence/bgbench/actions/workflows/test.yml)
+[![Code Quality](https://github.com/geometric-intelligence/ogbench/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/geometric-intelligence/ogbench/actions/workflows/code-quality-main.yaml)
+[![Dependencies](https://github.com/geometric-intelligence/ogbench/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/geometric-intelligence/ogbench/actions/workflows/dependabot/dependabot-updates)
+[![Tests](https://github.com/geometric-intelligence/ogbench/actions/workflows/test.yml/badge.svg)](https://github.com/geometric-intelligence/ogbench/actions/workflows/test.yml)
 
 # OGBench — Omics Graph Benchmarking
 
@@ -19,12 +19,12 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 ## Installation
 
 ```bash
-git clone git@github.com:geometric-intelligence/bgbench.git
-cd bgbench
+git clone git@github.com:geometric-intelligence/ogbench.git
+cd ogbench
 
-conda create -n bgbench python=3.12
+conda create -n ogbench python=3.12
 curl -LsSf https://astral.sh/uv/install.sh | sh
-conda activate bgbench
+conda activate ogbench
 
 uv venv
 uv pip install -e '.[all]'
@@ -175,7 +175,7 @@ pytest tests/nn/ -v  # specific module
 ### Project Structure
 
 ```
-bgbench/
+ogbench/
 ├── ogbench/                    # Main Python package
 │   ├── run.py                  # Training entry point
 │   ├── baseline.py             # Sklearn baseline experiments

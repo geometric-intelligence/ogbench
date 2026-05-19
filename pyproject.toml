@@ -58,6 +58,7 @@ dependencies=[
     "torch-scatter",
     "torch==2.8.0",
     "torch-cluster",
+    "pyg-lib>=0.6.0",
     "combat>=0.3.3",
     "topomodelx @ git+https://github.com/pyt-team/TopoModelX.git",
     "toponetx @ git+https://github.com/pyt-team/TopoNetX.git",
@@ -96,8 +97,8 @@ all = ["ogbench[dev, doc]"]
 ogbench-train = "ogbench.run:main"
 
 [project.urls]
-homepage="https://geometric-intelligence.github.io/bgbench/index.html"
-repository="https://github.com/geometric-intelligence/bgbench"
+homepage="https://geometric-intelligence.github.io/ogbench/index.html"
+repository="https://github.com/geometric-intelligence/ogbench"
 
 [tool.ruff]
 line-length = 99
