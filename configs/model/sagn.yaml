@@ -22,9 +22,9 @@ backbone_wrapper:
   _partial_: true
   wrapper_name: SAGNWrapper
   out_channels: ${model.backbone.out_channels}
-  num_nodes: ${dataset.parameters.num_nodes}
+  residual_connections: false
   num_cell_dimensions: 1 #${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.backbone.in_channels}}
-  residual_connections: false # whether to use residual connections in the GNN
+  num_nodes: ${dataset.parameters.num_nodes}
 
 readout:
   _target_: ogbench.nn.readouts.${model.readout.readout_name}

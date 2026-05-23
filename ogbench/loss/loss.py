@@ -18,9 +18,11 @@ class TBLoss(AbstractLoss):
         Custom modules' losses to be used.
     """
 
-    def __init__(self, dataset_loss, modules_losses={}):  # noqa: B006
+    def __init__(self, dataset_loss, modules_losses: dict | None = None):
         super().__init__()
-        self.losses = []
+        if modules_losses is None:
+            modules_losses = {}
+        self.losses = torch.nn.ModuleList()
         # Dataset loss
         self.losses.append(DatasetLoss(dataset_loss))
         # Model losses

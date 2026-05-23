@@ -1,52 +1,57 @@
 #!/bin/bash
 
-# Function to run baseline experiment
-run_baseline_experiment() {
-    local dataset=$1
-    local experiment_num=$2
-    local total_experiments=$3
+# Node sample ratios and selection methods matching the GNN experiment grid
+NODE_RATIOS="0.3,0.5,1.0,full"
+METHODS="variance,correlation,distance_correlation,random"
 
-    echo "[${experiment_num}/${total_experiments}] Running baseline: dataset=${dataset}"
-
-    # Run the baseline experiment
-    if python ogbench/baseline.py dataset="${dataset}"; then
-        echo "✅ Success: baseline dataset=${dataset}"
-    else
-        echo "❌ Failed: baseline dataset=${dataset}"
-    fi
-}
-
-# Datasets to test (only the 3 main datasets)
-datasets=(
+# All datasets
+ALL_DATASETS=(
     "addneuromed"
     "motrpac"
     "parkinsons"
+    "brca"
 )
 
-# Counter for tracking progress
-total_experiments=${#datasets[@]}
-current_experiment=0
+echo "========================================="
+echo "Phase 1: Standard baselines (single run per dataset)"
+echo "========================================="
 
-echo "Starting baseline experiments: ${total_experiments} total datasets"
-echo "Datasets: ${datasets[*]}"
-echo "----------------------------------------"
+for dataset in "${ALL_DATASETS[@]}"; do
+    echo "[standard] Running dataset=${dataset}"
 
-# Run baseline experiments for each dataset
-for dataset in "${datasets[@]}"; do
-    current_experiment=$((current_experiment + 1))
-    run_baseline_experiment "$dataset" "${current_experiment}" "${total_experiments}"
-    echo "----------------------------------------"
+    if python ogbench/baseline.py \
+        dataset="${dataset}" \
+        baseline_filter=standard; then
+        echo "  -> Success: standard baselines for ${dataset}"
+    else
+        echo "  -> Failed: standard baselines for ${dataset}"
+    fi
 done
 
+echo ""
+echo "========================================="
+echo "Phase 2: GNN-features baselines (sweep node_ratio x method)"
+echo "========================================="
+
+for dataset in "${ALL_DATASETS[@]}"; do
+    echo "[gnn_features] Running dataset=${dataset} | ratios=${NODE_RATIOS} | methods=${METHODS}"
+
+    if python ogbench/baseline.py \
+        dataset="${dataset}" \
+        baseline_filter=gnn_features \
+        "dataset.loader.parameters.node_sample_ratio=${NODE_RATIOS}" \
+        "dataset.loader.parameters.method=${METHODS}" \
+        --multirun; then
+        echo "  -> Success: gnn_features baselines for ${dataset}"
+    else
+        echo "  -> Failed: gnn_features baselines for ${dataset}"
+    fi
+done
+
+echo ""
 echo "All baseline experiments completed!"
 echo ""
 echo "Results Summary:"
-echo "- Check WandB dashboard for detailed results and visualizations"
-echo "- Baseline results are logged with tags: ['baseline', 'sklearn', dataset_name]"
-echo "- Each dataset runs multiple baseline models (SVM, Elastic Net, etc.)"
-echo "- Results include comprehensive plots: confusion matrices, ROC curves, feature importance"
-echo ""
-echo "To view results:"
-echo "1. WandB: https://wandb.ai/your-username/bgbench-baselines"
-echo "2. Local logs: Check logs/ directory for detailed output"
-echo "3. Generated plots: Saved in output directories for each experiment"
+echo "- Standard baselines: ${#ALL_DATASETS[@]} datasets x 2 models (SVM, Elastic Net)"
+echo "- GNN-features baselines: ${#ALL_DATASETS[@]} datasets x 2 models x $(echo ${NODE_RATIOS} | tr ',' '\n' | wc -l) ratios x $(echo ${METHODS} | tr ',' '\n' | wc -l) methods"
+echo "- Check WandB for detailed results"

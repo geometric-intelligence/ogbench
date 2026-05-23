@@ -1,16 +1,14 @@
 """Main entry point for training and testing models."""
 
-import random
 from typing import Any
 
 import hydra
 import lightning as L
-import numpy as np
 import rootutils
 import torch
 from lightning import Callback, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from ogbench.data.preprocessor import PreProcessor
 from ogbench.dataloader import TBDataloader
@@ -24,20 +22,22 @@ from ogbench.utils import (
     task_wrapper,
 )
 from ogbench.utils.config_resolvers import (
-    calculate_num_nodes,
-    get_default_metrics,
-    get_default_trainer,
-    get_default_transform,
-    get_flattened_channels,
-    get_gatv4_output_dim,
-    get_monitor_metric,
-    get_monitor_mode,
-    get_non_relational_out_channels,
-    get_required_lifting,
-    get_target_normalizer_stats,
-    infer_in_channels,
-    infer_num_cell_dimensions,
+    register_all_resolvers,
 )
+
+# PyTorch 2.6+ changed torch.load to default weights_only=True, which blocks
+# Lightning from loading checkpoints containing custom ogbench classes.
+# Lightning explicitly passes weights_only=True, so we must override it.
+# These are our own trusted checkpoints, so this is safe.
+_orig_torch_load = torch.load
+
+
+def _patched_torch_load(*args, **kwargs):
+    kwargs['weights_only'] = False
+    return _orig_torch_load(*args, **kwargs)
+
+
+torch.load = _patched_torch_load
 
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 # ------------------------------------------------------------------------------------ #
@@ -59,42 +59,7 @@ rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 
 
 # Register custom resolvers before Hydra initialization
-def register_resolvers():
-    """Register all custom OmegaConf resolvers."""
-    OmegaConf.register_new_resolver('calculate_num_nodes', calculate_num_nodes, replace=True)
-    OmegaConf.register_new_resolver('get_default_metrics', get_default_metrics, replace=True)
-    OmegaConf.register_new_resolver('get_default_trainer', get_default_trainer, replace=True)
-    OmegaConf.register_new_resolver('get_default_transform', get_default_transform, replace=True)
-    OmegaConf.register_new_resolver(
-        'get_flattened_channels',
-        get_flattened_channels,
-        replace=True,
-    )
-    OmegaConf.register_new_resolver('get_required_lifting', get_required_lifting, replace=True)
-    OmegaConf.register_new_resolver('get_monitor_metric', get_monitor_metric, replace=True)
-    OmegaConf.register_new_resolver('get_monitor_mode', get_monitor_mode, replace=True)
-    OmegaConf.register_new_resolver('get_gatv4_output_dim', get_gatv4_output_dim, replace=True)
-    OmegaConf.register_new_resolver('get_required_lifting', get_required_lifting, replace=True)
-    OmegaConf.register_new_resolver('get_monitor_metric', get_monitor_metric, replace=True)
-    OmegaConf.register_new_resolver('get_monitor_mode', get_monitor_mode, replace=True)
-    OmegaConf.register_new_resolver(
-        'get_non_relational_out_channels', get_non_relational_out_channels, replace=True
-    )
-    OmegaConf.register_new_resolver('infer_in_channels', infer_in_channels, replace=True)
-    OmegaConf.register_new_resolver('infer_in_channels', infer_in_channels, replace=True)
-    OmegaConf.register_new_resolver(
-        'infer_num_cell_dimensions', infer_num_cell_dimensions, replace=True
-    )
-    OmegaConf.register_new_resolver(
-        'parameter_multiplication', lambda x, y: int(int(x) * int(y)), replace=True
-    )
-    OmegaConf.register_new_resolver(
-        'get_target_normalizer_stats', get_target_normalizer_stats, replace=True
-    )
-
-
-# Register resolvers immediately
-register_resolvers()
+register_all_resolvers()
 
 
 def initialize_hydra() -> DictConfig:
@@ -110,7 +75,6 @@ def initialize_hydra() -> DictConfig:
     return cfg
 
 
-torch.set_num_threads(1)
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
@@ -135,14 +99,7 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         A tuple with metrics and dict with all instantiated objects.
     """
     # Set seed for random number generators in pytorch, numpy and python.random
-    # if cfg.get("seed"):
     L.seed_everything(cfg.seed, workers=True)
-    # Seed for torch
-    torch.manual_seed(cfg.seed)
-    # Seed for numpy
-    np.random.seed(cfg.seed)
-    # Seed for python random
-    random.seed(cfg.seed)
 
     # Instantiate and load dataset
     log.info(f'Instantiating loader <{cfg.dataset.loader._target_}>')
@@ -270,8 +227,8 @@ def count_number_of_parameters(model: torch.nn.Module, only_trainable: bool = Tr
     """
     if only_trainable:
         num_params: int = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    else:  # counts trainable and none-traibale
-        num_params: int = sum(p.numel() for p in model.parameters() if p)
+    else:  # counts trainable and non-trainable
+        num_params: int = sum(p.numel() for p in model.parameters())
     assert num_params > 0, f'Err: {num_params=}'
     return int(num_params)
 

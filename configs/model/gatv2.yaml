@@ -26,6 +26,7 @@ backbone_wrapper:
   _partial_: true
   wrapper_name: GNNWrapper
   out_channels: ${model.feature_encoder.out_channels}
+  residual_connections: false
   num_cell_dimensions: ${infer_num_cell_dimensions:${oc.select:model.feature_encoder.selected_dimensions,null},${model.feature_encoder.in_channels}}
 
 readout:

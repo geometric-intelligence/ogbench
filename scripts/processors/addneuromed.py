@@ -234,6 +234,16 @@ def process_addneuromed(output_dir: str = 'temp_data') -> None:
     targets = targets[mask]
     batch_labels = batch_labels[mask]
 
+    gene_map = pd.DataFrame(
+        {
+            'node_id': list(raw_data.columns),
+            'string_id': list(raw_data.columns),  # Entrez IDs map directly to STRING
+        }
+    )
+    gene_map['node_id'] = gene_map['node_id'].astype(str)
+    gene_map['string_id'] = gene_map['string_id'].astype(str)
+    print(f'Mapping: {len(gene_map)} genes with Entrez IDs for STRING')
+
     # Apply ComBat batch correction
     print('Applying ComBat batch correction...')
 
@@ -274,11 +284,13 @@ def process_addneuromed(output_dir: str = 'temp_data') -> None:
     # Save as parquet
     data_file = os.path.join(output_dir, 'addneuromed_data.parquet')
     targets_file = os.path.join(output_dir, 'addneuromed_targets.parquet')
+    map_file = os.path.join(output_dir, 'addneuromed_map.parquet')
 
     # Reset index to make it a proper DataFrame
     raw_data = raw_data.reset_index(drop=True)
     raw_data.to_parquet(data_file)
     pd.DataFrame({'target': targets_int}).to_parquet(targets_file)
+    gene_map.reset_index(drop=True).to_parquet(map_file, index=False)
 
     # Create metadata
     target_stats = {
@@ -296,7 +308,7 @@ def process_addneuromed(output_dir: str = 'temp_data') -> None:
     )
 
     # Upload to HuggingFace
-    data_files = {'data': data_file, 'targets': targets_file}
+    data_files = {'data': data_file, 'targets': targets_file, 'map': map_file}
 
     upload_to_huggingface('addneuromed', data_files, metadata)
 

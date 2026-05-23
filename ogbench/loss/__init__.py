@@ -3,6 +3,7 @@
 from ogbench.loss.base import AbstractLoss
 from ogbench.loss.dataset import LOSSES as DATASET_LOSSES
 from ogbench.loss.dataset import DatasetLoss
+from ogbench.loss.loss import TBLoss
 from ogbench.loss.model import LOSSES as MODEL_LOSSES
 from ogbench.loss.model import DGMLoss, GraphMLPLoss
 
@@ -20,6 +21,7 @@ __all__ = [
     'LOSSES_list',
     'AbstractLoss',
     'DatasetLoss',
+    'TBLoss',
     'DGMLoss',
     'GraphMLPLoss',
 ]

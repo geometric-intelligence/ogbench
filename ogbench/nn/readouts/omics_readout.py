@@ -4,12 +4,12 @@ from ogbench.nn.readouts.base import AbstractZeroCellReadOut
 
 
 class OmicsReadOut(AbstractZeroCellReadOut):
-    ACT_MAP = {
-        'relu': nn.ReLU(),
-        'tanh': nn.Tanh(),
-        'sigmoid': nn.Sigmoid(),
-        'leaky_relu': nn.LeakyReLU(),
-        'elu': nn.ELU(),
+    ACT_MAP: dict[str, type[nn.Module]] = {
+        'relu': nn.ReLU,
+        'tanh': nn.Tanh,
+        'sigmoid': nn.Sigmoid,
+        'leaky_relu': nn.LeakyReLU,
+        'elu': nn.ELU,
     }
 
     def __init__(
@@ -27,7 +27,11 @@ class OmicsReadOut(AbstractZeroCellReadOut):
         super().__init__(out_channels=out_channels, hidden_dim=hidden_dim, **kwargs)
         self.hidden_dim = hidden_dim
         self.graph_encoder_dim = (
-            [graph_encoder_dim] if isinstance(graph_encoder_dim, int) else list(graph_encoder_dim)
+            [graph_encoder_dim]
+            if isinstance(graph_encoder_dim, int)
+            else list(graph_encoder_dim)
+            if graph_encoder_dim is not None
+            else None
         )
         self.which_layer = which_layer
         self.fc_dim = fc_dim
@@ -49,7 +53,7 @@ class OmicsReadOut(AbstractZeroCellReadOut):
             layers.append(
                 nn.Sequential(
                     nn.Linear(fc_layer_input_dim, fc_dim),
-                    self.ACT_MAP[self.fc_act],
+                    self.ACT_MAP[self.fc_act](),
                     nn.AlphaDropout(p=self.fc_dropout, inplace=True),
                 )
             )

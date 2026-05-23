@@ -7,6 +7,7 @@ defaults:
   - logger: wandb
   - paths: default
   - hydra: default
+  - hf: default
 
 # task name
 task_name: "baseline"
@@ -16,3 +17,6 @@ tags: ["baseline", "sklearn"]
 
 # seed for random number generators
 seed: 42
+
+# Filter which baselines to run: "standard", "gnn_features", or null (all)
+baseline_filter: null

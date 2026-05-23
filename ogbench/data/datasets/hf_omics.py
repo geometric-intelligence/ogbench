@@ -8,7 +8,6 @@ from typing import Any, Final
 
 import numpy as np
 import pandas as pd
-import PyWGCNA
 import torch
 import torch_geometric.data
 import torch_geometric.transforms as T
@@ -20,6 +19,8 @@ from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.io import fs
 from tqdm import tqdm
 
+from ogbench.data.adjacency import get_adjacency_builder
+from ogbench.data.selectors import get_selector
 from ogbench.data.utils import MeanStdNormalizer
 
 # Configure logging
@@ -58,7 +59,7 @@ class HFOmicsDataset(InMemoryDataset):
         'addneuromed',
         'parkinsons',
         'motrpac',
-        'covidaki',
+        'brca',
     ]
 
     def __init__(
@@ -68,10 +69,12 @@ class HFOmicsDataset(InMemoryDataset):
         method: str = 'correlation',
         imputation_method: str = 'mean',
         adjacency_threshold: float = 0.3,
+        adjacency_method: str = 'string',
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/bgbench',
-        revision: str = 'e1631e8',
+        revision: str = '83299150394717f0646b1bd44d6a55392ab789db',
+        string_data_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
@@ -79,16 +82,20 @@ class HFOmicsDataset(InMemoryDataset):
         Args:
             root: The local data directory for caching
             data_name: The name of the dataset
-            method: Method for node selection ("variance", "correlation", "random")
+            method: Method for node selection ("variance", "correlation", "distance_correlation", "random")
             imputation_method: Method for handling missing values
             adjacency_threshold: Threshold for adjacency matrix binarization
+            adjacency_method: Method for adjacency matrix construction (default: "string")
             node_sample_ratio: Ratio of nodes to sample
             hf_repo_id: HuggingFace repository ID
             revision: HuggingFace dataset revision/commit hash
+            string_data_dir: Optional path to pre-downloaded STRING bulk files
             **kwargs: Additional keyword arguments
         """
         self.data_name = data_name
         self.adjacency_threshold = adjacency_threshold
+        self.adjacency_method = adjacency_method
+        self.string_data_dir = string_data_dir
         self.node_sample_ratio = node_sample_ratio
         self.method = method
         self.train_val_test_split = train_val_test_split or [0.7, 0.15, 0.15]
@@ -100,6 +107,7 @@ class HFOmicsDataset(InMemoryDataset):
         self.name = osp.join(
             f'{self.data_name}',
             f'adj_thresh_{self.adjacency_threshold}',
+            f'adj_method_{self.adjacency_method}',
             f'{self.method}',
             f'p_{self.node_sample_ratio}',
             f'train_split_{self.train_val_test_split[0]}',
@@ -153,7 +161,7 @@ class HFOmicsDataset(InMemoryDataset):
         list[str]
             List of raw file names.
         """
-        return ['selected_data.parquet', 'targets.npy', 'adj_matrix.npy']
+        return ['selected_data.parquet', 'targets.npy', 'adj_matrix.npy', 'split_info.json']
 
     @property
     def processed_file_names(self) -> str:
@@ -193,8 +201,17 @@ class HFOmicsDataset(InMemoryDataset):
             revision=self.revision,
             filename=f'{self.data_name}_targets.parquet',
         )
+        map_df = None
+        if self.adjacency_method == 'string':
+            map_file = hf_hub_download(  # nosec
+                repo_id=self.hf_repo_id,
+                repo_type='dataset',
+                revision=self.revision,
+                filename=f'{self.data_name}_map.parquet',
+            )
+            map_df = pd.read_parquet(map_file)
 
-        # Load data and targets using pandas
+        # Load data and targets with pandas
         raw_data = pd.read_parquet(data_file)
         targets_df = pd.read_parquet(targets_file)
 
@@ -206,47 +223,109 @@ class HFOmicsDataset(InMemoryDataset):
 
         logger.info(f'Downloaded {len(targets)} samples with {raw_data.shape[1]} features')
 
-        # Impute missing values BEFORE any processing
-        nan_count = raw_data.isna().sum().sum()
-        if nan_count > 0:
-            logger.info(f'Imputing {nan_count} NaN values using {self.imputer.strategy} strategy')
-            raw_data_imputed = self.imputer.fit_transform(raw_data)
-            raw_data = pd.DataFrame(
-                raw_data_imputed, columns=raw_data.columns, index=raw_data.index
+        # IMPORTANT: Split data BEFORE any feature engineering to avoid data leakage
+        # Shuffle with fixed random seed for reproducibility
+        raw_data, targets = shuffle(raw_data, targets, random_state=42)
+
+        # Calculate split indices
+        n_samples = len(targets)
+        train_idx = int(n_samples * self.train_val_test_split[0])
+        val_idx = int(n_samples * (self.train_val_test_split[0] + self.train_val_test_split[1]))
+
+        # Split into train/val/test
+        train_data = raw_data.iloc[:train_idx]
+        train_targets = targets[:train_idx]
+        val_data = raw_data.iloc[train_idx:val_idx]
+        val_targets = targets[train_idx:val_idx]
+        test_data = raw_data.iloc[val_idx:]
+        test_targets = targets[val_idx:]
+
+        logger.info(
+            f'Split: Train={len(train_targets)}, Val={len(val_targets)}, Test={len(test_targets)}'
+        )
+
+        # Impute missing values - FIT on training data only, TRANSFORM on all splits
+        nan_count = train_data.isna().sum().sum()
+        if nan_count > 0 or raw_data.isna().sum().sum() > 0:
+            logger.info(f'Training data has {nan_count} NaN values')
+            logger.info(f'Fitting imputer on training data using {self.imputer.strategy} strategy')
+            self.imputer.fit(train_data)
+
+            # Transform all splits
+            train_data_imputed = self.imputer.transform(train_data)
+            train_data = pd.DataFrame(
+                train_data_imputed, columns=train_data.columns, index=train_data.index
             )
-            logger.info(f'After imputation: {raw_data.isna().sum().sum()} NaN values remain')
 
-        np.save(os.path.join(self.raw_dir, 'targets.npy'), targets)
+            if val_data.shape[0] > 0:
+                val_data_imputed = self.imputer.transform(val_data)
+                val_data = pd.DataFrame(
+                    val_data_imputed, columns=val_data.columns, index=val_data.index
+                )
 
-        # Calculate number of nodes to select
-        n_training_samples = int(raw_data.shape[0] * self.train_val_test_split[0])
+            if test_data.shape[0] > 0:
+                test_data_imputed = self.imputer.transform(test_data)
+                test_data = pd.DataFrame(
+                    test_data_imputed, columns=test_data.columns, index=test_data.index
+                )
+
+            logger.info(
+                f'After imputation: Train NaN={train_data.isna().sum().sum()}, '
+                f'Val NaN={val_data.isna().sum().sum()}, Test NaN={test_data.isna().sum().sum()}'
+            )
+
+        # Calculate number of nodes to select based on TRAINING data only
+        n_training_samples = len(train_targets)
         if self.node_sample_ratio == 'full':
-            print('Using full node sample ratio')
-            n_nodes = raw_data.shape[1]
+            logger.info('Using full node sample ratio')
+            n_nodes = train_data.shape[1]
         elif isinstance(self.node_sample_ratio, float):
             n_nodes = int(n_training_samples / self.node_sample_ratio)
-            if n_nodes > raw_data.shape[1]:
-                n_nodes = raw_data.shape[1]
+            if n_nodes > train_data.shape[1]:
+                n_nodes = train_data.shape[1]
+        else:
+            raise ValueError(
+                f'node_sample_ratio must be "full" or numeric, got {self.node_sample_ratio!r}'
+            )
         logger.info(
             f'Training samples: {n_training_samples}, node_sample_ratio: {self.node_sample_ratio}, n_nodes: {n_nodes}'
         )
 
-        # Select nodes
-        logger.info('Selecting nodes...')
-        selected_nodes = self.select_nodes(
-            raw_data.values, targets, n_selected=n_nodes, method=self.method
+        # Select nodes based ONLY on training data
+        logger.info('Selecting nodes based on training data only...')
+        selected_node_indices = self.select_nodes(
+            train_data.values, train_targets, n_selected=n_nodes, method=self.method
         )
-        selected_data = raw_data.iloc[:, selected_nodes]
+
+        # Apply same node selection to all splits
+        train_selected = train_data.iloc[:, selected_node_indices]
+        val_selected = val_data.iloc[:, selected_node_indices]
+        test_selected = test_data.iloc[:, selected_node_indices]
+
+        # Concatenate back for saving (maintaining split order)
+        selected_data = pd.concat([train_selected, val_selected, test_selected], axis=0)
         selected_data.to_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
 
-        # Calculate adjacency matrix
-        logger.info('Calculating adjacency matrix...')
-        adj_matrix = self.calculate_adjacency_matrix(selected_data)
+        # Save all targets (maintaining split order)
+        all_targets = np.concatenate([train_targets, val_targets, test_targets])
+        np.save(os.path.join(self.raw_dir, 'targets.npy'), all_targets)
+
+        # Save split indices for later use
+        split_info = {'train_idx': train_idx, 'val_idx': val_idx, 'total_samples': n_samples}
+        import json
+
+        with open(os.path.join(self.raw_dir, 'split_info.json'), 'w') as f:
+            json.dump(split_info, f, indent=4)
+        logger.info(f'Saved split info: {split_info}')
+
+        # Calculate adjacency matrix based ONLY on training data
+        logger.info('Calculating adjacency matrix based on training data only...')
+        adj_matrix = self.calculate_adjacency_matrix(train_selected, map_df=map_df)
         np.save(osp.join(self.raw_dir, 'adj_matrix.npy'), adj_matrix)
 
         # Log statistics
         node_degrees = np.sum(adj_matrix, axis=1)
-        logger.info('Node degrees statistics:')
+        logger.info('Node degrees statistics (from training data):')
         logger.info(f'Mean degree: {np.mean(node_degrees):.2f}')
         logger.info(f'Median degree: {np.median(node_degrees):.2f}')
         logger.info(f'Min degree: {np.min(node_degrees):.2f}')
@@ -256,89 +335,22 @@ class HFOmicsDataset(InMemoryDataset):
     def select_nodes(
         self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = 'variance'
     ) -> np.ndarray:
-        """Select nodes based on feature importance or randomly."""
-        if method == 'variance':
-            # Variance-based filtering
-            variances = np.std(data, axis=0)
-            ranked_nodes = np.argsort(variances)[::-1]
-        elif method == 'correlation':
-            # Correlation-based filtering
-            correlations = np.abs(
-                np.array([np.corrcoef(data[:, i], targets)[0, 1] for i in range(data.shape[1])])
-            )
-            ranked_nodes = np.argsort(correlations)[::-1]
-        elif method == 'random':
-            # Random selection
-            ranked_nodes = np.random.permutation(data.shape[1])
-        else:
-            raise ValueError(f'Invalid method: {method}')
+        """Select nodes using a modular selector system."""
+        selector = get_selector(method)
+        return selector.select(data, targets, n_selected)
 
-        return ranked_nodes[:n_selected]
-
-    def calculate_adjacency_matrix(self, node_features: pd.DataFrame) -> np.ndarray:
-        """Calculate adjacency matrix using WGCNA with soft-thresholding and binarization."""
-        # Use WGCNA to find optimal power for scale-free topology
-        soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features)
-        power = soft_threshold[0]
-
-        # Apply soft-thresholding
-        adjacency = PyWGCNA.WGCNA.adjacency(
-            node_features,
-            power=power,
-            adjacencyType='signed hybrid',
-        )
-
-        # logger.info(f'Original data shape: {node_features.shape}')
-        # logger.info(f'Data contains inf: {np.isinf(node_features.values).any()}')
-        # logger.info(f'Data contains NaN: {node_features.isnull().any().any()}')
-
-        # # Clean data more carefully
-        # node_features_clean = node_features.copy()
-
-        # # Replace infinite values with finite alternatives
-        # inf_mask = np.isinf(node_features_clean.values)
-        # if inf_mask.any():
-        #     logger.info(f'Replacing {inf_mask.sum()} infinite values')
-        #     # Replace +inf with max finite value, -inf with min finite value
-        #     finite_values = node_features_clean.values[~inf_mask]
-        #     if len(finite_values) > 0:
-        #         max_finite = np.max(finite_values)
-        #         min_finite = np.min(finite_values)
-        #         node_features_clean = node_features_clean.replace([np.inf], max_finite)
-        #         node_features_clean = node_features_clean.replace([-np.inf], min_finite)
-        #     else:
-        #         # If all values are infinite, replace with 0
-        #         node_features_clean = node_features_clean.replace([np.inf, -np.inf], 0)
-
-        # # Handle NaN values by filling with median of each column
-        # if node_features_clean.isnull().any().any():
-        #     logger.info('Filling NaN values with column medians')
-        #     node_features_clean = node_features_clean.fillna(node_features_clean.median())
-
-        # logger.info(f'Cleaned data shape: {node_features_clean.shape}')
-
-        # # Try WGCNA approach first
-        # try:
-        #     # Use WGCNA to find optimal power for scale-free topology
-        #     soft_threshold = PyWGCNA.WGCNA.pickSoftThreshold(node_features_clean)
-        #     power = soft_threshold[0]
-        #     logger.info(f'WGCNA selected power: {power}')
-
-        #     # Apply soft-thresholding
-        #     adjacency = PyWGCNA.WGCNA.adjacency(
-        #         node_features_clean,
-        #         power=power,
-        #         adjacencyType='signed hybrid',
-        #     )
-        # except Exception as e:
-        #     logger.warning(f'WGCNA failed: {e}. Falling back to correlation-based adjacency.')
-        #     # Fallback: use correlation-based adjacency
-        #     corr_matrix = node_features_clean.corr().values
-        #     # Convert correlation to adjacency using a fixed power
-        #     power = 6  # Default power for correlation-based networks
-        #     adjacency = np.power(np.abs(corr_matrix), power)
-        #     # Apply sign
-        #     adjacency = np.sign(corr_matrix) * adjacency
+    def calculate_adjacency_matrix(
+        self, node_features: pd.DataFrame, map_df: pd.DataFrame | None = None
+    ) -> np.ndarray:
+        """Calculate adjacency matrix using a modular adjacency builder system."""
+        # Build continuous adjacency matrix using modular builder
+        builder_kwargs = {}
+        if self.adjacency_method == 'string':
+            builder_kwargs['cache_dir'] = osp.join(self.root, 'string_cache')
+            if self.string_data_dir:
+                builder_kwargs['string_data_dir'] = self.string_data_dir
+        adjacency_builder = get_adjacency_builder(self.adjacency_method, **builder_kwargs)
+        adjacency = adjacency_builder.build(node_features, map_df)
 
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
@@ -373,20 +385,29 @@ class HFOmicsDataset(InMemoryDataset):
         adj_matrix = np.load(osp.join(self.raw_dir, 'adj_matrix.npy'))
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
-        # Shuffle selected_data and targets in unison
+        # Load split info - data is already shuffled and split in download()
+        import json
 
-        selected_data, targets = shuffle(selected_data, targets, random_state=42)
+        with open(os.path.join(self.raw_dir, 'split_info.json')) as f:
+            split_info = json.load(f)
+        train_idx = split_info['train_idx']
+        logger.info(f'Loaded split info: train_idx={train_idx}')
+
+        # Data is already in the correct order (train, val, test) from download()
+        # No need to shuffle again - this would break the carefully constructed splits
 
         # Fit normalizers on training data
-        train_idx = int(len(selected_data) * self.train_val_test_split[0])
         train_data = selected_data.iloc[:train_idx]
-        logger.info('Fitting normalizers')
+        logger.info('Fitting normalizers on training data')
         self.feature_normalizer.fit(train_data.values)
         # Save normalizer statistics to JSON
         import json
 
         # Convert train_val_test_split to list if it's a ListConfig
-        train_val_test_split = OmegaConf.to_object(self.train_val_test_split)
+        if OmegaConf.is_config(self.train_val_test_split):
+            train_val_test_split = OmegaConf.to_object(self.train_val_test_split)
+        else:
+            train_val_test_split = list(self.train_val_test_split)
         normalizer_stats = {
             'train_val_test_split': train_val_test_split,
             'train_idx': train_idx,
@@ -437,22 +458,19 @@ class HFOmicsDataset(InMemoryDataset):
             - Target values
             - Dictionary with 'train_idx' and 'val_idx' split indices
         """
-
-        from sklearn.utils import shuffle
+        import json
 
         # Load raw data
         logger.info('Loading raw data for baseline...')
         selected_data = pd.read_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
         targets = np.load(osp.join(self.raw_dir, 'targets.npy'))
 
-        # Apply same shuffling as in process()
-        selected_data, targets = shuffle(selected_data, targets, random_state=42)
+        # Load split indices from the same file used in download() and process()
+        with open(os.path.join(self.raw_dir, 'split_info.json')) as f:
+            split_info = json.load(f)
 
-        # Calculate split indices (same as in process())
-        train_idx = int(len(selected_data) * self.train_val_test_split[0])
-        val_idx = int(
-            len(selected_data) * (self.train_val_test_split[0] + self.train_val_test_split[1])
-        )
+        train_idx = split_info['train_idx']
+        val_idx = split_info['val_idx']
 
         split_indices = {
             'train_idx': train_idx,
@@ -470,6 +488,7 @@ class HFOmicsDataset(InMemoryDataset):
         return (
             f'HFOmicsDataset(data_name={self.data_name}, '
             f'adjacency_threshold={self.adjacency_threshold}, '
+            f'adjacency_method={self.adjacency_method}, '
             f'node_sample_ratio={self.node_sample_ratio}, '
             f'method={self.method}, '
             f'train_val_test_split={self.train_val_test_split})'

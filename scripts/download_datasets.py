@@ -7,6 +7,7 @@ import shutil
 import typer
 
 from scripts.processors.addneuromed import process_addneuromed
+from scripts.processors.brca import process_brca
 from scripts.processors.motrpac import process_motrpac
 from scripts.processors.parkinsons import process_parkinsons
 from scripts.processors.smoking import process_smoking
@@ -60,7 +61,11 @@ def parkinsons(
 
 
 @app.command()
+<<<<<<< HEAD
 def smoking(
+=======
+def brca(
+>>>>>>> fa3d4d63f6e678b8a3c6f4872f24469ba9e5e80e
     output_dir: str = typer.Option(
         'temp_data',
         '--output-dir',
@@ -68,10 +73,17 @@ def smoking(
         help='Output directory for temporary files',
     ),
 ) -> None:
+<<<<<<< HEAD
     """Download and upload Smoking (GSE50660) dataset to HuggingFace."""
     typer.echo('Processing Smoking dataset...')
     process_smoking(output_dir)
     typer.echo('✅ Smoking dataset processed and uploaded successfully!')
+=======
+    """Download and upload BRCA dataset to HuggingFace."""
+    typer.echo('Processing BRCA dataset...')
+    process_brca(output_dir)
+    typer.echo('✅ BRCA dataset processed and uploaded successfully!')
+>>>>>>> fa3d4d63f6e678b8a3c6f4872f24469ba9e5e80e
 
 
 @app.command()
@@ -104,6 +116,9 @@ def all(
 
         typer.echo('\n📊 Processing Smoking...')
         process_smoking(output_dir)
+        
+        typer.echo('\n📊 Processing BRCA...')
+        process_brca(output_dir)
 
         typer.echo('\n✅ All datasets processed and uploaded successfully!')
 

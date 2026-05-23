@@ -1,0 +1,42 @@
+# Smoke test config: single run to verify pipeline works end-to-end.
+# Run with: python scripts/hyperparam_search.py --config configs/hparams_search/smoke_test.yaml --dry-run
+
+datasets:
+  - motrpac
+
+models:
+  - gcn
+
+seeds: [42]
+
+fixed:
+  logger.wandb.project: ogbench_smoke_test
+
+shared_grid:
+  dataset.loader.parameters.node_sample_ratio:
+    - 0.5
+  dataset.loader.parameters.method:
+    - variance
+  optimizer.parameters.lr:
+    - 0.001
+  optimizer.parameters.weight_decay:
+    - 0.0
+  model.backbone.dropout:
+    - 0.1
+  model.readout.readout_name:
+    - NoReadOut
+
+per_model_grid:
+  gcn:
+    model.feature_encoder.out_channels:
+      - 32
+    model.backbone.num_layers:
+      - 2
+
+per_dataset_ratio_method_grid:
+  motrpac,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0229]
+
+training:
+  timeout: 3600
+  output_dir: ./search_results/smoke_test

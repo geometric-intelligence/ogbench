@@ -1,0 +1,42 @@
+# @package _global_
+
+# OmicsReadOut experiment configuration
+# Enables OmicsReadOut with grid search over fc_dim and fc_dropout
+#
+
+defaults:
+  - override /dataset: parkinsons # Default, override via CLI
+  - override /model: gcn # Default, override via CLI
+  - override /callbacks: default
+  - override /trainer: default
+
+tags:
+  [
+    "omics_readout",
+    "${model.model_name}",
+    "${dataset.loader.parameters.data_name}",
+    "${dataset.loader.parameters.method}",
+  ]
+
+seed: 42
+
+logger:
+  wandb:
+    tags: ${tags}
+
+trainer:
+  min_epochs: 50
+  max_epochs: 200
+  gradient_clip_val: 0.5
+
+model:
+  readout:
+    readout_name: OmicsReadOut
+    num_nodes: ${dataset.parameters.num_nodes}
+    hidden_dim: ${get_flattened_channels:${dataset.parameters.num_nodes},${model.backbone_wrapper.out_channels}}
+    which_layer: ["output"]
+    fc_dim: [16, 8, 4]
+    fc_dropout: 0.3
+    fc_act: relu
+    out_channels: ${dataset.parameters.num_classes}
+    task_level: ${dataset.parameters.task_level}

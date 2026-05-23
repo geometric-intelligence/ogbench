@@ -2,10 +2,11 @@
 
 from abc import ABC, abstractmethod
 
+import torch.nn as nn
 import torch_geometric
 
 
-class AbstractLoss(ABC):
+class AbstractLoss(ABC, nn.Module):
     r"""Abstract class for the loss class."""
 
     def __init__(

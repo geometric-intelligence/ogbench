@@ -3,7 +3,6 @@
 import json
 import os
 
-import hydra
 import torch
 import torch_geometric
 from torch_geometric.io import fs
@@ -98,7 +97,6 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
         """
         if transforms_config.keys() == {'liftings'}:
             transforms_config = transforms_config.liftings
-        pre_transforms_dict = hydra.utils.instantiate(transforms_config)
         pre_transforms_dict = {
             key: DataTransform(**value) for key, value in transforms_config.items()
         }

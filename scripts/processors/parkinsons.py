@@ -9,7 +9,9 @@ import pandas as pd
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
 
 
-def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True) -> pd.DataFrame:
+def _map_probes_to_genes(
+    df: pd.DataFrame, data_dir: str, collapse: bool = True
+) -> tuple[pd.DataFrame, dict[str, str]]:
     """Map Affymetrix probe IDs to gene symbols using GPL570 annotation."""
     url = 'https://ftp.ncbi.nlm.nih.gov/geo/platforms/GPLnnn/GPL570/annot/GPL570.annot.gz'
     annot_path = os.path.join(data_dir, 'GPL570.annot.gz')
@@ -29,6 +31,8 @@ def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True)
 
     # Try to identify the gene symbol column flexibly
     gene_symbol_col = next((col for col in gpl.columns if 'gene symbol' in col.lower()), None)
+    gene_id_col = next((col for col in gpl.columns if col.strip().lower() == 'gene id'), None)
+
     if gene_symbol_col is None:
         raise ValueError('No column with gene symbols found in GPL annotation file.')
 
@@ -38,15 +42,30 @@ def _map_probes_to_genes(df: pd.DataFrame, data_dir: str, collapse: bool = True)
     probe_map[gene_symbol_col] = probe_map[gene_symbol_col].str.split('///').str[0].str.strip()
     probe_map = probe_map[probe_map[gene_symbol_col] != ''].set_index('ID')
 
+    # Build symbol → Entrez mapping
+    symbol_to_entrez: dict[str, str] = {}
+    if gene_id_col:
+        entrez_map = gpl[['ID', gene_symbol_col, gene_id_col]].dropna(subset=[gene_symbol_col])
+        entrez_map[gene_symbol_col] = (
+            entrez_map[gene_symbol_col].str.split('///').str[0].str.strip()
+        )
+        entrez_map[gene_id_col] = entrez_map[gene_id_col].str.split('///').str[0].str.strip()
+        entrez_map = entrez_map[entrez_map[gene_symbol_col] != '']
+        entrez_map = entrez_map[entrez_map[gene_id_col] != '']
+        symbol_to_entrez = dict(
+            zip(entrez_map[gene_symbol_col], entrez_map[gene_id_col], strict=True)
+        )
+        print(f'Built symbol → Entrez mapping: {len(symbol_to_entrez)} entries')
+
     df.columns = df.columns.astype(str)
     common_probes = df.columns.intersection(probe_map.index)
     df = df[common_probes]
     df.columns = probe_map.loc[common_probes, gene_symbol_col].values
 
     if collapse:
-        df = df.groupby(df.columns, axis=1).mean()
+        df = df.T.groupby(level=0).mean().T
 
-    return df
+    return df, symbol_to_entrez
 
 
 def process_parkinsons(output_dir: str = 'temp_data') -> None:
@@ -102,7 +121,9 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
         expression_df = pd.read_csv(f, sep='\t', comment='!', index_col='ID_REF').transpose()
 
     # Filter and map to gene symbols
-    expression_df = _map_probes_to_genes(expression_df, output_dir, collapse=True)
+    expression_df, symbol_to_entrez = _map_probes_to_genes(
+        expression_df, output_dir, collapse=True
+    )
 
     # Match metadata with expression samples
     assert (
@@ -115,6 +136,21 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
 
     assert not raw_data.isna().any().any(), 'Raw data contains NaNs'
     assert not np.isnan(targets).any(), 'Targets contain NaNs'
+
+    gene_map = pd.DataFrame(
+        {
+            'node_id': list(raw_data.columns),
+            'string_id': [symbol_to_entrez.get(g, g) for g in raw_data.columns],
+        }
+    )
+    gene_map['node_id'] = gene_map['node_id'].astype(str)
+    gene_map['string_id'] = gene_map['string_id'].astype(str)
+
+    n_entrez = gene_map['string_id'].str.match(r'^\d+$').sum()
+    print(
+        f'Mapping: {n_entrez}/{len(gene_map)} genes have Entrez IDs, '
+        f'{len(gene_map) - n_entrez} fall back to symbol'
+    )
 
     # Convert MoCA scores to classification labels based on clinical interpretation
     # Dementia: <21, MCI/Normal: >=21
@@ -138,11 +174,13 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
     # Save as parquet
     data_file = os.path.join(output_dir, 'parkinsons_data.parquet')
     targets_file = os.path.join(output_dir, 'parkinsons_targets.parquet')
+    map_file = os.path.join(output_dir, 'parkinsons_map.parquet')
 
     # Reset index to make it a proper DataFrame
     raw_data = raw_data.reset_index(drop=True)
     raw_data.to_parquet(data_file)
     pd.DataFrame({'target': targets_class}).to_parquet(targets_file)
+    gene_map.reset_index(drop=True).to_parquet(map_file, index=False)
 
     # Create metadata
     target_stats = {
@@ -166,7 +204,7 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
     )
 
     # Upload to HuggingFace
-    data_files = {'data': data_file, 'targets': targets_file}
+    data_files = {'data': data_file, 'targets': targets_file, 'map': map_file}
 
     upload_to_huggingface('parkinsons', data_files, metadata)
 

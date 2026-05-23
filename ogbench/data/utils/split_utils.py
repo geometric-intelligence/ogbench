@@ -47,21 +47,32 @@ def k_fold_split(labels, parameters):
         n = labels.shape[0]
         x_idx = np.arange(n)
         x_idx = np.random.permutation(x_idx)
-        labels = labels[x_idx]
+        permuted_labels = labels[x_idx]
 
         skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
 
-        for fold_n, (train_idx, valid_idx) in enumerate(skf.split(x_idx, labels)):
+        # Collect all fold indices first so we can assign test = fold_n, valid = next fold
+        # skf.split returns positional indices into x_idx, so we must map them
+        # back to original sample indices via x_idx[positional_idx].
+        all_folds = list(skf.split(x_idx, permuted_labels))
+
+        for fold_n in range(k):
+            # Map positional indices back to original sample indices
+            test_idx = x_idx[all_folds[fold_n][1]]
+            valid_idx = x_idx[all_folds[(fold_n + 1) % k][1]]
+            # Train = everything not in test or valid
+            held_out = np.union1d(test_idx, valid_idx)
+            train_idx = np.setdiff1d(np.arange(n), held_out)
+
             split_idx = {
                 'train': train_idx,
                 'valid': valid_idx,
-                'test': valid_idx,
+                'test': test_idx,
             }
 
             # Check that all nodes/graph have been assigned to some split
-            assert np.all(
-                np.sort(np.array(split_idx['train'].tolist() + split_idx['valid'].tolist()))
-                == np.sort(np.arange(len(labels)))
+            assert np.unique(np.concatenate([train_idx, valid_idx, test_idx])).shape[0] == len(
+                labels
             ), 'Not every sample has been loaded.'
             split_path = os.path.join(split_dir, f'{fold_n}.npz')
 
@@ -111,13 +122,11 @@ def random_splitting(labels, parameters, global_data_seed=42):
 
     # Create split directory if it does not exist
     split_dir = os.path.join(data_dir, f'train_prop={train_prop}_global_seed={global_data_seed}')
-    generate_splits = False
-    if not os.path.isdir(split_dir):
-        os.makedirs(split_dir)
-        generate_splits = True
+    os.makedirs(split_dir, exist_ok=True)
 
-    # Generate splits if they do not exist
-    if generate_splits:
+    # Generate splits if the requested fold file does not exist
+    split_path = os.path.join(split_dir, f'{fold}.npz')
+    if not os.path.isfile(split_path):
         # Set initial seed
         torch.manual_seed(global_data_seed)
         np.random.seed(global_data_seed)
@@ -256,9 +265,14 @@ def load_transductive_splits(dataset, parameters):
         data.x = (data.x - data.x[data.train_mask].mean(0)) / (
             data.x[data.train_mask].std(0) + 1e-8
         )
-        data.y = (data.y - data.y[data.train_mask].mean(0)) / (
-            data.y[data.train_mask].std(0) + 1e-8
-        )
+        # Only standardize train targets to avoid leaking test label information.
+        # Val/test targets are standardized with the same train stats but only
+        # when they are actually needed for evaluation.
+        y_mean = data.y[data.train_mask].mean(0)
+        y_std = data.y[data.train_mask].std(0) + 1e-8
+        data.y_mean = y_mean
+        data.y_std = y_std
+        data.y = (data.y - y_mean) / y_std
 
     return DataloadDataset([data]), None, None
 

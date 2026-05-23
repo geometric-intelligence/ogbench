@@ -1,4 +1,4 @@
-"""Wrappers implemented for TopoBench."""
+"""Wrappers implemented for OGBench."""
 
 from ogbench.nn.wrappers.base import AbstractWrapper
 from ogbench.nn.wrappers.cell import (

@@ -26,11 +26,11 @@ if ! command -v conda &> /dev/null; then
     echo "Conda installation complete"
 fi
 
-if ! conda env list | grep -q "bgbench"; then
-    conda create -n bgbench python=3.12 -y
+if ! conda env list | grep -q "ogbench"; then
+    conda create -n ogbench python=3.12 -y
 fi
 
-conda activate bgbench
+conda activate ogbench
 
 pip install --upgrade pip
 pip install -e '.[all]'
