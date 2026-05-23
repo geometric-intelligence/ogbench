@@ -2,10 +2,7 @@
 # Used by scripts/hyperparam_search.py
 
 datasets:
-  - parkinsons
-  - addneuromed
-  - motrpac
-  - brca
+  - smoking
 
 models:
   - gcn
@@ -22,7 +19,7 @@ seeds: [42, 123, 456]
 
 # Fixed parameters (not searched)
 fixed:
-  logger.wandb.project: ogbench_dataset_grid_search_final
+  logger.wandb.project: ogbench_dataset_grid_search_smoking
   logger.wandb.entity: bioshape-lab
   paths.root_dir: /scratch/lcornelis/ogbench
 
@@ -32,13 +29,13 @@ shared_grid:
     - omics_readout
     - no_readout
   dataset.loader.parameters.adjacency_method:
-    - wgcna
+    # - wgcna
     - string
   dataset.loader.parameters.node_sample_ratio:
     - 1.0
     - 0.8
-    # - 0.5
-    # - 0.3
+    - 0.5
+    - 0.3
   dataset.loader.parameters.method:
     - variance
     - random
