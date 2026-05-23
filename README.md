@@ -60,7 +60,7 @@ pre-commit install
 
 ## Datasets
 
-BGBench includes three curated omics datasets for graph-based classification:
+BGBench includes four curated omics datasets for graph-based classification:
 
 ### 1. MotrPac Dataset
 
@@ -89,6 +89,15 @@ BGBench includes three curated omics datasets for graph-based classification:
 - **Classes**: 3 (AD, MCI, Control)
 - **Preprocessing**: Combat batch correction, class balancing
 
+### 4. Smoking Dataset
+
+- **Type**: DNA methylation (Illumina HumanMethylation450) from peripheral blood (GEO accession GSE50660)
+- **Samples**: 464 samples
+- **Features**: ~20,763 genes
+- **Task**: Binary classification (never-smoker vs ever-smoker)
+- **Classes**: 2 (never: 179, ever = former + current: 285; original 3-class GEO labels preserved in metadata)
+- **Preprocessing**: CpG probes restricted to TSS1500/TSS200 promoter regions via the HumanMethylation450 v1.2 manifest, collapsed to gene-level by keeping the promoter probe with the minimum mean beta across never-smoker samples, then median-centered per gene
+
 ### Dataset Storage and Access
 
 All datasets are stored on Hugging Face Hub at `geometric-intelligence/bgbench` and automatically downloaded when needed. The datasets are preprocessed and stored in Parquet format for efficient loading.
@@ -104,6 +113,7 @@ To download and process datasets for Hugging Face storage:
 python scripts/download_datasets.py motrpac
 python scripts/download_datasets.py parkinsons
 python scripts/download_datasets.py addneuromed
+python scripts/download_datasets.py smoking
 
 # Process all datasets at once
 python scripts/download_datasets.py all
@@ -161,7 +171,7 @@ bash run_all_experiments.sh --parallel
 The script tests:
 
 - **Models**: ChebNet, GATv4, GAT, GATv2, GCN, MLP, GraphSAGE
-- **Datasets**: AddNeuroMed, MotrPac, Parkinson's
+- **Datasets**: AddNeuroMed, MotrPac, Parkinson's, Smoking
 - **Sampling Methods**: variance, random, correlation
 
 ### Available Models
@@ -220,6 +230,9 @@ python ogbench/baseline.py dataset=parkinsons
 
 # Run baseline on AddNeuroMed dataset
 python ogbench/baseline.py dataset=addneuromed
+
+# Run baseline on Smoking dataset
+python ogbench/baseline.py dataset=smoking
 ```
 
 ### What the Baseline Script Does
@@ -303,6 +316,7 @@ Typical baseline performance ranges:
 - **MotrPac**: F1-macro ~0.65-0.75 (exercise response prediction)
 - **Parkinson's**: F1-weighted ~0.70-0.80 (dementia classification)
 - **AddNeuroMed**: F1-weighted ~0.60-0.70 (3-class AD classification)
+- **Smoking**: F1-weighted ~0.65-0.75 (never vs ever-smoker from blood methylation)
 
 GNN models should ideally outperform these baselines, especially on datasets where graph structure provides meaningful signal.
 
