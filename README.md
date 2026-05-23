@@ -36,14 +36,15 @@ A CLI entry point is also installed: `ogbench-train` (equivalent to `python ogbe
 
 ## Datasets
 
-OGBench includes four curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/ogbench`](https://huggingface.co/datasets/geometric-intelligence/ogbench) in Parquet format and downloaded automatically on first use.
+OGBench includes five curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/ogbench`](https://huggingface.co/datasets/geometric-intelligence/ogbench) in Parquet format and downloaded automatically on first use.
 
-| Dataset         | Domain                          | Samples | Features        | Classes | Task                          |
-| --------------- | ------------------------------- | ------- | --------------- | ------- | ----------------------------- |
-| **MotrPac**     | Proteomics (exercise response)  | 654     | ~4,976 proteins | 2       | Responder vs non-responder    |
-| **Parkinson's** | Gene expression (PD study)      | 535     | ~21,755 genes   | 2       | Dementia vs MCI/normal        |
-| **AddNeuroMed** | Gene expression (AD study)      | 711     | ~17,198 genes   | 3       | AD vs MCI vs Control          |
-| **BRCA**        | Gene expression (breast cancer) | 640     | ~19,049 genes   | 4       | Cancer subtype classification |
+| Dataset         | Domain                                    | Samples | Features        | Classes | Task                          |
+| --------------- | ----------------------------------------- | ------- | --------------- | ------- | ----------------------------- |
+| **MotrPac**     | Proteomics (exercise response)            | 654     | ~4,976 proteins | 2       | Responder vs non-responder    |
+| **Parkinson's** | Gene expression (PD study)                | 535     | ~21,755 genes   | 2       | Dementia vs MCI/normal        |
+| **AddNeuroMed** | Gene expression (AD study)                | 711     | ~17,198 genes   | 3       | AD vs MCI vs Control          |
+| **BRCA**        | Gene expression (breast cancer)           | 640     | ~19,049 genes   | 4       | Cancer subtype classification |
+| **Smoking**     | DNA methylation (GSE50660, blood, 450k)   | 464     | ~20,763 genes   | 2       | Never- vs ever-smoker         |
 
 ### Downloading and Processing Datasets
 
@@ -51,6 +52,7 @@ OGBench includes four curated omics datasets for graph-based classification. All
 python scripts/download_datasets.py motrpac
 python scripts/download_datasets.py parkinsons
 python scripts/download_datasets.py addneuromed
+python scripts/download_datasets.py smoking
 python scripts/download_datasets.py all
 ```
 
@@ -92,27 +94,6 @@ python ogbench/run.py dataset=brca model=gps dataset.loader.parameters.adjacency
 python ogbench/run.py dataset=addneuromed model=graph_sage trainer=ddp
 ```
 
-<<<<<<< HEAD
-### Running All Experiments
-
-Run comprehensive benchmarking across all model-dataset combinations:
-
-```bash
-# Sequential execution
-bash run_all_experiments.sh
-
-# Parallel execution (requires multiple GPUs)
-bash run_all_experiments.sh --parallel
-```
-
-The script tests:
-
-- **Models**: ChebNet, GATv4, GAT, GATv2, GCN, MLP, GraphSAGE
-- **Datasets**: AddNeuroMed, MotrPac, Parkinson's, Smoking
-- **Sampling Methods**: variance, random, correlation
-
-=======
->>>>>>> fa3d4d63f6e678b8a3c6f4872f24469ba9e5e80e
 ### Available Models
 
 | Model     | Config name  | Description                                           |
@@ -170,108 +151,7 @@ Baselines are configured in each dataset's YAML under the `baselines` key (e.g. 
 
 ## Leaderboard & Dataset Explorer
 
-<<<<<<< HEAD
-```bash
-# Run baseline on MotrPac dataset
-python ogbench/baseline.py dataset=motrpac
-
-# Run baseline on Parkinson's dataset
-python ogbench/baseline.py dataset=parkinsons
-
-# Run baseline on AddNeuroMed dataset
-python ogbench/baseline.py dataset=addneuromed
-
-# Run baseline on Smoking dataset
-python ogbench/baseline.py dataset=smoking
-```
-
-### What the Baseline Script Does
-
-The baseline experiment script (`run_baselines.sh`) performs the following:
-
-1. **Data Loading**: Loads the specified dataset using the same preprocessing pipeline as GNN experiments
-2. **Feature Selection**: Applies SelectKBest with F-test to select top features (k=50, 100, 500)
-3. **Hyperparameter Search**: Uses GridSearchCV to find optimal parameters for each baseline model
-4. **Model Training**: Trains SVM and Elastic Net models with cross-validation
-5. **Evaluation**: Computes comprehensive metrics including accuracy, precision, recall, F1-score, AUROC
-6. **Visualization**: Generates confusion matrices, ROC curves, precision-recall curves, and feature importance plots
-7. **Logging**: Logs all results to WandB with detailed tracking and comparison
-
-### Baseline Configuration
-
-Baseline models are configured in each dataset's YAML file under the `baselines` section:
-
-```yaml
-baselines:
-  svm:
-    pipeline:
-      - name: feature_selection
-        _target_: sklearn.feature_selection.SelectKBest
-        score_func:
-          _target_: sklearn.feature_selection.f_classif
-        k: 100
-      - name: scaler
-        _target_: sklearn.preprocessing.StandardScaler
-      - name: calibrated_svm
-        _target_: sklearn.calibration.CalibratedClassifierCV
-        estimator:
-          _target_: sklearn.svm.LinearSVC
-          class_weight: balanced
-          max_iter: 5000
-        method: sigmoid
-    param_grid:
-      feature_selection__k: [50, 100, 500]
-      calibrated_svm__estimator__C: [1e-3, 1e-2, 1e-1]
-    scoring: f1_macro
-    n_jobs: -1
-```
-
-### Viewing Baseline Results
-
-#### WandB Dashboard
-
-1. **Access**: Navigate to your WandB dashboard
-2. **Project**: Look for project named `bgbench-baselines` (or as configured)
-3. **Tags**: Filter by tags `['baseline', 'sklearn', dataset_name]`
-4. **Metrics**: Compare performance across different baseline models
-5. **Plots**: View automatically generated confusion matrices, ROC curves, and feature importance plots
-
-#### Local Results
-
-- **Logs**: Check `logs/` directory for detailed experiment logs
-- **Plots**: Generated plots are saved in experiment output directories
-- **Metrics**: Performance metrics are logged and can be exported from WandB
-
-#### Key Metrics to Compare
-
-- **Primary Metric**: F1-macro (or F1-weighted for multi-class)
-- **Accuracy**: Overall classification accuracy
-- **AUROC**: Area under ROC curve
-- **Precision/Recall**: Per-class performance metrics
-- **Feature Importance**: Top selected features for each model
-
-### Baseline vs GNN Comparison
-
-After running both baseline and GNN experiments:
-
-1. **WandB Comparison**: Use WandB's compare feature to analyze performance differences
-2. **Statistical Significance**: Check if GNN improvements are statistically significant
-3. **Feature Analysis**: Compare which features are important for different model types
-4. **Computational Cost**: Analyze training time and resource usage differences
-
-### Example Results Interpretation
-
-Typical baseline performance ranges:
-
-- **MotrPac**: F1-macro ~0.65-0.75 (exercise response prediction)
-- **Parkinson's**: F1-weighted ~0.70-0.80 (dementia classification)
-- **AddNeuroMed**: F1-weighted ~0.60-0.70 (3-class AD classification)
-- **Smoking**: F1-weighted ~0.65-0.75 (never vs ever-smoker from blood methylation)
-
-GNN models should ideally outperform these baselines, especially on datasets where graph structure provides meaningful signal.
-=======
 An interactive webapp provides a leaderboard comparing all models and a dataset explorer for visualizing graph statistics across parameter combinations. See [webapp/README.md](webapp/README.md) for setup and deployment details.
->>>>>>> fa3d4d63f6e678b8a3c6f4872f24469ba9e5e80e
 
 ## Development
 
