@@ -9,7 +9,6 @@ import pandas as pd
 
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
 
-
 PROMOTER_REGIONS = {'TSS1500', 'TSS200'}
 
 
@@ -107,7 +106,9 @@ def _parse_series_matrix(gz_path: str) -> tuple[list[str], np.ndarray, pd.DataFr
     if not sample_ids:
         raise ValueError('Could not find !Sample_geo_accession line in series matrix')
     if not smoking_values:
-        raise ValueError('Could not find smoking !Sample_characteristics_ch1 line in series matrix')
+        raise ValueError(
+            'Could not find smoking !Sample_characteristics_ch1 line in series matrix'
+        )
     if len(sample_ids) != len(smoking_values):
         raise ValueError(
             f'Sample count mismatch: {len(sample_ids)} GSM ids vs {len(smoking_values)} smoking values'
@@ -150,7 +151,9 @@ def _select_min_promoter_per_gene(
 
     idx_min = available.groupby('gene')['never_mean'].idxmin()
     chosen = available.loc[idx_min, ['gene', 'probe_id']]
-    gene_to_probe = pd.Series(chosen['probe_id'].values, index=chosen['gene'].values, name='probe_id')
+    gene_to_probe = pd.Series(
+        chosen['probe_id'].values, index=chosen['gene'].values, name='probe_id'
+    )
 
     gene_data = beta.loc[:, gene_to_probe.values].copy()
     gene_data.columns = gene_to_probe.index.astype(str)
@@ -223,11 +226,24 @@ def process_smoking(output_dir: str = 'temp_data') -> None:
         'current': int((targets == 2).sum()),
     }
 
+    # Build gene map: feature columns are gene symbols, which STRING resolves
+    # directly via its alias lookup (same approach as brca/addneuromed).
+    gene_map = pd.DataFrame(
+        {
+            'node_id': list(gene_data.columns),
+            'string_id': list(gene_data.columns),
+        }
+    )
+    gene_map['node_id'] = gene_map['node_id'].astype(str)
+    gene_map['string_id'] = gene_map['string_id'].astype(str)
+
     data_file = os.path.join(output_dir, 'smoking_data.parquet')
     targets_file = os.path.join(output_dir, 'smoking_targets.parquet')
+    map_file = os.path.join(output_dir, 'smoking_map.parquet')
 
     gene_data.reset_index(drop=True).to_parquet(data_file)
     pd.DataFrame({'target': targets_binary}).to_parquet(targets_file)
+    gene_map.reset_index(drop=True).to_parquet(map_file, index=False)
 
     target_stats: dict = {
         'class_mapping': class_mapping,
@@ -256,7 +272,7 @@ def process_smoking(output_dir: str = 'temp_data') -> None:
         ),
     )
 
-    data_files = {'data': data_file, 'targets': targets_file}
+    data_files = {'data': data_file, 'targets': targets_file, 'map': map_file}
     upload_to_huggingface('smoking', data_files, metadata)
 
     print('Successfully processed and uploaded smoking dataset')
