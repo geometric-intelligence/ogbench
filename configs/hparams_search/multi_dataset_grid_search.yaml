@@ -157,6 +157,9 @@ per_dataset_ratio_method_grid:
   brca,1.0,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0009]
 
+  ov,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0004]
+
   # ratio=1.0, method=random
   motrpac,1.0,random:
     dataset.loader.parameters.adjacency_threshold: [0.0631]
@@ -169,6 +172,9 @@ per_dataset_ratio_method_grid:
 
   brca,1.0,random:
     dataset.loader.parameters.adjacency_threshold: [0.0012]
+  
+  ov,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0004]
 
   # ratio=1.0, method=correlation
   motrpac,1.0,correlation:
@@ -182,6 +188,9 @@ per_dataset_ratio_method_grid:
 
   brca,1.0,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
+  
+  ov,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0052]
 
   # ratio=1.0, method=distance_correlation
   motrpac,1.0,distance_correlation:
@@ -196,6 +205,9 @@ per_dataset_ratio_method_grid:
   brca,1.0,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
 
+  ov,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0005]
+
   # ratio=0.8, method=variance
   motrpac,0.8,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0988]
@@ -208,6 +220,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.8,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
+
+  ov,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0004]
 
   # ratio=0.8, method=random
   motrpac,0.8,random:
@@ -222,6 +237,9 @@ per_dataset_ratio_method_grid:
   brca,0.8,random:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
 
+  ov,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0010]
+
   # ratio=0.8, method=correlation
   motrpac,0.8,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.1105]
@@ -234,6 +252,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.8,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
+
+  ov,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0045]
 
   # ratio=0.8, method=distance_correlation
   motrpac,0.8,distance_correlation:
@@ -248,6 +269,9 @@ per_dataset_ratio_method_grid:
   brca,0.8,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0006]
 
+  ov,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0005]
+
   # ratio=0.5, method=variance
   motrpac,0.5,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0572]
@@ -260,6 +284,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.5,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0015]
+
+  ov,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0010]
 
   # ratio=0.5, method=random
   motrpac,0.5,random:
@@ -274,6 +301,9 @@ per_dataset_ratio_method_grid:
   brca,0.5,random:
     dataset.loader.parameters.adjacency_threshold: [0.0021]
 
+  ov,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0012]
+
   # ratio=0.5, method=correlation
   motrpac,0.5,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0231]
@@ -286,6 +316,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.5,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0009]
+
+  ov,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0146]
 
   # ratio=0.5, method=distance_correlation
   motrpac,0.5,distance_correlation:
@@ -300,6 +333,9 @@ per_dataset_ratio_method_grid:
   brca,0.5,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
 
+  ov,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0009]
+
   # ratio=0.3, method=variance
   motrpac,0.3,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0047]
@@ -313,6 +349,9 @@ per_dataset_ratio_method_grid:
   brca,0.3,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
 
+  ov,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0009]
+
   # ratio=0.3, method=random
   motrpac,0.3,random:
     dataset.loader.parameters.adjacency_threshold: [0.0582]
@@ -325,6 +364,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.3,random:
     dataset.loader.parameters.adjacency_threshold: [0.0028]
+  
+  ov,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0061]
 
   # ratio=0.3, method=correlation
   motrpac,0.3,correlation:
@@ -338,6 +380,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.3,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
+  
+  ov,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0091]
 
   # ratio=0.3, method=distance_correlation
   motrpac,0.3,distance_correlation:
@@ -351,6 +396,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.3,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
+  
+  ov,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0012]
 
 # Fixed threshold used for all STRING adjacency runs (ignores per_dataset_ratio_method_grid)
 string_adjacency_threshold: 0.4

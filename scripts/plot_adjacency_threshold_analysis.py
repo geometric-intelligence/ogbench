@@ -49,7 +49,7 @@ def load_dataset_config(dataset_name: str) -> dict[str, Any]:
     }
 
 
-DATASET_NAMES = ['addneuromed', 'motrpac', 'parkinsons']
+DATASET_NAMES = ['addneuromed', 'motrpac', 'parkinsons', 'ov']
 DATASETS = {name: load_dataset_config(name) for name in DATASET_NAMES}
 
 ADJACENCY_METHOD = 'wgcna'
