@@ -215,7 +215,13 @@ def run_training(
 
     env = os.environ.copy()
     if gpu_id is not None and torch.cuda.is_available():
-        env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        visible = env.get('CUDA_VISIBLE_DEVICES', '')
+        if visible:
+            gpu_list = [x.strip() for x in visible.split(',')]
+            physical_gpu_id = gpu_list[gpu_id] if gpu_id < len(gpu_list) else str(gpu_id)
+        else:
+            physical_gpu_id = str(gpu_id)
+        env['CUDA_VISIBLE_DEVICES'] = str(physical_gpu_id)
     if n_threads is not None:
         env['OMP_NUM_THREADS'] = str(n_threads)
         env['MKL_NUM_THREADS'] = str(n_threads)
@@ -637,7 +643,7 @@ def run_search(
     # Cap CPU threads per job to avoid thrashing when running in parallel.
     # Each job gets an equal share of available cores.
     n_cpu = os.cpu_count() or 1
-    n_threads = max(1, n_cpu // n_jobs)
+    n_threads = 2  # max(1, n_cpu // n_jobs)
 
     # Build all run configurations
     configs = build_run_configs(
