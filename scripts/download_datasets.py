@@ -11,6 +11,7 @@ from scripts.processors.brca import process_brca
 from scripts.processors.motrpac import process_motrpac
 from scripts.processors.parkinsons import process_parkinsons
 from scripts.processors.smoking import process_smoking
+from scripts.processors.tuberculosis import process_tuberculosis
 
 app = typer.Typer(help='Download and upload omics datasets to HuggingFace')
 
@@ -76,6 +77,21 @@ def smoking(
 
 
 @app.command()
+def tuberculosis(
+    output_dir: str = typer.Option(
+        'temp_data',
+        '--output-dir',
+        '-o',
+        help='Output directory for temporary files',
+    ),
+) -> None:
+    """Download and upload Tuberculosis (GSE19433) dataset to HuggingFace."""
+    typer.echo('Processing Tuberculosis dataset...')
+    process_tuberculosis(output_dir)
+    typer.echo('✅ Tuberculosis dataset processed and uploaded successfully!')
+
+
+@app.command()
 def brca(
     output_dir: str = typer.Option(
         'temp_data',
@@ -120,6 +136,9 @@ def all(
 
         typer.echo('\n📊 Processing Smoking...')
         process_smoking(output_dir)
+
+        typer.echo('\n📊 Processing Tuberculosis...')
+        process_tuberculosis(output_dir)
 
         typer.echo('\n📊 Processing BRCA...')
         process_brca(output_dir)

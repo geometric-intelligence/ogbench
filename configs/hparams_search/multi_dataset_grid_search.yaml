@@ -2,7 +2,7 @@
 # Used by scripts/hyperparam_search.py
 
 datasets:
-  - smoking
+  - tuberculosis
 
 models:
   - gcn
@@ -19,7 +19,7 @@ seeds: [42, 123, 456]
 
 # Fixed parameters (not searched)
 fixed:
-  logger.wandb.project: ogbench_dataset_grid_search_smoking
+  logger.wandb.project: ogbench_dataset_grid_search_tuberculosis
   logger.wandb.entity: bioshape-lab
   paths.root_dir: /scratch/lcornelis/ogbench
 
@@ -30,7 +30,7 @@ shared_grid:
     - no_readout
   dataset.loader.parameters.adjacency_method:
     - wgcna
-    #- string
+    - string
   dataset.loader.parameters.node_sample_ratio:
     - 1.0
     - 0.8
@@ -157,6 +157,9 @@ per_dataset_ratio_method_grid:
   brca,1.0,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0009]
 
+  tuberculosis,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.9552]
+
   # ratio=1.0, method=random
   smoking,1.0,random:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
@@ -172,6 +175,9 @@ per_dataset_ratio_method_grid:
 
   brca,1.0,random:
     dataset.loader.parameters.adjacency_threshold: [0.0012]
+
+  tuberculosis,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.9340]
 
   # ratio=1.0, method=correlation
   smoking,1.0,correlation:
@@ -189,6 +195,9 @@ per_dataset_ratio_method_grid:
   brca,1.0,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
 
+  tuberculosis,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.8856]
+
   # ratio=1.0, method=distance_correlation
   smoking,1.0,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
@@ -204,6 +213,9 @@ per_dataset_ratio_method_grid:
 
   brca,1.0,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
+
+  tuberculosis,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.9266]
 
   # ratio=0.8, method=variance
   smoking,0.8,variance:
@@ -221,6 +233,9 @@ per_dataset_ratio_method_grid:
   brca,0.8,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
 
+  tuberculosis,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.9374]
+
   # ratio=0.8, method=random
   smoking,0.8,random:
     dataset.loader.parameters.adjacency_threshold: [0.0009]
@@ -236,6 +251,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.8,random:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
+
+  tuberculosis,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.9320]
 
   # ratio=0.8, method=correlation
   smoking,0.8,correlation:
@@ -253,6 +271,9 @@ per_dataset_ratio_method_grid:
   brca,0.8,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
 
+  tuberculosis,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.9394]
+
   # ratio=0.8, method=distance_correlation
   smoking,0.8,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0009]
@@ -268,6 +289,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.8,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0006]
+
+  tuberculosis,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.9271]
 
   # ratio=0.5, method=variance
   smoking,0.5,variance:
@@ -285,6 +309,9 @@ per_dataset_ratio_method_grid:
   brca,0.5,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0015]
 
+  tuberculosis,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.8395]
+
   # ratio=0.5, method=random
   smoking,0.5,random:
     dataset.loader.parameters.adjacency_threshold: [0.0009]
@@ -300,6 +327,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.5,random:
     dataset.loader.parameters.adjacency_threshold: [0.0021]
+
+  tuberculosis,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.9346]
 
   # ratio=0.5, method=correlation
   smoking,0.5,correlation:
@@ -317,6 +347,9 @@ per_dataset_ratio_method_grid:
   brca,0.5,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0009]
 
+  tuberculosis,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.9433]
+
   # ratio=0.5, method=distance_correlation
   smoking,0.5,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
@@ -332,6 +365,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.5,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
+
+  tuberculosis,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.9320]
 
   # ratio=0.3, method=variance
   smoking,0.3,variance:
@@ -349,6 +385,9 @@ per_dataset_ratio_method_grid:
   brca,0.3,variance:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
 
+  tuberculosis,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.7602]
+
   # ratio=0.3, method=random
   smoking,0.3,random:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
@@ -364,6 +403,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.3,random:
     dataset.loader.parameters.adjacency_threshold: [0.0028]
+
+  tuberculosis,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.8734]
 
   # ratio=0.3, method=correlation
   smoking,0.3,correlation:
@@ -381,6 +423,9 @@ per_dataset_ratio_method_grid:
   brca,0.3,correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0008]
 
+  tuberculosis,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.9441]
+
   # ratio=0.3, method=distance_correlation
   smoking,0.3,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
@@ -396,6 +441,9 @@ per_dataset_ratio_method_grid:
 
   brca,0.3,distance_correlation:
     dataset.loader.parameters.adjacency_threshold: [0.0005]
+
+  tuberculosis,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.9353]
 
 # Fixed threshold used for all STRING adjacency runs (ignores per_dataset_ratio_method_grid)
 string_adjacency_threshold: 0.4
