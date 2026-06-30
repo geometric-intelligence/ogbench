@@ -19,7 +19,7 @@ loader:
 parameters:
   num_features: 1
   num_classes: 2
-  num_samples: 508
+  num_samples: 561
   full_num_nodes: 3814
   num_nodes:
     ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio},
@@ -27,8 +27,8 @@ parameters:
   task: classification
   loss_type: cross_entropy
   class_weights:
-    - 1.644
-    - 0.719
+    - 0.883
+    - 1.153
   monitor_metric: f1_macro
   metrics:
     - accuracy

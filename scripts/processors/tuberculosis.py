@@ -4,8 +4,8 @@ GSE19433 profiles antibody responses against the entire Mycobacterium tuberculos
 proteins) in the sera of suspected TB patients, using a protein microarray (platform GPL9790, taxid
 83332).
 
-The classification target is the patient's chest x-ray result (NORMAL vs ABNORMAL); samples whose
-chest x-ray is "not applicable" or "UNKNOWN" are discarded.
+The classification target is the M. tuberculosis culture result (NEG vs POS); samples whose culture
+result is "not applicable" are discarded.
 
 Feature identifiers in the series matrix are microarray spot coordinates (block_row_column, e.g.
 "10_10_1"). These are mapped to M. tuberculosis ORFs (Rv locus tags) via the GPL9790 platform
@@ -44,33 +44,37 @@ def _parse_series_matrix(gz_path: str) -> tuple[list[str], list[str], pd.DataFra
 
     Returns:
         sample_ids: GSM accessions in column order of the expression matrix.
-        chest_xray: raw chest x-ray value per sample (e.g. "ABNORMAL", "NORMAL",
-            "not applicable", "UNKNOWN"), aligned with sample_ids.
+        culture_status: raw M. tuberculosis culture value per sample (e.g. "POS", "NEG",
+            "not applicable"), aligned with sample_ids.
         expression: DataFrame of shape (n_samples, n_spots) indexed by GSM accession,
             columns are microarray spot ids.
     """
     sample_ids: list[str] = []
-    chest_xray: list[str] = []
+    culture_status: list[str] = []
 
     with gzip.open(gz_path, 'rt') as f:
         for line in f:
             if line.startswith('!Sample_geo_accession'):
                 sample_ids = [x.strip().strip('"') for x in line.rstrip('\n').split('\t')[1:]]
-            elif line.startswith('!Sample_characteristics_ch1') and 'chest x-ray:' in line:
-                # Skip the separate "chest x-ray description:" characteristics line.
+            elif (
+                line.startswith('!Sample_characteristics_ch1')
+                and 'm. tuberculosis culture:' in line
+            ):
                 tokens = [x.strip().strip('"') for x in line.rstrip('\n').split('\t')[1:]]
-                if tokens and tokens[0].lower().startswith('chest x-ray:'):
-                    chest_xray = [t.split(':', 1)[-1].strip() for t in tokens]
+                if tokens and tokens[0].lower().startswith('m. tuberculosis culture:'):
+                    culture_status = [t.split(':', 1)[-1].strip() for t in tokens]
             elif line.startswith('!series_matrix_table_begin'):
                 break
 
     if not sample_ids:
         raise ValueError('Could not find !Sample_geo_accession line in series matrix')
-    if not chest_xray:
-        raise ValueError('Could not find the "chest x-ray:" characteristics line in series matrix')
-    if len(sample_ids) != len(chest_xray):
+    if not culture_status:
         raise ValueError(
-            f'Sample count mismatch: {len(sample_ids)} GSM ids vs {len(chest_xray)} chest x-ray values'
+            'Could not find the "m. tuberculosis culture:" characteristics line in series matrix'
+        )
+    if len(sample_ids) != len(culture_status):
+        raise ValueError(
+            f'Sample count mismatch: {len(sample_ids)} GSM ids vs {len(culture_status)} culture values'
         )
 
     with gzip.open(gz_path, 'rt') as f:
@@ -84,7 +88,7 @@ def _parse_series_matrix(gz_path: str) -> tuple[list[str], list[str], pd.DataFra
         )
     expression = expression.loc[sample_ids]
 
-    return sample_ids, chest_xray, expression
+    return sample_ids, culture_status, expression
 
 
 def _build_spot_to_orf(soft_path: str) -> dict[str, str]:
@@ -166,17 +170,17 @@ def process_tuberculosis(output_dir: str = 'temp_data') -> None:
         download_file(urls['UniProt_H37Rv_proteome'], uniprot_path)
 
     print('Parsing series matrix...')
-    sample_ids, chest_xray, expression = _parse_series_matrix(gz_path)
+    sample_ids, culture_status, expression = _parse_series_matrix(gz_path)
     print(f'  Samples: {len(sample_ids)}, Spots: {expression.shape[1]}')
 
-    # Build target: NORMAL=0, ABNORMAL=1; drop "not applicable" / "UNKNOWN" / anything else.
-    label_map = {'NORMAL': 0, 'ABNORMAL': 1}
-    targets_raw = np.array([label_map.get(v.strip().upper(), -1) for v in chest_xray])
+    # Build target: culture NEG=0, POS=1; drop "not applicable" / anything else.
+    label_map = {'NEG': 0, 'POS': 1}
+    targets_raw = np.array([label_map.get(v.strip().upper(), -1) for v in culture_status])
     keep_samples = targets_raw != -1
     dropped = int((~keep_samples).sum())
     print(
-        f'  Chest x-ray labels: keeping {int(keep_samples.sum())} samples '
-        f'(NORMAL/ABNORMAL), dropping {dropped} (not applicable/unknown)'
+        f'  M. tuberculosis culture labels: keeping {int(keep_samples.sum())} samples '
+        f'(NEG/POS), dropping {dropped} (not applicable)'
     )
 
     expression = expression.loc[keep_samples]
@@ -224,7 +228,7 @@ def process_tuberculosis(output_dir: str = 'temp_data') -> None:
     gene_map['node_id'] = gene_map['node_id'].astype(str)
     gene_map['string_id'] = gene_map['string_id'].astype(str)
 
-    class_names = ['NORMAL', 'ABNORMAL']
+    class_names = ['NEG', 'POS']
     class_mapping = {name: i for i, name in enumerate(class_names)}
 
     print('Classification distribution:')
@@ -257,9 +261,9 @@ def process_tuberculosis(output_dir: str = 'temp_data') -> None:
         target_stats=target_stats,
         preprocessing_notes=(
             'GSE19433 M. tuberculosis full-proteome antibody microarray (platform GPL9790, '
-            'log-transformed median spot intensities). The classification target is the patient '
-            'chest x-ray result (0=NORMAL, 1=ABNORMAL); samples with chest x-ray "not applicable" '
-            'or "UNKNOWN" are dropped. Microarray spot ids (block_row_column) are mapped to '
+            'log-transformed raw intensities without normalization). The classification target is '
+            'the M. tuberculosis culture result (0=NEG, 1=POS); samples with culture '
+            '"not applicable" are dropped. Microarray spot ids (block_row_column) are mapped to '
             'M. tuberculosis ORFs (Rv locus tags) via the GPL9790 platform table; array-specific '
             'segment/alt spots ("-s1", "-alt") are collapsed to the base locus tag by averaging. '
             'Rv locus tags are mapped to UniProt accessions via the H37Rv reference proteome '
