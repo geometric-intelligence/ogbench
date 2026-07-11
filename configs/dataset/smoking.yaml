@@ -1,0 +1,160 @@
+loader:
+  _target_: ogbench.data.loaders.graph.omics_datasets.OmicsDatasetLoader
+  parameters:
+    data_type: omics
+    data_domain: graph
+    data_name: smoking
+    data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
+    adjacency_threshold: 0.0463
+    adjacency_method: wgcna
+    node_sample_ratio: 0.5
+    method: variance
+    imputation_method: mean
+    train_val_test_split:
+      - 0.7
+      - 0.15
+      - 0.15
+    revision: ${hf.revision}
+parameters:
+  num_features: 1
+  num_classes: 2
+  num_samples: 464
+  full_num_nodes: 20763
+  num_nodes:
+    ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio},
+    ${dataset.parameters.full_num_nodes}}
+  task: classification
+  loss_type: cross_entropy
+  class_weights:
+    - 1.296
+    - 0.814
+  monitor_metric: f1_macro
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - auroc
+    - f1_weighted
+    - f1_macro
+  shared_graph: true
+  task_level: graph
+split_params:
+  learning_setting: inductive
+  data_split_dir: ${paths.data_dir}/${dataset.loader.parameters.data_name}/data_splits
+  data_seed: 0
+  split_type: fixed
+dataloader_params:
+  batch_size: 16
+  num_workers: 0
+  pin_memory: false
+  persistent_workers: false
+baselines:
+  svm:
+    pipeline:
+      - name: feature_selection
+        _target_: sklearn.feature_selection.SelectKBest
+        score_func:
+          _target_: sklearn.feature_selection.f_classif
+        k: 100
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: calibrated_svm
+        _target_: sklearn.calibration.CalibratedClassifierCV
+        estimator:
+          _target_: sklearn.svm.LinearSVC
+          class_weight: balanced
+          max_iter: 5000
+          random_state: ${seed}
+        method: sigmoid
+    param_grid:
+      feature_selection__k:
+        - 50
+        - 100
+        - 500
+      calibrated_svm__estimator__C:
+        - 0.001
+        - 0.01
+        - 0.1
+    scoring: f1_macro
+    n_jobs: -1
+  elastic_net:
+    pipeline:
+      - name: feature_selection
+        _target_: sklearn.feature_selection.SelectKBest
+        score_func:
+          _target_: sklearn.feature_selection.f_classif
+        k: 100
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: elastic_net
+        _target_: sklearn.linear_model.LogisticRegression
+        penalty: elasticnet
+        solver: saga
+        class_weight: balanced
+        max_iter: 5000
+        random_state: ${seed}
+    param_grid:
+      feature_selection__k:
+        - 50
+        - 100
+        - 500
+      elastic_net__C:
+        - 0.001
+        - 0.01
+        - 0.1
+        - 1.0
+      elastic_net__l1_ratio:
+        - 0.0
+        - 0.1
+        - 0.3
+        - 0.5
+        - 0.7
+    scoring: f1_macro
+    n_jobs: -1
+  svm_gnn_features:
+    preprocessing: gnn_features
+    pipeline:
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: calibrated_svm
+        _target_: sklearn.calibration.CalibratedClassifierCV
+        estimator:
+          _target_: sklearn.svm.LinearSVC
+          class_weight: balanced
+          max_iter: 5000
+          random_state: ${seed}
+        method: sigmoid
+    param_grid:
+      calibrated_svm__estimator__C:
+        - 0.001
+        - 0.01
+        - 0.1
+        - 1.0
+    scoring: f1_macro
+    n_jobs: -1
+  elastic_net_gnn_features:
+    preprocessing: gnn_features
+    pipeline:
+      - name: scaler
+        _target_: sklearn.preprocessing.StandardScaler
+      - name: elastic_net
+        _target_: sklearn.linear_model.LogisticRegression
+        penalty: elasticnet
+        solver: saga
+        class_weight: balanced
+        max_iter: 5000
+        random_state: ${seed}
+    param_grid:
+      elastic_net__C:
+        - 0.001
+        - 0.01
+        - 0.1
+        - 1.0
+      elastic_net__l1_ratio:
+        - 0.0
+        - 0.1
+        - 0.3
+        - 0.5
+        - 0.7
+    scoring: f1_macro
+    n_jobs: -1
