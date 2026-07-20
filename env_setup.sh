@@ -35,4 +35,4 @@ conda activate ogbench
 pip install --upgrade pip
 pip install -e '.[all]'
 
-pre-commit install
+#pre-commit install
