@@ -23,35 +23,33 @@ from ensemble_val_topk_core import (  # noqa: E402
     run_ensemble,
 )
 
-rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--csv", default=str(REPO_ROOT / "plotting/final_results_hyperparams_neurips.csv"))
+    p.add_argument("--entity", default="bioshape-lab")
+    p.add_argument("--project", default="bgbench_dataset_grid_search_final")
+    p.add_argument("--model", required=True, help="Canonical model name, e.g. gps, gin")
+    p.add_argument("--dataset", required=True, help="data_name, e.g. addneuromed, motrpac")
+    p.add_argument("--min-seeds-per-bucket", type=int, default=1)
+    p.add_argument("--max-buckets", type=int, default=5)
+    p.add_argument("--ks", default="1,3,5")
     p.add_argument(
-        '--csv', default=str(REPO_ROOT / 'plotting/final_results_hyperparams_neurips.csv')
-    )
-    p.add_argument('--entity', default='bioshape-lab')
-    p.add_argument('--project', default='bgbench_dataset_grid_search_final')
-    p.add_argument('--model', required=True, help='Canonical model name, e.g. gps, gin')
-    p.add_argument('--dataset', required=True, help='data_name, e.g. addneuromed, motrpac')
-    p.add_argument('--min-seeds-per-bucket', type=int, default=1)
-    p.add_argument('--max-buckets', type=int, default=5)
-    p.add_argument('--ks', default='1,3,5')
-    p.add_argument(
-        '--graph-lock',
-        action='store_true',
+        "--graph-lock",
+        action="store_true",
         help="Restrict to best bucket's graph slice + shared test loader (old behaviour).",
     )
-    p.add_argument('--wandb-offline', action='store_true')
-    p.add_argument('--extra-override', action='append', default=[])
+    p.add_argument("--wandb-offline", action="store_true")
+    p.add_argument("--extra-override", action="append", default=[])
     args = p.parse_args()
 
-    ks = tuple(int(x.strip()) for x in args.ks.split(',') if x.strip())
+    ks = tuple(int(x.strip()) for x in args.ks.split(",") if x.strip())
     if not ks or any(k < 1 for k in ks):
-        raise SystemExit('--ks must list positive integers.')
+        raise SystemExit("--ks must list positive integers.")
     if min(ks) > args.max_buckets:
-        raise SystemExit(f'min ks ({min(ks)}) exceeds --max-buckets ({args.max_buckets}).')
+        raise SystemExit(f"min ks ({min(ks)}) exceeds --max-buckets ({args.max_buckets}).")
 
     cfg = EnsembleRunConfig(
         csv_path=Path(args.csv),
@@ -65,7 +63,7 @@ def main() -> int:
         wandb_offline=bool(args.wandb_offline),
         extra_override=tuple(args.extra_override or ()),
         work_dir=Path.cwd().resolve(),
-        config_dir=REPO_ROOT / 'configs',
+        config_dir=REPO_ROOT / "configs",
         graph_lock=bool(args.graph_lock),
         verbose=True,
     )
@@ -78,5 +76,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())

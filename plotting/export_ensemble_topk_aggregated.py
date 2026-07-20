@@ -33,120 +33,116 @@ _PLOT_DIR = Path(__file__).resolve().parent
 if str(_PLOT_DIR) not in sys.path:
     sys.path.insert(0, str(_PLOT_DIR))
 
-from ensemble_val_topk_core import (
-    REPO_ROOT as CORE_REPO_ROOT,
-)
 from ensemble_val_topk_core import (  # noqa: E402
     EnsembleRunConfig,
+    REPO_ROOT as CORE_REPO_ROOT,
     run_ensemble,
 )
 
-rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 CANONICAL_MODEL_ORDER = [
-    'mlp',
-    'gin',
-    'gcn',
-    'gatv2',
-    'sage',
-    'gps',
-    'sagn',
-    'chebnet',
-    'gatv4',
+    "mlp",
+    "gin",
+    "gcn",
+    "gatv2",
+    "sage",
+    "gps",
+    "sagn",
+    "chebnet",
+    "gatv4",
 ]
 
-DATASETS = ['motrpac', 'addneuromed', 'parkinsons', 'brca']
+DATASETS = ["motrpac", "addneuromed", "parkinsons", "brca"]
 
 OUTPUT_COLUMNS = [
-    'data_name',
-    'model_name',
-    'adjacency_method',
-    'node_sample_ratio',
-    'sampling_method',
-    'readout_name',
-    '_bucket_key',
-    'ensemble_K',
-    'n_runs_seeds',
-    'best_val_f1_macro_mean',
-    'best_val_f1_macro_std',
-    'best_test_f1_macro_mean',
-    'best_test_f1_macro_std',
-    'best_train_f1_macro_mean',
-    'best_train_f1_macro_std',
-    'best_test_f1_weighted_mean',
-    'best_test_f1_weighted_std',
-    'best_test_accuracy_mean',
-    'best_test_accuracy_std',
-    'best_test_auroc_mean',
-    'best_test_auroc_std',
+    "data_name",
+    "model_name",
+    "adjacency_method",
+    "node_sample_ratio",
+    "sampling_method",
+    "readout_name",
+    "_bucket_key",
+    "ensemble_K",
+    "n_runs_seeds",
+    "best_val_f1_macro_mean",
+    "best_val_f1_macro_std",
+    "best_test_f1_macro_mean",
+    "best_test_f1_macro_std",
+    "best_train_f1_macro_mean",
+    "best_train_f1_macro_std",
+    "best_test_f1_weighted_mean",
+    "best_test_f1_weighted_std",
+    "best_test_accuracy_mean",
+    "best_test_accuracy_std",
+    "best_test_auroc_mean",
+    "best_test_auroc_std",
 ]
 
 
 def _pair_key(row: pd.Series) -> tuple:
-    return (str(row['data_name']), str(row['model_name']), int(row['ensemble_K']))
+    return (str(row["data_name"]), str(row["model_name"]), int(row["ensemble_K"]))
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        '--out-csv',
-        default=str(REPO_ROOT / 'plotting/aggregated_ensemble_topk_neurips.csv'),
-        help='Output path (same column layout as aggregated_final + ensemble_K).',
+        "--out-csv",
+        default=str(REPO_ROOT / "plotting/aggregated_ensemble_topk_neurips.csv"),
+        help="Output path (same column layout as aggregated_final + ensemble_K).",
     )
     p.add_argument(
-        '--csv',
-        default=str(REPO_ROOT / 'plotting/final_results_hyperparams_neurips.csv'),
-        help='Per-run W&B export CSV.',
+        "--csv",
+        default=str(REPO_ROOT / "plotting/final_results_hyperparams_neurips.csv"),
+        help="Per-run W&B export CSV.",
     )
-    p.add_argument('--entity', default='bioshape-lab')
-    p.add_argument('--project', default='bgbench_dataset_grid_search_final')
+    p.add_argument("--entity", default="bioshape-lab")
+    p.add_argument("--project", default="bgbench_dataset_grid_search_final")
     p.add_argument(
-        '--models',
-        default=','.join(CANONICAL_MODEL_ORDER),
-        help='Comma-separated canonical model names (subset of default grid).',
+        "--models",
+        default=",".join(CANONICAL_MODEL_ORDER),
+        help="Comma-separated canonical model names (subset of default grid).",
     )
     p.add_argument(
-        '--datasets',
-        default=','.join(DATASETS),
-        help='Comma-separated data_name values.',
+        "--datasets",
+        default=",".join(DATASETS),
+        help="Comma-separated data_name values.",
     )
-    p.add_argument('--ks', default='3,5,10', help='Comma-separated ensemble sizes.')
+    p.add_argument("--ks", default="3,5,10", help="Comma-separated ensemble sizes.")
     p.add_argument(
-        '--min-seeds-per-bucket',
+        "--min-seeds-per-bucket",
         type=int,
         default=3,
-        help='Min seeds per hyperparam bucket + min seeds in intersection for export rows.',
+        help="Min seeds per hyperparam bucket + min seeds in intersection for export rows.",
     )
     p.add_argument(
-        '--max-buckets',
+        "--max-buckets",
         type=int,
         default=10,
-        help='Top this many val-mean buckets (≤ available); must be ≥ max(K) to evaluate largest K.',
+        help="Top this many val-mean buckets (≤ available); must be ≥ max(K) to evaluate largest K.",
     )
-    p.add_argument('--wandb-offline', action='store_true')
+    p.add_argument("--wandb-offline", action="store_true")
+    p.add_argument("--extra-override", action="append", default=[], help="Hydra override (repeatable).")
     p.add_argument(
-        '--extra-override', action='append', default=[], help='Hydra override (repeatable).'
-    )
-    p.add_argument(
-        '--graph-lock',
-        action='store_true',
-        help='Restrict to the graph slice of the best mean-val bucket and use one shared test loader.',
+        "--graph-lock",
+        action="store_true",
+        help="Restrict to the graph slice of the best mean-val bucket and use one shared test loader.",
     )
     p.add_argument(
-        '--resume',
-        action='store_true',
-        help='Skip (data_name, model_name, ensemble_K) triples already present in out-csv.',
+        "--resume",
+        action="store_true",
+        help="Skip (data_name, model_name, ensemble_K) triples already present in out-csv.",
     )
     args = p.parse_args()
 
-    ks = tuple(int(x.strip()) for x in args.ks.split(',') if x.strip())
+    ks = tuple(int(x.strip()) for x in args.ks.split(",") if x.strip())
     if not ks or any(k < 1 for k in ks):
-        raise SystemExit('--ks must be positive integers.')
+        raise SystemExit("--ks must be positive integers.")
     if min(ks) > args.max_buckets:
-        raise SystemExit('--max-buckets must be ≥ min(ks) (smallest ensemble size).')
+        raise SystemExit("--max-buckets must be ≥ min(ks) (smallest ensemble size).")
 
-    models = [m.strip().lower() for m in args.models.split(',') if m.strip()]
-    datasets = [d.strip().lower() for d in args.datasets.split(',') if d.strip()]
+    models = [m.strip().lower() for m in args.models.split(",") if m.strip()]
+    datasets = [d.strip().lower() for d in args.datasets.split(",") if d.strip()]
 
     out_path = Path(args.out_csv)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,17 +150,15 @@ def main() -> int:
     done: set[tuple] = set()
     if args.resume and out_path.is_file():
         prev = pd.read_csv(out_path, low_memory=False)
-        if not prev.empty and all(
-            c in prev.columns for c in ('data_name', 'model_name', 'ensemble_K')
-        ):
+        if not prev.empty and all(c in prev.columns for c in ("data_name", "model_name", "ensemble_K")):
             for _, r in prev.iterrows():
                 done.add(_pair_key(r))
-        print(f'Resume: {len(done)} existing row key(s) in {out_path}', flush=True)
+        print(f"Resume: {len(done)} existing row key(s) in {out_path}", flush=True)
 
     work_dir = Path.cwd().resolve()
-    config_dir = CORE_REPO_ROOT / 'configs'
+    config_dir = CORE_REPO_ROOT / "configs"
     if not config_dir.is_dir():
-        raise SystemExit(f'Config dir not found: {config_dir}')
+        raise SystemExit(f"Config dir not found: {config_dir}")
 
     import wandb
 
@@ -175,7 +169,7 @@ def main() -> int:
         for dataset in datasets:
             skip_all = all((dataset, model, int(k)) in done for k in ks)
             if skip_all:
-                print(f'SKIP (resume) {model}/{dataset}', flush=True)
+                print(f"SKIP (resume) {model}/{dataset}", flush=True)
                 continue
             cfg = EnsembleRunConfig(
                 csv_path=Path(args.csv),
@@ -194,9 +188,9 @@ def main() -> int:
                 verbose=True,
             )
             rows, msg = run_ensemble(cfg, api=api)
-            print(f'{model}/{dataset}: {msg}', flush=True)
+            print(f"{model}/{dataset}: {msg}", flush=True)
             for row in rows:
-                key = (str(row['data_name']), str(row['model_name']), int(row['ensemble_K']))
+                key = (str(row["data_name"]), str(row["model_name"]), int(row["ensemble_K"]))
                 if args.resume and key in done:
                     continue
                 all_rows.append(row)
@@ -213,18 +207,18 @@ def main() -> int:
                     df_old = pd.read_csv(out_path, low_memory=False)
                     df_out = pd.concat([df_old, df_new], ignore_index=True)
                     df_out = df_out.drop_duplicates(
-                        subset=['data_name', 'model_name', 'ensemble_K'],
-                        keep='last',
+                        subset=["data_name", "model_name", "ensemble_K"],
+                        keep="last",
                     )
                 else:
                     df_out = df_new
                 df_out.to_csv(out_path, index=False)
-                print(f'  wrote {len(df_out)} total rows → {out_path}', flush=True)
+                print(f"  wrote {len(df_out)} total rows → {out_path}", flush=True)
                 all_rows.clear()
 
-    print(f'Done. Output: {out_path.resolve()}')
+    print(f"Done. Output: {out_path.resolve()}")
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())
