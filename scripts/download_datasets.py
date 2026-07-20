@@ -9,7 +9,10 @@ import typer
 from scripts.processors.addneuromed import process_addneuromed
 from scripts.processors.brca import process_brca
 from scripts.processors.motrpac import process_motrpac
+from scripts.processors.ov import process_ov
 from scripts.processors.parkinsons import process_parkinsons
+from scripts.processors.smoking import process_smoking
+from scripts.processors.tuberculosis import process_tuberculosis
 
 app = typer.Typer(help='Download and upload omics datasets to HuggingFace')
 
@@ -60,6 +63,36 @@ def parkinsons(
 
 
 @app.command()
+def smoking(
+    output_dir: str = typer.Option(
+        'temp_data',
+        '--output-dir',
+        '-o',
+        help='Output directory for temporary files',
+    ),
+) -> None:
+    """Download and upload Smoking (GSE50660) dataset to HuggingFace."""
+    typer.echo('Processing Smoking dataset...')
+    process_smoking(output_dir)
+    typer.echo('✅ Smoking dataset processed and uploaded successfully!')
+
+
+@app.command()
+def tuberculosis(
+    output_dir: str = typer.Option(
+        'temp_data',
+        '--output-dir',
+        '-o',
+        help='Output directory for temporary files',
+    ),
+) -> None:
+    """Download and upload Tuberculosis (GSE19433) dataset to HuggingFace."""
+    typer.echo('Processing Tuberculosis dataset...')
+    process_tuberculosis(output_dir)
+    typer.echo('✅ Tuberculosis dataset processed and uploaded successfully!')
+
+
+@app.command()
 def brca(
     output_dir: str = typer.Option(
         'temp_data',
@@ -72,6 +105,21 @@ def brca(
     typer.echo('Processing BRCA dataset...')
     process_brca(output_dir)
     typer.echo('✅ BRCA dataset processed and uploaded successfully!')
+
+
+@app.command()
+def ov(
+    output_dir: str = typer.Option(
+        'temp_data',
+        '--output-dir',
+        '-o',
+        help='Output directory for temporary files',
+    ),
+) -> None:
+    """Download and upload OV dataset to HuggingFace."""
+    typer.echo('Processing OV dataset...')
+    process_ov(output_dir)
+    typer.echo('✅ OV dataset processed and uploaded successfully!')
 
 
 @app.command()
@@ -102,8 +150,17 @@ def all(
         typer.echo('\n📊 Processing Parkinsons...')
         process_parkinsons(output_dir)
 
+        typer.echo('\n📊 Processing Smoking...')
+        process_smoking(output_dir)
+
+        typer.echo('\n📊 Processing Tuberculosis...')
+        process_tuberculosis(output_dir)
+
         typer.echo('\n📊 Processing BRCA...')
         process_brca(output_dir)
+
+        typer.echo('\n📊 Processing OV...')
+        process_ov(output_dir)
 
         typer.echo('\n✅ All datasets processed and uploaded successfully!')
 

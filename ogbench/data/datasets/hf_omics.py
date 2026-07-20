@@ -72,9 +72,10 @@ class HFOmicsDataset(InMemoryDataset):
         adjacency_method: str = 'string',
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
-        hf_repo_id: str = 'geometric-intelligence/bgbench',
+        hf_repo_id: str = 'geometric-intelligence/ogbench',
         revision: str = '83299150394717f0646b1bd44d6a55392ab789db',
         string_data_dir: str | None = None,
+        species: int = 9606,
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
@@ -90,12 +91,14 @@ class HFOmicsDataset(InMemoryDataset):
             hf_repo_id: HuggingFace repository ID
             revision: HuggingFace dataset revision/commit hash
             string_data_dir: Optional path to pre-downloaded STRING bulk files
+            species: NCBI taxonomy ID for STRING adjacency (9606 = human, 83332 = M. tuberculosis)
             **kwargs: Additional keyword arguments
         """
         self.data_name = data_name
         self.adjacency_threshold = adjacency_threshold
         self.adjacency_method = adjacency_method
         self.string_data_dir = string_data_dir
+        self.species = species
         self.node_sample_ratio = node_sample_ratio
         self.method = method
         self.train_val_test_split = train_val_test_split or [0.7, 0.15, 0.15]
@@ -347,6 +350,7 @@ class HFOmicsDataset(InMemoryDataset):
         builder_kwargs = {}
         if self.adjacency_method == 'string':
             builder_kwargs['cache_dir'] = osp.join(self.root, 'string_cache')
+            builder_kwargs['species'] = self.species
             if self.string_data_dir:
                 builder_kwargs['string_data_dir'] = self.string_data_dir
         adjacency_builder = get_adjacency_builder(self.adjacency_method, **builder_kwargs)
