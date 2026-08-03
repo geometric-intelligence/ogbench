@@ -175,4 +175,9 @@ pythonpath = [
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
-find-links = ["https://data.pyg.org/whl/torch-2.8.0+cu128.html"]
+# PyG publishes its compiled extensions outside PyPI. The CUDA index provides
+# Linux/Windows wheels, while the CPU index also provides macOS wheels.
+find-links = [
+    "https://data.pyg.org/whl/torch-2.8.0+cu128.html",
+    "https://data.pyg.org/whl/torch-2.8.0+cpu.html",
+]
