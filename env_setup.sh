@@ -33,6 +33,9 @@ fi
 conda activate ogbench
 
 pip install --upgrade pip
-pip install -e '.[all]'
+# pip does not read [tool.uv].find-links from pyproject.toml.
+pip install -e '.[all]' \
+    --find-links https://data.pyg.org/whl/torch-2.8.0+cu128.html \
+    --find-links https://data.pyg.org/whl/torch-2.8.0+cpu.html
 
 pre-commit install

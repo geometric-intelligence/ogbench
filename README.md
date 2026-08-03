@@ -14,18 +14,31 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 
 ## Installation
 
+Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
+
 ```bash
 git clone <anonymous-repo>
 cd ogbench
 
-conda create -n ogbench python=3.12
 curl -LsSf https://astral.sh/uv/install.sh | sh
-conda activate ogbench
+uv venv --python 3.12
+source .venv/bin/activate
 
-uv venv
+# PyG wheels: CUDA 12.8 (Linux/Windows) + CPU/macOS indexes are configured in
+# pyproject.toml ([tool.uv].find-links). Explicit -f flags also work:
+#   -f https://data.pyg.org/whl/torch-2.8.0+cu128.html   # CUDA
+#   -f https://data.pyg.org/whl/torch-2.8.0+cpu.html     # CPU / macOS
 uv pip install -e '.[all]'
 
 pre-commit install
+```
+
+If you use conda, either install into the conda env **or** use `.venv` — do not mix them. Prefer:
+
+```bash
+conda create -n ogbench python=3.12 -y
+conda activate ogbench
+uv pip install -e '.[all]'   # installs into the active conda env (skip `uv venv`)
 ```
 
 A CLI entry point is also installed: `ogbench-train` (equivalent to `python ogbench/run.py`).
