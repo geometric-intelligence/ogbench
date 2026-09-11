@@ -1,0 +1,11 @@
+# Learnable per-node identity embedding for shared, fixed-order graphs.
+#
+# Usage:
+#   python -m ogbench gene_identity=learnable
+#   python -m ogbench gene_identity=learnable gene_identity.embed_dim=64
+
+mode: learnable
+embed_dim: 32
+
+# concat appends identity channels; add projects identity to the feature dimension.
+combine: concat

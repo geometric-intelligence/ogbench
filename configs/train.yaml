@@ -17,6 +17,7 @@ defaults:
   - extras: default
   - hydra: default
   - hf: default
+  - gene_identity: disabled
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule

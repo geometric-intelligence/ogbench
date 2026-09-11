@@ -3,6 +3,7 @@
 from ogbench.nn.encoders.all_cell_encoder import AllCellFeatureEncoder
 from ogbench.nn.encoders.dgm_encoder import DGMStructureFeatureEncoder
 from ogbench.nn.encoders.flat_encoder import FlatEncoder
+from ogbench.nn.encoders.gene_identity import GeneIdentityFeatureEncoder
 
 # Create dictionary of all feature encoders
 FEATURE_ENCODERS: dict[str, type] = {
@@ -20,4 +21,5 @@ __all__ = [
     'AllCellFeatureEncoder',
     'DGMStructureFeatureEncoder',
     'FlatEncoder',
+    'GeneIdentityFeatureEncoder',
 ]

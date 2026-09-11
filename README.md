@@ -115,6 +115,7 @@ python ogbench/run.py dataset=addneuromed model=graph_sage trainer=ddp
 OGBench uses [Hydra](https://hydra.cc/) for configuration management. Key config groups:
 
 - `configs/dataset/` — dataset-specific settings (features, classes, splits, baselines)
+- `configs/gene_identity/` — optional learnable node identity before message passing
 - `configs/model/` — model architectures and hyperparameters
 - `configs/trainer/` — training backend (`cpu`, `gpu`, `mps`, `ddp`, `ddp_sim`)
 - `configs/logger/` — logging backends (WandB, TensorBoard, CSV, MLflow, etc.)
@@ -129,6 +130,21 @@ python ogbench/run.py dataset=brca model=gin \
     trainer.max_epochs=200 \
     seed=123
 ```
+
+### Learnable node identity
+
+Graphs share a fixed node order, but expression alone does not identify which
+gene or marker each row represents. Append a trainable embedding for every node
+before the feature encoder and message-passing layers:
+
+```bash
+python -m ogbench dataset=brca model=gcn gene_identity=learnable
+```
+
+The default `combine=concat` appends 32 identity channels and updates the
+configured encoder dimensions. Set `gene_identity.embed_dim=64` to change the
+embedding size, or use `gene_identity.combine=add` to project identity into the
+existing feature dimension.
 
 ## Baselines — GNN-Features Pipeline
 
