@@ -1,4 +1,4 @@
 # HuggingFace configuration
 # Single source of truth for the dataset revision hash.
 # Override per-dataset in dataset configs if needed.
-revision: 83299150394717f0646b1bd44d6a55392ab789db
+revision: 4da96d838e81dc3f3da3c559925eea9bd356111e
