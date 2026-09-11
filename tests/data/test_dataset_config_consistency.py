@@ -73,6 +73,7 @@ class TestDatasetConfigConsistency:
         EXCLUDED_PATHS = [
             ('loader', 'parameters', 'data_name'),
             ('loader', 'parameters', 'adjacency_threshold'),
+            ('loader', 'parameters', 'species'),
             ('parameters', 'num_classes'),
             ('parameters', 'num_samples'),
             ('parameters', 'full_num_nodes'),
