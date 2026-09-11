@@ -4,114 +4,8 @@ import os
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
 
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
-
-
-def adjust_for_covariates(
-    data: pd.DataFrame,
-    covariates: pd.DataFrame,
-    covariate_names: list[str],
-) -> pd.DataFrame:
-    """Adjust protein data for specified covariates using linear regression.
-
-    For each protein, fits: protein ~ covariates, then adjusts to remove covariate
-    effects while centering at mean covariate values. This avoids using target
-    labels, preventing data leakage.
-    Categorical variables (sex, race) are automatically one-hot encoded.
-
-    Args:
-        data: DataFrame with protein columns (already log-transformed)
-        covariates: DataFrame with covariate columns
-        covariate_names: List of covariate column names to adjust for
-
-    Returns:
-        Adjusted data with same shape as input
-    """
-    adjusted_data = data.copy()
-
-    # Build covariate matrix with one-hot encoding for categoricals
-    cov_df = covariates[covariate_names].copy()
-
-    # Identify categorical columns (sex, race)
-    categorical_cols = [col for col in covariate_names if col in {'sex', 'race'}]
-    continuous_cols = [col for col in covariate_names if col not in categorical_cols]
-
-    # One-hot encode categoricals and combine with continuous
-    if categorical_cols:
-        cov_encoded = pd.get_dummies(cov_df[categorical_cols], drop_first=True, dtype=float)
-    else:
-        cov_encoded = pd.DataFrame(index=cov_df.index)
-
-    if continuous_cols:
-        cov_continuous = cov_df[continuous_cols].astype(float)
-        X_cov = pd.concat([cov_continuous, cov_encoded], axis=1)
-    else:
-        X_cov = cov_encoded
-
-    # Find rows with complete covariate data
-    valid_cov_mask = X_cov.notna().all(axis=1)
-
-    if valid_cov_mask.sum() == 0:
-        print('Warning: No samples with complete covariate data. Returning original data.')
-        return adjusted_data
-
-    X_cov_valid = X_cov.loc[valid_cov_mask].values
-    X_cov_mean = X_cov_valid.mean(axis=0)
-
-    print(f'Adjusting for covariates: {covariate_names}')
-    print(f'  Encoded covariate columns: {list(X_cov.columns)}')
-    print(f'  Samples with complete covariate data: {valid_cov_mask.sum()} / {len(data)}')
-
-    # Track adjustment statistics
-    adjustment_stats: dict[str, dict[str, float]] = {}
-
-    # For each protein, fit protein ~ covariates and adjust
-    for protein_col in data.columns:
-        protein_values = data[protein_col].values
-
-        # Find valid rows: complete covariates AND non-NaN protein
-        valid_mask = valid_cov_mask.values & ~np.isnan(protein_values)
-
-        if valid_mask.sum() < 10:
-            # Not enough data to fit regression, skip adjustment
-            continue
-
-        # Get valid data for this protein
-        X_valid = X_cov.loc[valid_mask].values
-        y_valid = protein_values[valid_mask]
-
-        # Fit: protein ~ covariates
-        model = LinearRegression()
-        model.fit(X_valid, y_valid)
-
-        # Calculate expected value at mean covariates
-        expected_at_mean = model.predict(X_cov_mean.reshape(1, -1))[0]
-
-        # For all samples with valid covariates, calculate adjustment
-        # adjusted = original - (predicted - expected_at_mean)
-        predicted_all = model.predict(X_cov_valid)
-        adjustment = predicted_all - expected_at_mean
-
-        # Apply adjustment only to samples with valid covariates
-        adjusted_values = protein_values.copy()
-        adjusted_values[valid_cov_mask.values] = protein_values[valid_cov_mask.values] - adjustment
-        adjusted_data[protein_col] = adjusted_values
-
-        # Track mean absolute adjustment for this protein
-        adjustment_stats[protein_col] = {
-            'mean_abs_adjustment': float(np.abs(adjustment).mean()),
-            'valid_samples': int(valid_mask.sum()),
-        }
-
-    # Print summary statistics
-    mean_adjustments = [s['mean_abs_adjustment'] for s in adjustment_stats.values()]
-    print(f'  Proteins adjusted: {len(adjustment_stats)} / {len(data.columns)}')
-    print(f'  Mean absolute adjustment across proteins: {np.mean(mean_adjustments):.4f}')
-    print(f'  Max absolute adjustment: {np.max(mean_adjustments):.4f}')
-
-    return adjusted_data
 
 
 def process_motrpac(output_dir: str = 'temp_data') -> None:
@@ -227,16 +121,10 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
     raw_data = np.log2(raw_data)
     raw_data = pd.DataFrame(raw_data, columns=raw_data.columns).reset_index(drop=True)
 
-    # 6.5) Adjust for covariates (age, sex, bmi, race)
-    print('\nCovariate selection:')
-    print(f'  Available covariates in cov dataframe: {cov.columns.tolist()}')
+    print('\nCovariate columns available for train-only adjustment at graph-build time:')
+    print(f'  {cov.columns.tolist()}')
     print(f'  Non-null counts: {cov.notna().sum().to_dict()}')
-
-    covariates_to_adjust = ['age', 'sex', 'bmi', 'race']
-
-    print(f'  Selected for adjustment: {covariates_to_adjust}')
-
-    raw_data = adjust_for_covariates(raw_data, cov, covariates_to_adjust)
+    print('  Skipping full-data adjustment; HFOmics applies covariate_adjust on train only.')
 
     # 7) Emit classification target only
     out = os.path.join(output_dir, 'motrpac')
@@ -267,10 +155,9 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
         num_features=raw_data.shape[1],
         target_stats=target_stats,
         preprocessing_notes=(
-            'Data is log2-transformed and adjusted for covariates (age, sex, bmi, race) '
-            'using linear regression. For each protein, fits protein ~ covariates, then adjusts '
-            'to remove covariate effects centered at mean covariate values. This approach avoids '
-            'using target labels, preventing data leakage.'
+            'Data is log2-transformed. Covariate adjustment (age, sex, bmi, race) is NOT '
+            'applied at ingest; ogbench fits protein ~ covariates on the training split only '
+            'and applies the frozen coefficients to val/test.'
         ),
     )
 
@@ -279,6 +166,7 @@ def process_motrpac(output_dir: str = 'temp_data') -> None:
         'data': os.path.join(out, 'motrpac_data.parquet'),
         'targets': os.path.join(out, 'motrpac_targets.parquet'),
         'map': os.path.join(out, 'motrpac_map.parquet'),
+        'covariates': os.path.join(out, 'motrpac_covariates.parquet'),
     }
 
     upload_to_huggingface('motrpac', data_files, metadata)

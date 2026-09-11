@@ -91,7 +91,7 @@ class HFOmicsDataset(InMemoryDataset):
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/ogbench',
-        revision: str = '4da96d838e81dc3f3da3c559925eea9bd356111e',
+        revision: str = '056dfdc4f434fd35355ffbe5f7b63910d785a97a',
         string_data_dir: str | None = None,
         species: int = 9606,
         split_type: str = 'fixed',
@@ -118,7 +118,7 @@ class HFOmicsDataset(InMemoryDataset):
             split_type: ``fixed`` (default) or ``k-fold``
             k: Number of CV folds when ``split_type='k-fold'``
             fold: Test-fold index when ``split_type='k-fold'`` (usually ``data_seed``)
-            corrections: Optional cache-path tags for train-only corrections
+            corrections: Optional train-only corrections (``covariate_adjust``, ``combat``)
             grouping: Optional group key for k-fold (``batch``) using a sidecar file
             **kwargs: Additional keyword arguments
         """
@@ -258,6 +258,83 @@ class HFOmicsDataset(InMemoryDataset):
             return None
         return meta[batch_col].to_numpy()
 
+    def _apply_corrections(
+        self,
+        train_data: pd.DataFrame,
+        val_data: pd.DataFrame,
+        test_data: pd.DataFrame,
+        *,
+        train_ids: np.ndarray,
+        valid_ids: np.ndarray,
+        test_ids: np.ndarray,
+        train_targets: np.ndarray,
+        covariates_df: pd.DataFrame | None,
+        batches: np.ndarray | None,
+        probe_map_df: pd.DataFrame | None = None,
+        names: list[str] | None = None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Fit configured corrections on train and transform val/test."""
+        from ogbench.data.corrections import (
+            CombatCorrector,
+            CovariateAdjuster,
+            MedianCenterer,
+            PromoterMinBetaSelector,
+        )
+
+        for name in names if names is not None else self.corrections:
+            if name == 'covariate_adjust':
+                if covariates_df is None:
+                    raise FileNotFoundError(
+                        f'corrections includes covariate_adjust but '
+                        f'{self.data_name}_covariates.parquet was not found'
+                    )
+                adjuster = CovariateAdjuster()
+                adjuster.fit(train_data, covariates_df.iloc[train_ids])
+                train_data = adjuster.transform(train_data, covariates_df.iloc[train_ids])
+                val_data = adjuster.transform(val_data, covariates_df.iloc[valid_ids])
+                test_data = adjuster.transform(test_data, covariates_df.iloc[test_ids])
+                logger.info('Applied train-only covariate adjustment')
+            elif name == 'combat':
+                if batches is None:
+                    raise FileNotFoundError(
+                        f'corrections includes combat but no batch labels were found for '
+                        f'{self.data_name}'
+                    )
+                corrector = CombatCorrector()
+                corrector.fit(train_data, batches[train_ids])
+                train_data = corrector.transform(train_data, batches[train_ids])
+                val_data = corrector.transform(val_data, batches[valid_ids])
+                test_data = corrector.transform(test_data, batches[test_ids])
+                logger.info('Applied train-only ComBat correction')
+            elif name == 'promoter_min_beta':
+                if probe_map_df is None:
+                    raise FileNotFoundError(
+                        f'corrections includes promoter_min_beta but '
+                        f'{self.data_name}_probe_map.parquet was not found'
+                    )
+                selector = PromoterMinBetaSelector()
+                selector.fit(train_data, train_targets, probe_map_df)
+                train_data = selector.transform(train_data)
+                val_data = selector.transform(val_data)
+                test_data = selector.transform(test_data)
+                logger.info(
+                    'Applied train-only promoter min-beta probe selection '
+                    f'({train_data.shape[1]} genes)'
+                )
+            elif name == 'median_center':
+                centerer = MedianCenterer()
+                centerer.fit(train_data)
+                train_data = centerer.transform(train_data)
+                val_data = centerer.transform(val_data)
+                test_data = centerer.transform(test_data)
+                logger.info('Applied train-only median centering')
+            else:
+                raise ValueError(
+                    f"Unknown correction {name!r}; use 'covariate_adjust', 'combat', "
+                    f"'promoter_min_beta', or 'median_center'"
+                )
+        return train_data, val_data, test_data
+
     def download(self) -> None:
         r"""Download the dataset from HuggingFace and saves it to the raw directory."""
         logger.info(f'Downloading raw data for {self.data_name} from HuggingFace...')
@@ -282,6 +359,8 @@ class HFOmicsDataset(InMemoryDataset):
 
         logger.info(f'Downloaded {len(targets)} samples with {raw_data.shape[1]} features')
 
+        covariates_df = self._download_optional_parquet(f'{self.data_name}_covariates.parquet')
+        probe_map_df = self._download_optional_parquet(f'{self.data_name}_probe_map.parquet')
         batches = self._load_batch_labels()
         groups = None
         if self.grouping == 'batch':
@@ -337,6 +416,23 @@ class HFOmicsDataset(InMemoryDataset):
             + f'): Train={len(train_targets)}, Val={len(val_targets)}, Test={len(test_targets)}'
         )
 
+        pre_impute = [name for name in self.corrections if name != 'median_center']
+        post_impute = [name for name in self.corrections if name == 'median_center']
+        if pre_impute:
+            train_data, val_data, test_data = self._apply_corrections(
+                train_data,
+                val_data,
+                test_data,
+                train_ids=train_ids,
+                valid_ids=valid_ids,
+                test_ids=test_ids,
+                train_targets=train_targets,
+                covariates_df=covariates_df,
+                batches=batches,
+                probe_map_df=probe_map_df,
+                names=pre_impute,
+            )
+
         # Impute missing values - FIT on training data only, TRANSFORM on all splits
         nan_count = train_data.isna().sum().sum()
         if nan_count > 0 or raw_data.isna().sum().sum() > 0:
@@ -365,6 +461,21 @@ class HFOmicsDataset(InMemoryDataset):
             logger.info(
                 f'After imputation: Train NaN={train_data.isna().sum().sum()}, '
                 f'Val NaN={val_data.isna().sum().sum()}, Test NaN={test_data.isna().sum().sum()}'
+            )
+
+        if post_impute:
+            train_data, val_data, test_data = self._apply_corrections(
+                train_data,
+                val_data,
+                test_data,
+                train_ids=train_ids,
+                valid_ids=valid_ids,
+                test_ids=test_ids,
+                train_targets=train_targets,
+                covariates_df=covariates_df,
+                batches=batches,
+                probe_map_df=probe_map_df,
+                names=post_impute,
             )
 
         # Calculate number of nodes to select based on TRAINING data only

@@ -23,7 +23,8 @@ loader:
     k: ${dataset.split_params.k}
     fold: ${dataset.split_params.data_seed}
     grouping: ${dataset.split_params.grouping}
-    corrections: []
+    corrections:
+      - covariate_adjust
 parameters:
   num_features: 1
   num_classes: 2
