@@ -36,15 +36,16 @@ A CLI entry point is also installed: `ogbench-train` (equivalent to `python ogbe
 
 ## Datasets
 
-OGBench includes five curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/ogbench`](https://huggingface.co/datasets/geometric-intelligence/ogbench) in Parquet format and downloaded automatically on first use.
+OGBench includes six curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/ogbench`](https://huggingface.co/datasets/geometric-intelligence/ogbench) in Parquet format and downloaded automatically on first use.
 
-| Dataset          | Domain                              | Samples | Features        | Classes | Task                          |
-| ---------------- | ----------------------------------- | ------- | --------------- | ------- | ----------------------------- |
-| **MotrPac**      | Proteomics (exercise response)      | 654     | ~4,976 proteins | 2       | Responder vs non-responder    |
-| **Parkinson's**  | Gene expression (PD study)          | 535     | ~21,755 genes   | 2       | Dementia vs MCI/normal        |
-| **AddNeuroMed**  | Gene expression (AD study)          | 711     | ~17,198 genes   | 3       | AD vs MCI vs Control          |
-| **BRCA**         | Gene expression (breast cancer)     | 640     | ~19,049 genes   | 4       | Cancer subtype classification |
-| **Tuberculosis** | Protein microarray (GSE19433, sera) | 561     | ~3,814 proteins | 2       | Culture negative vs positive  |
+| Dataset          | Domain                                  | Samples | Features        | Classes | Task                          |
+| ---------------- | --------------------------------------- | ------- | --------------- | ------- | ----------------------------- |
+| **MotrPac**      | Proteomics (exercise response)          | 654     | ~4,976 proteins | 2       | Responder vs non-responder    |
+| **Parkinson's**  | Gene expression (PD study)              | 535     | ~21,755 genes   | 2       | Dementia vs MCI/normal        |
+| **AddNeuroMed**  | Gene expression (AD study)              | 711     | ~17,198 genes   | 3       | AD vs MCI vs Control          |
+| **BRCA**         | Gene expression (breast cancer)         | 640     | ~19,049 genes   | 4       | Cancer subtype classification |
+| **Tuberculosis** | Protein microarray (GSE19433, sera)     | 561     | ~3,814 proteins | 2       | Culture negative vs positive  |
+| **Smoking**      | DNA methylation (GSE50660, blood, 450k) | 464     | ~20,763 genes   | 2       | Never- vs ever-smoker         |
 
 ### Downloading and Processing Datasets
 
@@ -53,6 +54,7 @@ python scripts/download_datasets.py motrpac
 python scripts/download_datasets.py parkinsons
 python scripts/download_datasets.py addneuromed
 python scripts/download_datasets.py tuberculosis
+python scripts/download_datasets.py smoking
 python scripts/download_datasets.py all
 ```
 
