@@ -5,7 +5,7 @@ import os
 
 import omegaconf
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
 
 def register_all_resolvers() -> None:
@@ -56,30 +56,137 @@ def get_gatv4_output_dim(num_nodes, num_layers=3):
     return num_nodes * num_layers
 
 
-def calculate_num_nodes(num_samples, train_val_test_split, node_sample_ratio, full_num_nodes):
+def calculate_num_nodes(
+    num_samples,
+    train_val_test_split,
+    node_sample_ratio,
+    full_num_nodes,
+    split_type='fixed',
+    k=5,
+):
     r"""Calculate the number of nodes for a given dataset.
+
+    Matches HFOmics node selection: ``n_nodes = int(n_train / node_sample_ratio)``,
+    capped at ``full_num_nodes``.
+
+    For ``split_type=fixed``, ``n_train = int(num_samples * train_ratio)``.
+    For ``split_type=k-fold``, ``n_train ≈ (k - 2) / k * num_samples`` (3/1/1
+    rotation). Call ``sync_num_nodes_from_dataset`` after loading graphs so
+    model LayerNorm / flatten dims match the exact train size.
 
     Parameters
     ----------
     num_samples : int
         Total number of samples in the dataset.
     train_val_test_split : list[float]
-        Train/validation/test split ratios.
-    node_sample_ratio : float or int
-        Ratio of nodes to sample.
+        Train/validation/test split ratios (fixed split).
+    node_sample_ratio : float or int or str
+        Ratio of nodes to sample, or ``'full'``.
+    full_num_nodes : int
+        Maximum number of nodes available in the feature matrix.
+    split_type : str
+        ``fixed`` or ``k-fold``.
+    k : int
+        Number of CV folds (k-fold only).
 
     Returns
     -------
     int
         Number of nodes.
     """
-    n_training_samples = int(num_samples * train_val_test_split[0])
     if node_sample_ratio == 'full':
-        return full_num_nodes
-    n_nodes = int(n_training_samples / node_sample_ratio)
+        return int(full_num_nodes)
+
+    num_samples = int(num_samples)
+    if split_type == 'k-fold':
+        k = int(k)
+        if k < 3:
+            raise ValueError(f'k must be >= 3 for k-fold, got {k}')
+        n_training_samples = int(num_samples * (k - 2) / k)
+    else:
+        n_training_samples = int(num_samples * train_val_test_split[0])
+
+    n_nodes = int(n_training_samples / float(node_sample_ratio))
     if n_nodes > full_num_nodes:
-        return full_num_nodes
+        return int(full_num_nodes)
     return n_nodes
+
+
+def _remap_num_node_dependent_ints(cfg_node, old_n: int, new_n: int) -> None:
+    """In-place: replace ``old_n`` and integer multiples of ``old_n`` with ``new_n`` scale."""
+    if old_n <= 0 or old_n == new_n:
+        return
+    if isinstance(cfg_node, DictConfig):
+        for key in list(cfg_node.keys()):
+            val = cfg_node[key]
+            if isinstance(val, DictConfig | ListConfig):
+                _remap_num_node_dependent_ints(val, old_n, new_n)
+            elif isinstance(val, int) and not isinstance(val, bool):
+                if val == old_n:
+                    cfg_node[key] = new_n
+                elif val > old_n and val % old_n == 0:
+                    cfg_node[key] = (val // old_n) * new_n
+    elif isinstance(cfg_node, ListConfig):
+        for i, val in enumerate(cfg_node):
+            if isinstance(val, DictConfig | ListConfig):
+                _remap_num_node_dependent_ints(val, old_n, new_n)
+            elif isinstance(val, int) and not isinstance(val, bool):
+                if val == old_n:
+                    cfg_node[i] = new_n
+                elif val > old_n and val % old_n == 0:
+                    cfg_node[i] = (val // old_n) * new_n
+
+
+def sync_num_nodes_from_dataset(cfg: DictConfig, dataset) -> int | None:
+    """Align ``dataset.parameters.num_nodes`` and model dims with the loaded graphs.
+
+    Hydra resolves ``num_nodes`` before the fold-specific cache exists, so k-fold
+    runs can size OmicsReadOut / GATv4 LayerNorm for the approximated train size
+    while graphs use ``int(n_train_fold / node_sample_ratio)`` nodes. Call this
+    after the dataset is loaded and before instantiating the model.
+
+    Parameters
+    ----------
+    cfg : DictConfig
+        Full Hydra config (mutated in place when a mismatch is found).
+    dataset :
+        Object with ``__getitem__`` returning a PyG ``Data``, or a split
+        wrapper exposing ``data_lst``.
+
+    Returns
+    -------
+    int or None
+        Actual node count when sync ran or confirmed match; ``None`` if the
+        graph size could not be read.
+    """
+    sample = None
+    if hasattr(dataset, 'data_lst') and len(dataset.data_lst) > 0:
+        sample = dataset.data_lst[0]
+    elif hasattr(dataset, '__getitem__') and len(dataset) > 0:
+        sample = dataset[0]
+
+    if sample is None:
+        return None
+
+    if hasattr(sample, 'num_nodes') and sample.num_nodes is not None:
+        actual = int(sample.num_nodes)
+    elif hasattr(sample, 'x') and sample.x is not None:
+        actual = int(sample.x.shape[0])
+    else:
+        return None
+
+    configured = OmegaConf.select(cfg, 'dataset.parameters.num_nodes')
+    if configured is None:
+        return actual
+    configured = int(configured)
+    if configured == actual:
+        return actual
+
+    with open_dict(cfg):
+        cfg.dataset.parameters.num_nodes = actual
+        if 'model' in cfg and cfg.model is not None:
+            _remap_num_node_dependent_ints(cfg.model, configured, actual)
+    return actual
 
 
 def get_flattened_channels(num_nodes, channels):

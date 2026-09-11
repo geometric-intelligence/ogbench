@@ -2,7 +2,7 @@
 
 wandb:
   _target_: lightning.pytorch.loggers.wandb.WandbLogger
-  name: "${dataset.loader.parameters.data_name}_${model.model_name}_${dataset.loader.parameters.method}_${dataset.loader.parameters.node_sample_ratio}"
+  name: "${dataset.loader.parameters.data_name}_${model.model_name}_${dataset.loader.parameters.method}_${dataset.loader.parameters.node_sample_ratio}_${dataset.split_params.split_type}_fold${dataset.split_params.data_seed}"
   save_dir: "${paths.output_dir}"
   offline: False
   id: null # pass correct id to resume experiment!

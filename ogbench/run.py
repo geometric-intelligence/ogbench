@@ -27,6 +27,7 @@ from ogbench.utils import (
 )
 from ogbench.utils.config_resolvers import (
     register_all_resolvers,
+    sync_num_nodes_from_dataset,
 )
 
 # PyTorch 2.6+ changed torch.load to default weights_only=True, which blocks
@@ -127,6 +128,22 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         )
     else:
         raise ValueError('Invalid task_level')
+
+    # K-fold train size ≠ fixed 70% cut, so Hydra num_nodes can disagree with
+    # the graphs. Sync LayerNorm / flatten dims before building the model.
+    configured_nodes = cfg.dataset.parameters.get('num_nodes')
+    actual_nodes = sync_num_nodes_from_dataset(cfg, dataset_train)
+    if (
+        actual_nodes is not None
+        and configured_nodes is not None
+        and int(configured_nodes) != int(actual_nodes)
+    ):
+        log.warning(
+            'Synced dataset.parameters.num_nodes and model dims: '
+            f'config={configured_nodes} -> actual={actual_nodes}'
+        )
+    elif actual_nodes is not None:
+        log.info(f'Graph num_nodes={actual_nodes} matches config')
 
     # Inject optional learnable node identity before the feature encoder.
     gene_identity_bank = setup_gene_identity(cfg, dataset)

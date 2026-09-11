@@ -1,8 +1,11 @@
 """Init file for data/utils module."""
 
 from .split_utils import (
+    build_omics_cache_relative_name,  # noqa: F401
+    compute_omics_split_indices,  # noqa: F401
     load_inductive_splits,  # noqa: F401
     load_transductive_splits,  # noqa: F401
+    omics_cache_split_suffix,  # noqa: F401
 )
 from .utils import (  # import function here, add noqa: F401 for PR
     MeanStdNormalizer,
@@ -36,7 +39,9 @@ utils_functions = [
 split_helper_functions = [
     'load_inductive_splits',
     'load_transductive_splits',
-    # add function name here
+    'compute_omics_split_indices',
+    'omics_cache_split_suffix',
+    'build_omics_cache_relative_name',
 ]
 
 __all__ = utils_functions + split_helper_functions
