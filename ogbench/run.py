@@ -12,6 +12,10 @@ from omegaconf import DictConfig
 
 from ogbench.data.preprocessor import PreProcessor
 from ogbench.dataloader import TBDataloader
+from ogbench.nn.encoders.gene_identity import (
+    apply_gene_identity_to_model,
+    setup_gene_identity,
+)
 from ogbench.utils import (
     RankedLogger,
     extras,
@@ -124,6 +128,9 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     else:
         raise ValueError('Invalid task_level')
 
+    # Inject optional learnable node identity before the feature encoder.
+    gene_identity_bank = setup_gene_identity(cfg, dataset)
+
     # Model for us is Network + logic: inputs backbone, readout, losses
     log.info(f'Instantiating model <{cfg.model._target_}>')
 
@@ -133,6 +140,7 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         optimizer=cfg.optimizer,
         loss=cfg.loss,
     )
+    model = apply_gene_identity_to_model(model, gene_identity_bank, cfg)
 
     log.info('Instantiating callbacks...')
     callbacks: list[Callback] = instantiate_callbacks(cfg.get('callbacks'))
