@@ -16,13 +16,18 @@ import itertools
 import json
 import os
 import os.path as osp
+import shutil
 from typing import Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import pandas as pd
 from joblib import Parallel, delayed
+import pandas as pd
+
+SPECIES_BY_DATASET = {
+    'tuberculosis': 83332,  # M. tuberculosis (STRING adjacency)
+}
 
 
 def load_dataset(
@@ -32,6 +37,7 @@ def load_dataset(
     method: str = 'variance',
     adjacency_method: str = 'wgcna',
     string_data_dir: str | None = None,
+    cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
 ) -> Any:
     """Load the dataset with specified parameters."""
     from omegaconf import OmegaConf
@@ -43,7 +49,7 @@ def load_dataset(
     # Pass 'full' as string, not None, because HFOmicsDataset checks for 'full' string
     ratio_value = 'full' if node_sample_ratio == 'full' else float(node_sample_ratio)
     dataset = HFOmicsDataset(
-        root='/scratch/lcornelis/ogbench-1/run_data/omics',
+        root=cache_root,
         data_name=dataset_name,
         method=method,
         adjacency_threshold=adj_thresh,
@@ -52,12 +58,71 @@ def load_dataset(
         imputation_method='mean',
         adjacency_method=adjacency_method,
         string_data_dir=string_data_dir,
+        species=SPECIES_BY_DATASET.get(dataset_name, 9606),
     )
 
     return dataset
 
 
-def get_graph_stats(dataset: Any) -> dict[str, float]:
+def _compute_feature_homophily(graph: nx.Graph, node_features: np.ndarray) -> float:
+    """Average cosine similarity of node features along graph edges."""
+    if graph.number_of_edges() == 0 or node_features.shape[0] == 0:
+        return 0.0
+
+    norms = np.linalg.norm(node_features, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1.0, norms)
+    normalized = node_features / norms
+
+    total_similarity = 0.0
+    for u, v in graph.edges():
+        total_similarity += float(np.dot(normalized[u], normalized[v]))
+    return total_similarity / graph.number_of_edges()
+
+
+def _compute_lcc_metrics(largest_cc_graph: nx.Graph) -> dict[str, float]:
+    """Compute structural metrics on the largest connected component.
+
+    Clustering uses random wedge sampling. Diameter uses NetworkX's 2-sweep approximation (O(n + m)
+    lower bound; often exact in practice). Modularity uses Louvain community detection.
+    """
+    lcc_size = largest_cc_graph.number_of_nodes()
+    if lcc_size == 0:
+        return {
+            'clustering_coefficient': 0.0,
+            'diameter': float('nan'),
+            'modularity': 0.0,
+        }
+
+    clustering_coefficient = nx.approximation.average_clustering(
+        largest_cc_graph, trials=10_000, seed=0
+    )
+
+    if lcc_size > 1:
+        try:
+            # 2-sweep approximation: accepted efficient diameter lower bound
+            diameter = float(nx.approximation.diameter(largest_cc_graph, seed=0))
+        except (nx.NetworkXError, nx.NetworkXPointlessConcept):
+            diameter = float('nan')
+    else:
+        diameter = 0.0
+
+    try:
+        # Louvain: standard efficient modularity maximization
+        communities = nx.community.louvain_communities(largest_cc_graph, seed=0)
+        modularity = float(nx.community.modularity(largest_cc_graph, communities))
+    except (nx.NetworkXError, nx.NetworkXPointlessConcept, ValueError):
+        modularity = float('nan')
+
+    return {
+        'clustering_coefficient': clustering_coefficient,
+        'diameter': diameter,
+        'modularity': modularity,
+    }
+
+
+def get_graph_stats(
+    dataset: Any, node_features: np.ndarray | None = None
+) -> dict[str, float]:
     """Get statistics of the graph from the dataset."""
     empty_stats = {
         'num_nodes': 0,
@@ -67,6 +132,10 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
         'largest_cc_ratio_pct': 0.0,
         'num_connected_components': 0,
         'degree_std': 0.0,
+        'clustering_coefficient': 0.0,
+        'diameter': float('nan'),
+        'modularity': 0.0,
+        'homophily': float('nan'),
     }
 
     try:
@@ -113,6 +182,14 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
         num_connected_components = len(connected_components)
         largest_cc = max(connected_components, key=len)
         largest_cc_ratio_pct = (len(largest_cc) / num_nodes) * 100
+        largest_cc_graph = graph.subgraph(largest_cc)
+
+        lcc_metrics = _compute_lcc_metrics(largest_cc_graph)
+        homophily = (
+            _compute_feature_homophily(graph, node_features)
+            if node_features is not None
+            else float('nan')
+        )
 
         return {
             'num_nodes': num_nodes,
@@ -122,6 +199,8 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
             'largest_cc_ratio_pct': largest_cc_ratio_pct,
             'num_connected_components': num_connected_components,
             'degree_std': degree_std,
+            'homophily': homophily,
+            **lcc_metrics,
         }
 
     except Exception as e:
@@ -130,16 +209,41 @@ def get_graph_stats(dataset: Any) -> dict[str, float]:
 
 
 def process_single_combination(
-    args_tuple: tuple[str, str, str, float, str, str | None],
+    args_tuple: tuple[str, str, str, float, str, str | None, str, bool],
 ) -> dict[str, Any]:
     """Process a single parameter combination for parallel processing."""
-    dataset_name, node_ratio, method, adj_thresh, adjacency_method, string_data_dir = args_tuple
+    (
+        dataset_name,
+        node_ratio,
+        method,
+        adj_thresh,
+        adjacency_method,
+        string_data_dir,
+        cache_root,
+        keep_cache,
+    ) = args_tuple
+    dataset = None
+    dataset_dir = None
 
     try:
-        dataset = load_dataset(dataset_name, adj_thresh, node_ratio, method, adjacency_method, string_data_dir=string_data_dir)
+        dataset = load_dataset(
+            dataset_name,
+            adj_thresh,
+            node_ratio,
+            method,
+            adjacency_method,
+            string_data_dir=string_data_dir,
+            cache_root=cache_root,
+        )
+        dataset_dir = dataset.get_data_dir()
         print(f'Dataset loaded: {dataset}, length: {len(dataset)}')
 
-        stats = get_graph_stats(dataset)
+        node_features = None
+        if len(dataset) > 0:
+            sample_features = [dataset[i].x.numpy() for i in range(len(dataset))]
+            node_features = np.mean(sample_features, axis=0)
+
+        stats = get_graph_stats(dataset, node_features=node_features)
         stats.update({
             'dataset': dataset_name,
             'adj_thresh': adj_thresh,
@@ -163,8 +267,22 @@ def process_single_combination(
             'largest_cc_ratio_pct': None,
             'num_connected_components': None,
             'degree_std': None,
+            'clustering_coefficient': None,
+            'diameter': None,
+            'modularity': None,
+            'homophily': None,
             'error': str(e),
         }
+    finally:
+        if dataset_dir is not None and not keep_cache:
+            # Keep the shared STRING cache at cache_root/string_cache, but remove
+            # this combination's dense adjacency matrix and processed dataset.
+            del dataset
+            try:
+                shutil.rmtree(dataset_dir)
+                print(f'Removed temporary dataset cache: {dataset_dir}')
+            except OSError as e:
+                print(f'Warning: Could not remove temporary cache {dataset_dir}: {e}')
 
 
 def compute_stats_for_combinations(
@@ -175,10 +293,21 @@ def compute_stats_for_combinations(
     adjacency_methods: list[str],
     n_jobs: int = -1,
     string_data_dir: str | None = None,
+    cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
+    keep_cache: bool = False,
 ) -> list[dict[str, Any]]:
     """Compute statistics for all combinations of parameters using parallel processing."""
     combinations = [
-        (dataset_name, node_ratio, method, adj_thresh, adj_m, string_data_dir)
+        (
+            dataset_name,
+            node_ratio,
+            method,
+            adj_thresh,
+            adj_m,
+            string_data_dir,
+            cache_root,
+            keep_cache,
+        )
         for node_ratio, method, adj_thresh, adj_m in itertools.product(
             node_sample_ratios, sampling_methods, adj_thresholds, adjacency_methods
         )
@@ -211,6 +340,10 @@ def save_stats_to_csv(all_stats: list[dict[str, Any]], output_file: str) -> None
         'largest_cc_ratio_pct',
         'num_connected_components',
         'degree_std',
+        'clustering_coefficient',
+        'diameter',
+        'modularity',
+        'homophily',
     ]
 
     if any('error' in stats for stats in all_stats):
@@ -280,9 +413,9 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
             if subset_df.empty:
                 continue
 
-            fig, axes = plt.subplots(3, 3, figsize=(16, 12))
-            # Hide unused subplots (we have 7 metrics, grid has 9 cells)
-            for ax in axes.flatten()[7:]:
+            fig, axes = plt.subplots(4, 3, figsize=(16, 16))
+            # Hide unused subplots (we have 11 metrics, grid has 12 cells)
+            for ax in axes.flatten()[11:]:
                 ax.set_visible(False)
             title_adj = f', Adjacency: {adj_m}' if adj_m is not None else ''
             fig.suptitle(
@@ -299,6 +432,10 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
                 ('largest_cc_ratio_pct', 'Largest CC / Total Nodes (%)', 'magenta'),
                 ('num_connected_components', 'Connected Components', 'purple'),
                 ('degree_std', 'Degree Std Dev', 'teal'),
+                ('clustering_coefficient', 'Clustering Coefficient', 'brown'),
+                ('diameter', 'Diameter', 'olive'),
+                ('modularity', 'Modularity', 'navy'),
+                ('homophily', 'Feature Homophily', 'crimson'),
             ]
 
             for ax, (col, title, color) in zip(axes.flatten(), plot_configs):
@@ -341,7 +478,14 @@ def main():
     parser.add_argument(
         '--datasets',
         nargs='+',
-        default=['addneuromed', 'parkinsons', 'motrpac', 'brca'],
+        default=[
+            'addneuromed',
+            'parkinsons',
+            'motrpac',
+            'brca',
+            'smoking',
+            'tuberculosis',
+        ],
         help='List of datasets to process',
     )
     parser.add_argument(
@@ -369,7 +513,7 @@ def main():
     parser.add_argument(
         '--adjacency-method',
         nargs='+',
-        default=['string'],
+        default=['wgcna'],
         help='One or more adjacency methods (e.g. string wgcna)',
     )
     parser.add_argument(
@@ -377,8 +521,22 @@ def main():
         default=None,
         help='Path to pre-downloaded STRING bulk files (avoids downloading from stringdb-downloads.org)',
     )
+    parser.add_argument(
+        '--cache-root',
+        default='/scratch/lcornelis/ogbench-1/run_data/omics',
+        help=(
+            'Working cache root. Combination-specific files are deleted after their '
+            'statistics are computed; the shared STRING cache is retained.'
+        ),
+    )
+    parser.add_argument(
+        '--keep-cache',
+        action='store_true',
+        help='Retain generated dataset files instead of deleting each combination cache.',
+    )
 
     args = parser.parse_args()
+    os.makedirs(args.cache_root, exist_ok=True)
 
     # Define parameters
     datasets = args.datasets
@@ -417,6 +575,8 @@ def main():
             adjacency_methods,
             n_jobs,
             string_data_dir=args.string_data_dir,
+            cache_root=args.cache_root,
+            keep_cache=args.keep_cache,
         )
 
         # Collect for webapp JSON
@@ -458,21 +618,4 @@ def main():
 
 
 if __name__ == '__main__':
-    try:
-        print('Testing dataset loading...')
-        dataset = load_dataset('addneuromed', 0.5, '0.3', 'variance', adjacency_method='string', string_data_dir='/home/johmathe/ogbench/data')
-        print(f'Dataset loaded successfully: {dataset}')
-        print(f'Dataset length: {len(dataset)}')
-        if len(dataset) > 0:
-            print(f'First data item: {dataset[0]}')
-            stats = get_graph_stats(dataset)
-            print(f'Graph stats: {stats}')
-    except Exception as e:
-        print(f'Error in test: {e}')
-        import traceback
-        traceback.print_exc()
-
-    print('\n' + '=' * 50)
-    print('Running main analysis...')
-    print('=' * 50)
     main()
