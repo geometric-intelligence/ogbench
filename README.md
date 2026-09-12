@@ -38,14 +38,14 @@ A CLI entry point is also installed: `ogbench-train` (equivalent to `python ogbe
 
 OGBench includes six curated omics datasets for graph-based classification. All are stored on Hugging Face Hub at [`geometric-intelligence/ogbench`](https://huggingface.co/datasets/geometric-intelligence/ogbench) in Parquet format and downloaded automatically on first use.
 
-| Dataset          | Domain                                  | Samples | Features        | Classes | Task                          |
-| ---------------- | --------------------------------------- | ------- | --------------- | ------- | ----------------------------- |
-| **MotrPac**      | Proteomics (exercise response)          | 654     | ~4,976 proteins | 2       | Responder vs non-responder    |
-| **Parkinson's**  | Gene expression (PD study)              | 535     | ~21,755 genes   | 2       | Dementia vs MCI/normal        |
-| **AddNeuroMed**  | Gene expression (AD study)              | 711     | ~17,198 genes   | 3       | AD vs MCI vs Control          |
-| **BRCA**         | Gene expression (breast cancer)         | 640     | ~19,049 genes   | 4       | Cancer subtype classification |
-| **Tuberculosis** | Protein microarray (GSE19433, sera)     | 561     | ~3,814 proteins | 2       | Culture negative vs positive  |
-| **Smoking**      | DNA methylation (GSE50660, blood, 450k) | 464     | ~20,763 genes   | 2       | Never- vs ever-smoker         |
+| Dataset          | Domain                                  | Samples | Features                           | Classes | Task                          |
+| ---------------- | --------------------------------------- | ------- | ---------------------------------- | ------- | ----------------------------- |
+| **MotrPac**      | Proteomics (exercise response)          | 654     | ~4,976 proteins                    | 2       | Responder vs non-responder    |
+| **Parkinson's**  | Gene expression (PD study)              | 535     | ~21,755 genes                      | 2       | Dementia vs MCI/normal        |
+| **AddNeuroMed**  | Gene expression (AD study)              | 711     | ~17,197 genes                      | 3       | AD vs MCI vs Control          |
+| **BRCA**         | Gene expression (breast cancer)         | 640     | ~19,049 genes                      | 4       | Cancer subtype classification |
+| **Tuberculosis** | Protein microarray (GSE19433, sera)     | 561     | ~3,814 proteins                    | 2       | Culture negative vs positive  |
+| **Smoking**      | DNA methylation (GSE50660, blood, 450k) | 464     | 139,125 TSS probes → ~20,763 genes | 2       | Never- vs ever-smoker         |
 
 ### Downloading and Processing Datasets
 
@@ -56,6 +56,20 @@ python scripts/download_datasets.py addneuromed
 python scripts/download_datasets.py tuberculosis
 python scripts/download_datasets.py smoking
 python scripts/download_datasets.py all
+```
+
+### Train / validation / test splits
+
+Omics datasets use `dataset.split_params.split_type` (default **`fixed`**):
+
+- **`fixed`** — shuffle with seed 42, then cut 70 / 15 / 15. Graph caches keep the historical path.
+- **`k-fold`** — stratified 3/1/1 rotation over `k` folds (`k` defaults to 5 → about 60 / 20 / 20). `data_seed` is the **test fold**; validation is the next fold. Each sample is test once and validation once across folds `0 .. k-1`.
+
+Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test. Optional `dataset.split_params.grouping` (for example `batch`) keeps whole groups inside a single k-fold fold; it is ignored for `fixed` splits.
+
+```bash
+python -m ogbench dataset=brca model=gcn
+python -m ogbench dataset=brca model=gcn dataset.split_params.split_type=k-fold dataset.split_params.data_seed=0
 ```
 
 ## Graph Construction

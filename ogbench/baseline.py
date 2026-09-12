@@ -33,7 +33,11 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.utils import shuffle
+
+from ogbench.data.utils.split_utils import (
+    build_omics_cache_relative_name,
+    compute_omics_split_indices,
+)
 
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
 
@@ -177,7 +181,9 @@ def load_metadata(data_name: str, cfg: DictConfig) -> dict[str, Any] | None:
     try:
         logger.info('Downloading metadata from HuggingFace...')
         hf_repo_id = 'geometric-intelligence/ogbench'
-        revision = cfg.dataset.loader.parameters.get('revision', '3abc196')
+        revision = cfg.dataset.loader.parameters.get(
+            'revision', '4da96d838e81dc3f3da3c559925eea9bd356111e'
+        )
 
         metadata_file = hf_hub_download(  # nosec
             repo_id=hf_repo_id,
@@ -193,6 +199,63 @@ def load_metadata(data_name: str, cfg: DictConfig) -> dict[str, Any] | None:
         return None
 
 
+def _resolve_omics_split_settings(cfg: DictConfig) -> tuple[str, int, int]:
+    """Resolve split_type / k / fold from loader params or split_params."""
+    loader = cfg.dataset.loader.parameters
+    split_params = cfg.dataset.get('split_params', {})
+    split_type = loader.get('split_type', split_params.get('split_type', 'fixed'))
+    k = int(loader.get('k', split_params.get('k', 5)))
+    fold = int(loader.get('fold', split_params.get('data_seed', 0)))
+    return str(split_type), k, fold
+
+
+def _resolve_grouping(cfg: DictConfig) -> str | None:
+    loader = cfg.dataset.loader.parameters
+    split_params = cfg.dataset.get('split_params', {})
+    grouping = loader.get('grouping', split_params.get('grouping', None))
+    if grouping in (None, 'null', ''):
+        return None
+    return str(grouping)
+
+
+def _load_optional_sidecar(
+    cfg: DictConfig, data_name: str, suffix: str, local_dir: str
+) -> pd.DataFrame | None:
+    local_path = osp.join(local_dir, data_name, f'{data_name}_{suffix}.parquet')
+    if osp.exists(local_path):
+        return pd.read_parquet(local_path)
+    try:
+        path = hf_hub_download(  # nosec
+            repo_id='geometric-intelligence/ogbench',
+            repo_type='dataset',
+            revision=cfg.dataset.loader.parameters.get(
+                'revision', '4da96d838e81dc3f3da3c559925eea9bd356111e'
+            ),
+            filename=f'{data_name}_{suffix}.parquet',
+        )
+        return pd.read_parquet(path)
+    except Exception:
+        return None
+
+
+def _batch_labels_from_sidecars(
+    cfg: DictConfig, data_name: str, n_samples: int
+) -> np.ndarray | None:
+    batches_df = _load_optional_sidecar(cfg, data_name, 'batches', 'temp_data')
+    if batches_df is not None:
+        column = 'batch' if 'batch' in batches_df.columns else batches_df.columns[0]
+        values = batches_df[column].to_numpy()
+        if len(values) != n_samples:
+            raise ValueError('batches sidecar length does not match samples')
+        return values
+    meta = _load_optional_sidecar(cfg, data_name, 'sample_meta', 'temp_data')
+    if meta is None or 'batch' not in meta.columns:
+        return None
+    if len(meta) != n_samples:
+        raise ValueError('sample_meta length does not match samples')
+    return meta['batch'].to_numpy()
+
+
 def _get_hf_omics_raw_dir(cfg: DictConfig) -> str:
     """Construct the path to HFOmicsDataset's raw directory.
 
@@ -203,16 +266,21 @@ def _get_hf_omics_raw_dir(cfg: DictConfig) -> str:
     :return: Path to the raw directory
     """
     params = cfg.dataset.loader.parameters
-    data_dir = params.data_dir
-    name = osp.join(
-        f'{params.data_name}',
-        f'adj_thresh_{params.adjacency_threshold}',
-        f'adj_method_{params.get("adjacency_method", "string")}',
-        f'{params.method}',
-        f'p_{params.node_sample_ratio}',
-        f'train_split_{params.train_val_test_split[0]}',
+    split_type, k, fold = _resolve_omics_split_settings(cfg)
+    name = build_omics_cache_relative_name(
+        data_name=params.data_name,
+        adjacency_threshold=params.adjacency_threshold,
+        adjacency_method=params.get('adjacency_method', 'string'),
+        method=params.method,
+        node_sample_ratio=params.node_sample_ratio,
+        train_split=params.train_val_test_split[0],
+        split_type=split_type,
+        k=k,
+        fold=fold,
+        corrections=list(params.get('corrections') or []),
+        grouping=_resolve_grouping(cfg),
     )
-    return osp.join(data_dir, name, 'raw')
+    return osp.join(params.data_dir, name, 'raw')
 
 
 def _load_split_info(raw_dir: str) -> dict[str, int] | None:
@@ -289,7 +357,9 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         logger.info('Downloading from HuggingFace...')
 
         hf_repo_id = 'geometric-intelligence/ogbench'
-        revision = cfg.dataset.loader.parameters.get('revision', '3abc196')
+        revision = cfg.dataset.loader.parameters.get(
+            'revision', '4da96d838e81dc3f3da3c559925eea9bd356111e'
+        )
 
         data_file = hf_hub_download(  # nosec
             repo_id=hf_repo_id,
@@ -315,30 +385,49 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 
     logger.info(f'Loaded {len(targets)} samples with {data.shape[1]} features')
 
-    # Apply shuffling (same random_state as in hf_omics.py download())
-    data, targets = shuffle(data, targets, random_state=42)
+    split_type, k, fold = _resolve_omics_split_settings(cfg)
+    grouping = _resolve_grouping(cfg)
+    groups = None
+    if grouping == 'batch':
+        groups = _batch_labels_from_sidecars(cfg, data_name, len(targets))
+        if groups is None:
+            raise FileNotFoundError('grouping=batch requires batch labels sidecar')
+        if split_type != 'k-fold':
+            logger.warning(
+                f'grouping={grouping} only applies to split_type=k-fold; '
+                f'ignoring it for split_type={split_type}'
+            )
+            groups = None
 
-    # Use saved split indices from HFOmicsDataset when available to guarantee
-    # identical splits with the GNN pipeline; fall back to recomputing.
-    raw_dir = _get_hf_omics_raw_dir(cfg)
-    split_info = _load_split_info(raw_dir)
-    if split_info is not None:
-        train_idx = split_info['train_idx']
-        val_idx = split_info['val_idx']
-        logger.info(f'Using saved split indices from {raw_dir}/split_info.json')
-    else:
-        train_val_test_split = cfg.dataset.loader.parameters.train_val_test_split
-        train_idx = int(len(data) * train_val_test_split[0])
-        val_idx = int(len(data) * (train_val_test_split[0] + train_val_test_split[1]))
-        logger.info('split_info.json not found, computing split indices from config')
+    train_val_test_split = list(
+        OmegaConf.to_container(cfg.dataset.loader.parameters.train_val_test_split, resolve=True)
+    )
+    split_arrays = compute_omics_split_indices(
+        targets,
+        split_type=split_type,
+        k=k,
+        fold=fold,
+        train_val_test_split=train_val_test_split,
+        random_state=42,
+        groups=groups,
+    )
+    logger.info(
+        f'Using shared omics split ({split_type}'
+        + (f', fold={fold}/{k}' if split_type == 'k-fold' else '')
+        + (f', grouping={grouping}' if grouping else '')
+        + ')'
+    )
 
-    # Split data
-    X_train = data.iloc[:train_idx].values
-    y_train = targets[:train_idx]
-    X_val = data.iloc[train_idx:val_idx].values
-    y_val = targets[train_idx:val_idx]
-    X_test = data.iloc[val_idx:].values
-    y_test = targets[val_idx:]
+    train_data = data.iloc[split_arrays['train']].reset_index(drop=True)
+    val_data = data.iloc[split_arrays['valid']].reset_index(drop=True)
+    test_data = data.iloc[split_arrays['test']].reset_index(drop=True)
+    y_train = targets[split_arrays['train']]
+    y_val = targets[split_arrays['valid']]
+    y_test = targets[split_arrays['test']]
+
+    X_train = train_data.values
+    X_val = val_data.values
+    X_test = test_data.values
 
     logger.info(f'Train set: {X_train.shape}, Val set: {X_val.shape}, Test set: {X_test.shape}')
     unique_train, counts_train = np.unique(y_train, return_counts=True)
@@ -357,9 +446,19 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 
     # Impute missing values (using mean strategy like in HFOmicsDataset)
     imputer = SimpleImputer(strategy=cfg.dataset.loader.parameters.imputation_method)
-    X_train_imputed = imputer.fit_transform(X_train)
-    X_val_imputed = imputer.transform(X_val)
-    X_test_imputed = imputer.transform(X_test)
+    train_data = pd.DataFrame(
+        imputer.fit_transform(train_data), columns=train_data.columns, index=train_data.index
+    )
+    val_data = pd.DataFrame(
+        imputer.transform(val_data), columns=val_data.columns, index=val_data.index
+    )
+    test_data = pd.DataFrame(
+        imputer.transform(test_data), columns=test_data.columns, index=test_data.index
+    )
+
+    X_train_imputed = train_data.values
+    X_val_imputed = val_data.values
+    X_test_imputed = test_data.values
 
     # Combine train and val for GridSearchCV with custom split (use imputed but unscaled)
     X_combined = np.vstack([X_train_imputed, X_val_imputed])
@@ -388,7 +487,7 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         X_combined=X_combined,
         y_combined=y_combined,
         dataset_name=data_name,
-        n_features=data.shape[1],
+        n_features=X_train_imputed.shape[1],
         n_samples=len(targets),
         class_distribution=class_distribution,
         class_names=class_names,
@@ -400,7 +499,8 @@ def load_and_prepare_data_gnn_features(cfg: DictConfig) -> DatasetContainer:
 
     Uses the artifacts saved by HFOmicsDataset.download() (selected_data.parquet, targets.npy,
     split_info.json) to guarantee identical preprocessing and splits as the GNN pipeline. The saved
-    data is already shuffled, imputed, and feature-selected.
+    data is already ordered as train|val|test, imputed, and feature-selected (fold-aware when
+    ``split_type=k-fold``).
 
     :param cfg: Configuration composed by Hydra
     :return: DatasetContainer with GNN-preprocessed features
@@ -1009,6 +1109,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
 
         params = cfg.dataset.loader.parameters
         data_name = params.data_name
+        split_type, k, fold = _resolve_omics_split_settings(cfg)
 
         if preprocessing == 'gnn_features':
             nsr = params.node_sample_ratio
@@ -1016,6 +1117,8 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             run_name = f'baseline_{baseline_name}_{data_name}_r{nsr}_m{method}'
         else:
             run_name = f'baseline_{baseline_name}_{data_name}'
+        if split_type == 'k-fold':
+            run_name = f'{run_name}_k-fold_fold{fold}'
 
         wandb_config = {
             'baseline_name': baseline_name,
@@ -1026,6 +1129,12 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             'monitor_metric': cfg.dataset.parameters.get('monitor_metric', 'f1_weighted'),
             'preprocessing': preprocessing,
             'n_features': dataset.n_features,
+            'split_type': split_type,
+            'k': k,
+            'fold': fold,
+            'dataset.split_params.data_seed': fold,
+            'dataset.split_params.split_type': split_type,
+            'dataset.split_params.k': k,
         }
 
         if preprocessing == 'gnn_features':

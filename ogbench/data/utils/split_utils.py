@@ -4,9 +4,254 @@ import os
 
 import numpy as np
 import torch
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
+from sklearn.utils import shuffle as sklearn_shuffle
 
 from ogbench.dataloader import DataloadDataset
+
+
+def compute_omics_split_indices(
+    labels: np.ndarray,
+    *,
+    split_type: str = 'fixed',
+    k: int = 5,
+    fold: int = 0,
+    train_val_test_split: list[float] | tuple[float, ...] | None = None,
+    random_state: int = 42,
+    groups: np.ndarray | None = None,
+) -> dict[str, np.ndarray]:
+    """Compute train/valid/test indices for omics graphs (sample-level).
+
+    Indices refer to the **original sample order** (before any reordering).
+
+    Parameters
+    ----------
+    labels:
+        1-D label array of length n_samples.
+    split_type:
+        ``fixed`` — shuffle with ``random_state``, then cut by
+        ``train_val_test_split`` proportions (matches historical HFOmics).
+        ``k-fold`` — stratified CV with a 3/1/1 rotation: test is fold
+        ``fold``, validation is fold ``(fold + 1) % k``, train is the rest.
+        For ``k=5`` this is approximately 60/20/20. Each sample is in the
+        test set of exactly one fold and the validation set of exactly one fold.
+    k:
+        Number of CV folds (k-fold only). Must be ``>= 3``.
+    fold:
+        Fold index in ``[0, k)`` used as the test fold (k-fold only).
+        Validation is the next fold. Usually ``dataset.split_params.data_seed``.
+    train_val_test_split:
+        Proportions for the fixed split. Defaults to ``[0.7, 0.15, 0.15]``.
+    random_state:
+        RNG seed for shuffle / StratifiedKFold.
+    groups:
+        Optional group id per sample (k-fold only). Whole groups are assigned
+        to a single fold so train/val/test do not mix groups.
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+        Keys ``train``, ``valid``, ``test`` with disjoint index arrays
+        covering ``0 .. n_samples-1``.
+    """
+    labels = np.asarray(labels)
+    if labels.ndim != 1:
+        labels = labels.reshape(-1)
+    n_samples = len(labels)
+    if n_samples == 0:
+        raise ValueError('labels must be non-empty')
+
+    ratios = list(train_val_test_split or [0.7, 0.15, 0.15])
+    if len(ratios) != 3:
+        raise ValueError(f'train_val_test_split must have length 3, got {ratios}')
+
+    if split_type == 'fixed':
+        if groups is not None:
+            raise ValueError('group-aware splits are only supported for split_type=k-fold')
+        order = sklearn_shuffle(np.arange(n_samples), random_state=random_state)
+        train_end = int(n_samples * ratios[0])
+        val_end = int(n_samples * (ratios[0] + ratios[1]))
+        split_idx = {
+            'train': np.asarray(order[:train_end], dtype=np.int64),
+            'valid': np.asarray(order[train_end:val_end], dtype=np.int64),
+            'test': np.asarray(order[val_end:], dtype=np.int64),
+        }
+    elif split_type == 'k-fold':
+        if k < 3:
+            raise ValueError(f'k must be >= 3 for k-fold, got {k}')
+        if not (0 <= fold < k):
+            raise ValueError(f'fold must satisfy 0 <= fold < k, got fold={fold}, k={k}')
+        fold_id = _assign_omics_kfold_ids(labels, k=k, random_state=random_state, groups=groups)
+        test_fold = int(fold)
+        val_fold = (int(fold) + 1) % int(k)
+        split_idx = {
+            'train': np.flatnonzero((fold_id != test_fold) & (fold_id != val_fold)).astype(
+                np.int64
+            ),
+            'valid': np.flatnonzero(fold_id == val_fold).astype(np.int64),
+            'test': np.flatnonzero(fold_id == test_fold).astype(np.int64),
+        }
+        if any(len(split_idx[key]) == 0 for key in ('train', 'valid', 'test')):
+            raise ValueError(f'k-fold rotation produced an empty split for fold={fold}, k={k}')
+    else:
+        raise ValueError(f"split_type must be 'fixed' or 'k-fold', got {split_type!r}")
+
+    _assert_partition(split_idx, n_samples)
+    return split_idx
+
+
+def _assign_omics_kfold_ids(
+    labels: np.ndarray,
+    *,
+    k: int,
+    random_state: int,
+    groups: np.ndarray | None,
+) -> np.ndarray:
+    """Assign each sample to a fold id in ``[0, k)``."""
+    n_samples = len(labels)
+    dummy = np.zeros((n_samples, 1))
+    fold_id = np.empty(n_samples, dtype=np.int64)
+    if groups is None:
+        splitter = StratifiedKFold(n_splits=k, shuffle=True, random_state=random_state)
+        splits = splitter.split(dummy, labels)
+    else:
+        groups = np.asarray(groups)
+        if len(groups) != n_samples:
+            raise ValueError(f'groups length {len(groups)} does not match n_samples={n_samples}')
+        splitter = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=random_state)
+        splits = splitter.split(dummy, labels, groups)
+    for fold_n, (_, test_idx) in enumerate(splits):
+        fold_id[test_idx] = fold_n
+    return fold_id
+
+
+def group_kfold_is_feasible(
+    groups: np.ndarray,
+    labels: np.ndarray,
+    k: int,
+    *,
+    random_state: int = 42,
+) -> tuple[bool, str]:
+    """Return whether group-aware k-fold 3/1/1 rotation can be built.
+
+    Requires at least ``k`` groups and that every train/val/test split for
+    every fold contains at least one sample of each globally present class.
+    """
+    groups = np.asarray(groups)
+    labels = np.asarray(labels).reshape(-1)
+    n_groups = len(np.unique(groups))
+    if n_groups < k:
+        return False, f'need at least k={k} groups, got {n_groups}'
+    n_classes = len(np.unique(labels))
+    try:
+        for fold in range(k):
+            split = compute_omics_split_indices(
+                labels,
+                split_type='k-fold',
+                k=k,
+                fold=fold,
+                random_state=random_state,
+                groups=groups,
+            )
+            for name, idx in split.items():
+                part_classes = len(np.unique(labels[idx]))
+                if n_classes >= 2 and part_classes < 2:
+                    return (
+                        False,
+                        f'fold {fold} {name} has {part_classes} class(es); need >= 2',
+                    )
+    except ValueError as exc:
+        return False, str(exc)
+    return True, f'{n_groups} groups support k={k} group-aware rotation'
+
+
+def print_group_split_inventory(
+    groups: np.ndarray,
+    labels: np.ndarray,
+    *,
+    k: int = 5,
+    group_name: str = 'batch',
+) -> tuple[bool, str]:
+    """Print group sizes/class rates and whether k-fold 3/1/1 grouping is feasible."""
+    groups = np.asarray(groups)
+    labels = np.asarray(labels).reshape(-1)
+    print(f'{group_name} inventory ({len(np.unique(groups))} groups, {len(labels)} samples):')
+    for group in np.unique(groups):
+        mask = groups == group
+        n = int(mask.sum())
+        counts = {str(cls): int((labels[mask] == cls).sum()) for cls in np.unique(labels)}
+        print(f'  {group_name}={group!r}: n={n}, classes={counts}')
+    ok, reason = group_kfold_is_feasible(groups, labels, k)
+    if ok:
+        print(f'Group-aware k={k} rotation: FEASIBLE ({reason})')
+    else:
+        print(
+            f'Group-aware k={k} rotation: NOT FEASIBLE ({reason}). '
+            'Keep sample-stratified splits; do not set grouping=batch.'
+        )
+    return ok, reason
+
+
+def _assert_partition(split_idx: dict[str, np.ndarray], n_samples: int) -> None:
+    """Ensure train/valid/test form a partition of 0..n_samples-1."""
+    parts = [np.asarray(split_idx[k], dtype=np.int64) for k in ('train', 'valid', 'test')]
+    concat = np.concatenate(parts)
+    if len(concat) != n_samples:
+        raise AssertionError(f'Split sizes sum to {len(concat)}, expected {n_samples}')
+    if len(np.unique(concat)) != n_samples:
+        raise AssertionError('Split indices are not a disjoint partition')
+
+
+def omics_cache_split_suffix(
+    split_type: str = 'fixed',
+    k: int = 5,
+    fold: int = 0,
+    grouping: str | None = None,
+) -> str | None:
+    """Return an optional cache-path suffix for fold-aware omics artifacts.
+
+    Fixed splits keep the historical cache path (no suffix) so existing
+    artifacts remain valid. K-fold caches are isolated per fold, and per
+    ``grouping`` because group-aware folds contain different samples.
+    """
+    if split_type == 'fixed':
+        return None
+    if split_type == 'k-fold':
+        suffix = f'split_k-fold_k_{k}_fold_{fold}'
+        if grouping is not None:
+            suffix += f'_group_{grouping}'
+        return suffix
+    raise ValueError(f"split_type must be 'fixed' or 'k-fold', got {split_type!r}")
+
+
+def build_omics_cache_relative_name(
+    data_name: str,
+    adjacency_threshold: float,
+    adjacency_method: str,
+    method: str,
+    node_sample_ratio: float | str,
+    train_split: float,
+    split_type: str = 'fixed',
+    k: int = 5,
+    fold: int = 0,
+    corrections: list[str] | None = None,
+    grouping: str | None = None,
+) -> str:
+    """Build the relative HFOmics cache directory name (under data_dir)."""
+    parts = [
+        f'{data_name}',
+        f'adj_thresh_{adjacency_threshold}',
+        f'adj_method_{adjacency_method}',
+        f'{method}',
+        f'p_{node_sample_ratio}',
+        f'train_split_{train_split}',
+    ]
+    suffix = omics_cache_split_suffix(split_type, k=k, fold=fold, grouping=grouping)
+    if suffix is not None:
+        parts.append(suffix)
+    if corrections:
+        parts.append('corr_' + '_'.join(str(name) for name in corrections))
+    return os.path.join(*parts)
 
 
 # Generate splits in different fasions
@@ -296,7 +541,12 @@ def load_inductive_splits(dataset, parameters):
     assert len(dataset) > 1, 'Datasets should have more than one graph in an inductive setting.'
     labels = np.array([data.y.squeeze(0).numpy() for data in dataset.data_list])
 
-    if parameters.split_type == 'random':
+    # Omics caches already reorder samples to train|val|test and attach
+    # contiguous split_idx. Prefer that over re-splitting (avoids double CV).
+    if getattr(dataset, 'uses_precomputed_split', False) and hasattr(dataset, 'split_idx'):
+        split_idx = dataset.split_idx
+
+    elif parameters.split_type == 'random':
         split_idx = random_splitting(labels, parameters)
 
     elif parameters.split_type == 'k-fold':

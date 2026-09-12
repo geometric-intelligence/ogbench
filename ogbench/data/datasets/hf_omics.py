@@ -1,6 +1,7 @@
 """HuggingFace datamodule for omics datasets."""
 
 
+import json
 import logging
 import os
 import os.path as osp
@@ -14,7 +15,6 @@ import torch_geometric.transforms as T
 from huggingface_hub import hf_hub_download
 from omegaconf import OmegaConf
 from sklearn.impute import SimpleImputer
-from sklearn.utils import shuffle
 from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.io import fs
 from tqdm import tqdm
@@ -22,6 +22,24 @@ from tqdm import tqdm
 from ogbench.data.adjacency import get_adjacency_builder
 from ogbench.data.selectors import get_selector
 from ogbench.data.utils import MeanStdNormalizer
+from ogbench.data.utils.split_utils import (
+    build_omics_cache_relative_name,
+    compute_omics_split_indices,
+)
+
+
+def _infer_batch_column(meta: pd.DataFrame) -> str | None:
+    """Return a sample-meta column that looks like a hybridization batch label."""
+    preferred = ('batch', 'hybridization', 'hyb_batch', 'scan_date', 'chip')
+    lower = {str(col).lower(): col for col in meta.columns}
+    for key in preferred:
+        if key in lower:
+            return lower[key]
+    for lowered, original in lower.items():
+        if 'batch' in lowered:
+            return original
+    return None
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +94,11 @@ class HFOmicsDataset(InMemoryDataset):
         revision: str = '4da96d838e81dc3f3da3c559925eea9bd356111e',
         string_data_dir: str | None = None,
         species: int = 9606,
+        split_type: str = 'fixed',
+        k: int = 5,
+        fold: int = 0,
+        corrections: list[str] | None = None,
+        grouping: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize a `HFOmicsDataModule`.
@@ -92,6 +115,11 @@ class HFOmicsDataset(InMemoryDataset):
             revision: HuggingFace dataset revision/commit hash
             string_data_dir: Optional path to pre-downloaded STRING bulk files
             species: NCBI taxonomy ID for STRING adjacency (9606 = human, 83332 = M. tuberculosis)
+            split_type: ``fixed`` (default) or ``k-fold``
+            k: Number of CV folds when ``split_type='k-fold'``
+            fold: Test-fold index when ``split_type='k-fold'`` (usually ``data_seed``)
+            corrections: Optional cache-path tags for train-only corrections
+            grouping: Optional group key for k-fold (``batch``) using a sidecar file
             **kwargs: Additional keyword arguments
         """
         self.data_name = data_name
@@ -104,16 +132,27 @@ class HFOmicsDataset(InMemoryDataset):
         self.train_val_test_split = train_val_test_split or [0.7, 0.15, 0.15]
         self.hf_repo_id = hf_repo_id
         self.revision = revision
+        self.split_type = split_type
+        self.k = int(k)
+        self.fold = int(fold)
+        self.corrections = list(corrections or [])
+        grouping_value = grouping if grouping not in (None, 'null', '') else None
+        self.grouping = grouping_value
         self.imputer = SimpleImputer(strategy=imputation_method)
         self.feature_normalizer = MeanStdNormalizer()
 
-        self.name = osp.join(
-            f'{self.data_name}',
-            f'adj_thresh_{self.adjacency_threshold}',
-            f'adj_method_{self.adjacency_method}',
-            f'{self.method}',
-            f'p_{self.node_sample_ratio}',
-            f'train_split_{self.train_val_test_split[0]}',
+        self.name = build_omics_cache_relative_name(
+            data_name=self.data_name,
+            adjacency_threshold=self.adjacency_threshold,
+            adjacency_method=self.adjacency_method,
+            method=self.method,
+            node_sample_ratio=self.node_sample_ratio,
+            train_split=self.train_val_test_split[0],
+            split_type=self.split_type,
+            k=self.k,
+            fold=self.fold,
+            corrections=self.corrections,
+            grouping=self.grouping,
         )
 
         super().__init__(root)
@@ -187,31 +226,48 @@ class HFOmicsDataset(InMemoryDataset):
         """
         return osp.join(self.root, self.name)
 
+    def _hf_download(self, filename: str) -> str:
+        """Download a file from the configured HuggingFace dataset revision."""
+        return hf_hub_download(  # nosec
+            repo_id=self.hf_repo_id,
+            repo_type='dataset',
+            revision=self.revision,
+            filename=filename,
+        )
+
+    def _download_optional_parquet(self, filename: str) -> pd.DataFrame | None:
+        """Return a parquet sidecar or None if it is not on the Hub."""
+        try:
+            path = self._hf_download(filename)
+        except Exception as exc:
+            logger.info('Optional sidecar %s not found: %s', filename, exc)
+            return None
+        return pd.read_parquet(path)
+
+    def _load_batch_labels(self) -> np.ndarray | None:
+        """Load per-sample batch ids from batches.parquet or sample_meta.parquet."""
+        batches_df = self._download_optional_parquet(f'{self.data_name}_batches.parquet')
+        if batches_df is not None:
+            column = 'batch' if 'batch' in batches_df.columns else batches_df.columns[0]
+            return batches_df[column].to_numpy()
+        meta = self._download_optional_parquet(f'{self.data_name}_sample_meta.parquet')
+        if meta is None:
+            return None
+        batch_col = _infer_batch_column(meta)
+        if batch_col is None:
+            return None
+        return meta[batch_col].to_numpy()
+
     def download(self) -> None:
         r"""Download the dataset from HuggingFace and saves it to the raw directory."""
         logger.info(f'Downloading raw data for {self.data_name} from HuggingFace...')
 
         # Download parquet files directly from HuggingFace
-        data_file = hf_hub_download(  # nosec
-            repo_id=self.hf_repo_id,
-            repo_type='dataset',
-            revision=self.revision,
-            filename=f'{self.data_name}_data.parquet',
-        )
-        targets_file = hf_hub_download(  # nosec
-            repo_id=self.hf_repo_id,
-            repo_type='dataset',
-            revision=self.revision,
-            filename=f'{self.data_name}_targets.parquet',
-        )
+        data_file = self._hf_download(f'{self.data_name}_data.parquet')
+        targets_file = self._hf_download(f'{self.data_name}_targets.parquet')
         map_df = None
         if self.adjacency_method == 'string':
-            map_file = hf_hub_download(  # nosec
-                repo_id=self.hf_repo_id,
-                repo_type='dataset',
-                revision=self.revision,
-                filename=f'{self.data_name}_map.parquet',
-            )
+            map_file = self._hf_download(f'{self.data_name}_map.parquet')
             map_df = pd.read_parquet(map_file)
 
         # Load data and targets with pandas
@@ -226,25 +282,59 @@ class HFOmicsDataset(InMemoryDataset):
 
         logger.info(f'Downloaded {len(targets)} samples with {raw_data.shape[1]} features')
 
-        # IMPORTANT: Split data BEFORE any feature engineering to avoid data leakage
-        # Shuffle with fixed random seed for reproducibility
-        raw_data, targets = shuffle(raw_data, targets, random_state=42)
+        batches = self._load_batch_labels()
+        groups = None
+        if self.grouping == 'batch':
+            if batches is None:
+                raise FileNotFoundError(
+                    f'grouping=batch requires {self.data_name}_batches.parquet or '
+                    f'{self.data_name}_sample_meta.parquet with a batch column'
+                )
+            if self.split_type == 'k-fold':
+                groups = batches
+            else:
+                logger.warning(
+                    'grouping=%s only applies to split_type=k-fold; ignoring it for '
+                    'split_type=%s',
+                    self.grouping,
+                    self.split_type,
+                )
 
-        # Calculate split indices
+        # IMPORTANT: Split data BEFORE any feature engineering to avoid data leakage.
+        # Indices refer to the original sample order; we then reorder to train|val|test.
+        if OmegaConf.is_config(self.train_val_test_split):
+            train_val_test_split = list(OmegaConf.to_object(self.train_val_test_split))
+        else:
+            train_val_test_split = list(self.train_val_test_split)
+
+        split_arrays = compute_omics_split_indices(
+            targets,
+            split_type=self.split_type,
+            k=self.k,
+            fold=self.fold,
+            train_val_test_split=train_val_test_split,
+            random_state=42,
+            groups=groups,
+        )
+        train_ids = split_arrays['train']
+        valid_ids = split_arrays['valid']
+        test_ids = split_arrays['test']
+
+        train_data = raw_data.iloc[train_ids]
+        train_targets = targets[train_ids]
+        val_data = raw_data.iloc[valid_ids]
+        val_targets = targets[valid_ids]
+        test_data = raw_data.iloc[test_ids]
+        test_targets = targets[test_ids]
+
         n_samples = len(targets)
-        train_idx = int(n_samples * self.train_val_test_split[0])
-        val_idx = int(n_samples * (self.train_val_test_split[0] + self.train_val_test_split[1]))
-
-        # Split into train/val/test
-        train_data = raw_data.iloc[:train_idx]
-        train_targets = targets[:train_idx]
-        val_data = raw_data.iloc[train_idx:val_idx]
-        val_targets = targets[train_idx:val_idx]
-        test_data = raw_data.iloc[val_idx:]
-        test_targets = targets[val_idx:]
+        train_idx = len(train_targets)
+        val_idx = train_idx + len(val_targets)
 
         logger.info(
-            f'Split: Train={len(train_targets)}, Val={len(val_targets)}, Test={len(test_targets)}'
+            f'Split ({self.split_type}'
+            + (f', fold={self.fold}/{self.k}' if self.split_type == 'k-fold' else '')
+            + f'): Train={len(train_targets)}, Val={len(val_targets)}, Test={len(test_targets)}'
         )
 
         # Impute missing values - FIT on training data only, TRANSFORM on all splits
@@ -313,13 +403,25 @@ class HFOmicsDataset(InMemoryDataset):
         all_targets = np.concatenate([train_targets, val_targets, test_targets])
         np.save(os.path.join(self.raw_dir, 'targets.npy'), all_targets)
 
-        # Save split indices for later use
-        split_info = {'train_idx': train_idx, 'val_idx': val_idx, 'total_samples': n_samples}
-        import json
+        # train_idx/val_idx remain cut points into the reordered train|val|test arrays.
+        split_info = {
+            'split_type': self.split_type,
+            'k': self.k,
+            'fold': self.fold,
+            'train_idx': train_idx,
+            'val_idx': val_idx,
+            'total_samples': n_samples,
+            'train_indices': train_ids.tolist(),
+            'valid_indices': valid_ids.tolist(),
+            'test_indices': test_ids.tolist(),
+        }
 
         with open(os.path.join(self.raw_dir, 'split_info.json'), 'w') as f:
             json.dump(split_info, f, indent=4)
-        logger.info(f'Saved split info: {split_info}')
+        logger.info(
+            f'Saved split info: type={self.split_type}, '
+            f'train_idx={train_idx}, val_idx={val_idx}, total={n_samples}'
+        )
 
         # Calculate adjacency matrix based ONLY on training data
         logger.info('Calculating adjacency matrix based on training data only...')
@@ -389,23 +491,16 @@ class HFOmicsDataset(InMemoryDataset):
         adj_matrix = np.load(osp.join(self.raw_dir, 'adj_matrix.npy'))
         edge_index = torch.nonzero(torch.tensor(adj_matrix)).t().contiguous()
 
-        # Load split info - data is already shuffled and split in download()
-        import json
-
+        # Load split info - data is already ordered train|val|test in download()
         with open(os.path.join(self.raw_dir, 'split_info.json')) as f:
             split_info = json.load(f)
         train_idx = split_info['train_idx']
         logger.info(f'Loaded split info: train_idx={train_idx}')
 
-        # Data is already in the correct order (train, val, test) from download()
-        # No need to shuffle again - this would break the carefully constructed splits
-
         # Fit normalizers on training data
         train_data = selected_data.iloc[:train_idx]
         logger.info('Fitting normalizers on training data')
         self.feature_normalizer.fit(train_data.values)
-        # Save normalizer statistics to JSON
-        import json
 
         # Convert train_val_test_split to list if it's a ListConfig
         if OmegaConf.is_config(self.train_val_test_split):
@@ -414,6 +509,9 @@ class HFOmicsDataset(InMemoryDataset):
             train_val_test_split = list(self.train_val_test_split)
         normalizer_stats = {
             'train_val_test_split': train_val_test_split,
+            'split_type': split_info.get('split_type', self.split_type),
+            'k': split_info.get('k', self.k),
+            'fold': split_info.get('fold', self.fold),
             'train_idx': train_idx,
             'feature_normalizer': {
                 'mean': list(self.feature_normalizer.mean),
@@ -462,8 +560,6 @@ class HFOmicsDataset(InMemoryDataset):
             - Target values
             - Dictionary with 'train_idx' and 'val_idx' split indices
         """
-        import json
-
         # Load raw data
         logger.info('Loading raw data for baseline...')
         selected_data = pd.read_parquet(osp.join(self.raw_dir, 'selected_data.parquet'))
@@ -495,5 +591,6 @@ class HFOmicsDataset(InMemoryDataset):
             f'adjacency_method={self.adjacency_method}, '
             f'node_sample_ratio={self.node_sample_ratio}, '
             f'method={self.method}, '
-            f'train_val_test_split={self.train_val_test_split})'
+            f'train_val_test_split={self.train_val_test_split}, '
+            f'split_type={self.split_type}, k={self.k}, fold={self.fold})'
         )
