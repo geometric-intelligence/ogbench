@@ -6,6 +6,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from ogbench.data.utils.split_utils import print_group_split_inventory
 from scripts.utils import create_dataset_metadata, download_file, upload_to_huggingface
 
 
@@ -68,6 +69,34 @@ def _map_probes_to_genes(
     return df, symbol_to_entrez
 
 
+def _parse_geo_sample_characteristics(metadata_lines: list[list[str]]) -> pd.DataFrame:
+    """Parse GEO ``!Sample_characteristics_ch1`` lines into a sample-by-field table."""
+    n_samples = len(metadata_lines[0])
+    records: list[dict[str, str]] = [{} for _ in range(n_samples)]
+    for line in metadata_lines:
+        if len(line) != n_samples:
+            raise ValueError('GEO characteristic lines have inconsistent sample counts')
+        for i, cell in enumerate(line):
+            cell = str(cell).strip().strip('"')
+            if ':' not in cell:
+                continue
+            key, value = cell.split(':', 1)
+            records[i][key.strip().lower()] = value.strip()
+    return pd.DataFrame.from_records(records)
+
+
+def _infer_batch_field(sample_meta: pd.DataFrame) -> str | None:
+    preferred = ('batch', 'hybridization', 'hyb_batch', 'scan date', 'scan_date', 'chip')
+    columns = list(sample_meta.columns)
+    for key in preferred:
+        if key in columns:
+            return key
+    for col in columns:
+        if 'batch' in str(col):
+            return col
+    return None
+
+
 def process_parkinsons(output_dir: str = 'temp_data') -> None:
     """Download and process Parkinsons dataset."""
     os.makedirs(output_dir, exist_ok=True)
@@ -99,22 +128,10 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
     if not metadata_lines:
         raise ValueError('No !Sample_characteristics_ch1 lines found.')
 
-    # Transpose so each item corresponds to a sample
-    sample_metadata = list(zip(*metadata_lines, strict=True))
-
-    # Extract 'moca score' for each sample
-    moca_scores = []
-    for fields in sample_metadata:
-        moca = None
-        for field in fields:
-            if 'moca score:' in field.lower():
-                try:
-                    moca = field.split(':')[1].strip().strip('"')
-                except IndexError:
-                    pass
-        moca_scores.append(moca)
-
-    moca_scores = pd.to_numeric(moca_scores, errors='coerce')
+    sample_meta = _parse_geo_sample_characteristics(metadata_lines)
+    if 'moca score' not in sample_meta.columns:
+        raise ValueError('No moca score field found in GEO sample characteristics.')
+    moca_scores = pd.to_numeric(sample_meta['moca score'], errors='coerce')
 
     # Load gene expression data (after metadata ends)
     with gzip.open(gz_path, 'rt') as f:
@@ -130,9 +147,10 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
         len(moca_scores) == expression_df.shape[0]
     ), f'Mismatched samples: {len(moca_scores)} scores vs {expression_df.shape[0]} samples'
 
-    valid_mask = ~np.isnan(moca_scores)
-    raw_data = expression_df.loc[valid_mask]
-    targets = moca_scores[valid_mask]
+    valid_mask = ~np.isnan(moca_scores.to_numpy())
+    raw_data = expression_df.iloc[valid_mask]
+    targets = moca_scores.to_numpy()[valid_mask]
+    sample_meta = sample_meta.iloc[valid_mask].reset_index(drop=True)
 
     assert not raw_data.isna().any().any(), 'Raw data contains NaNs'
     assert not np.isnan(targets).any(), 'Targets contain NaNs'
@@ -171,16 +189,36 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
     for class_id, count in zip(unique_classes, counts, strict=True):
         print(f'  {class_names[class_id]}: {count} samples ({count/len(targets_class)*100:.1f}%)')
 
+    batch_field = _infer_batch_field(sample_meta)
+    print(f'GEO characteristic fields: {list(sample_meta.columns)}')
+    if batch_field is None:
+        print(
+            'No batch-like GEO field found. Keep sample-stratified splits; '
+            'do not set grouping=batch.'
+        )
+    else:
+        if batch_field != 'batch':
+            sample_meta['batch'] = sample_meta[batch_field]
+        print(f'Using batch field {batch_field!r}')
+        print_group_split_inventory(
+            sample_meta['batch'].to_numpy(),
+            targets_class,
+            k=5,
+            group_name='batch',
+        )
+
     # Save as parquet
     data_file = os.path.join(output_dir, 'parkinsons_data.parquet')
     targets_file = os.path.join(output_dir, 'parkinsons_targets.parquet')
     map_file = os.path.join(output_dir, 'parkinsons_map.parquet')
+    meta_file = os.path.join(output_dir, 'parkinsons_sample_meta.parquet')
 
     # Reset index to make it a proper DataFrame
     raw_data = raw_data.reset_index(drop=True)
     raw_data.to_parquet(data_file)
     pd.DataFrame({'target': targets_class}).to_parquet(targets_file)
     gene_map.reset_index(drop=True).to_parquet(map_file, index=False)
+    sample_meta.reset_index(drop=True).to_parquet(meta_file, index=False)
 
     # Create metadata
     target_stats = {
@@ -201,10 +239,20 @@ def process_parkinsons(output_dir: str = 'temp_data') -> None:
         num_samples=len(targets),
         num_features=raw_data.shape[1],
         target_stats=target_stats,
+        preprocessing_notes=(
+            'GEO sample characteristics are stored in parkinsons_sample_meta.parquet. '
+            'Unmixed-batch k-fold is enabled only when the processor inventory reports '
+            'FEASIBLE (at least k batches with both classes in every 3/1/1 split).'
+        ),
     )
 
     # Upload to HuggingFace
-    data_files = {'data': data_file, 'targets': targets_file, 'map': map_file}
+    data_files = {
+        'data': data_file,
+        'targets': targets_file,
+        'map': map_file,
+        'sample_meta': meta_file,
+    }
 
     upload_to_huggingface('parkinsons', data_files, metadata)
 

@@ -65,7 +65,9 @@ Omics datasets use `dataset.split_params.split_type` (default **`fixed`**):
 - **`fixed`** — shuffle with seed 42, then cut 70 / 15 / 15. Graph caches keep the historical path.
 - **`k-fold`** — stratified 3/1/1 rotation over `k` folds (`k` defaults to 5 → about 60 / 20 / 20). `data_seed` is the **test fold**; validation is the next fold. Each sample is test once and validation once across folds `0 .. k-1`.
 
-Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test. Optional `dataset.split_params.grouping` (for example `batch`) keeps whole groups inside a single k-fold fold; it is ignored for `fixed` splits.
+Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test.
+
+MoTrPAC covariate adjustment, AddNeuroMed ComBat, and smoking promoter-probe pick plus median-centering are also train-only. Hub matrices are uncorrected; sidecars are `motrpac_covariates.parquet`, `addneuromed_batches.parquet`, and `smoking_probe_map.parquet`. Defaults are `corrections=[covariate_adjust]` (MoTrPAC), `corrections=[combat]` (AddNeuroMed), and `corrections=[promoter_min_beta, median_center]` (smoking). Smoking Hub columns are TSS1500/TSS200 probes; after the split, each gene keeps the candidate probe with the lowest mean beta on **training** never-smokers, remaining NaNs are imputed with training column means, and each gene is median-centered on train. Parkinson GEO characteristics are in `parkinsons_sample_meta.parquet`, including the hybridization-date `batch` field. Parkinson defaults to `dataset.split_params.grouping=batch`, so `StratifiedGroupKFold` keeps every batch inside a single fold and no batch is split across train / val / test. Batch sizes are very uneven (70 down to 1), so grouped folds are not equal sized: for `k=5` the test fold ranges from 95 to 120 samples. `grouping` applies to `k-fold` only and is ignored for `fixed`. Grouped caches are stored separately (`..._group_batch`).
 
 ```bash
 python -m ogbench dataset=brca model=gcn

@@ -34,6 +34,12 @@ from sklearn.metrics import (
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 
+from ogbench.data.corrections import (
+    CombatCorrector,
+    CovariateAdjuster,
+    MedianCenterer,
+    PromoterMinBetaSelector,
+)
 from ogbench.data.utils.split_utils import (
     build_omics_cache_relative_name,
     compute_omics_split_indices,
@@ -182,7 +188,7 @@ def load_metadata(data_name: str, cfg: DictConfig) -> dict[str, Any] | None:
         logger.info('Downloading metadata from HuggingFace...')
         hf_repo_id = 'geometric-intelligence/ogbench'
         revision = cfg.dataset.loader.parameters.get(
-            'revision', '4da96d838e81dc3f3da3c559925eea9bd356111e'
+            'revision', '056dfdc4f434fd35355ffbe5f7b63910d785a97a'
         )
 
         metadata_file = hf_hub_download(  # nosec
@@ -218,6 +224,13 @@ def _resolve_grouping(cfg: DictConfig) -> str | None:
     return str(grouping)
 
 
+def _resolve_corrections(cfg: DictConfig) -> list[str]:
+    raw = cfg.dataset.loader.parameters.get('corrections', [])
+    if raw is None:
+        return []
+    return [str(item) for item in list(raw)]
+
+
 def _load_optional_sidecar(
     cfg: DictConfig, data_name: str, suffix: str, local_dir: str
 ) -> pd.DataFrame | None:
@@ -229,7 +242,7 @@ def _load_optional_sidecar(
             repo_id='geometric-intelligence/ogbench',
             repo_type='dataset',
             revision=cfg.dataset.loader.parameters.get(
-                'revision', '4da96d838e81dc3f3da3c559925eea9bd356111e'
+                'revision', '056dfdc4f434fd35355ffbe5f7b63910d785a97a'
             ),
             filename=f'{data_name}_{suffix}.parquet',
         )
@@ -358,7 +371,7 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 
         hf_repo_id = 'geometric-intelligence/ogbench'
         revision = cfg.dataset.loader.parameters.get(
-            'revision', '4da96d838e81dc3f3da3c559925eea9bd356111e'
+            'revision', '056dfdc4f434fd35355ffbe5f7b63910d785a97a'
         )
 
         data_file = hf_hub_download(  # nosec
@@ -425,6 +438,45 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
     y_val = targets[split_arrays['valid']]
     y_test = targets[split_arrays['test']]
 
+    for name in _resolve_corrections(cfg):
+        if name == 'median_center':
+            continue
+        if name == 'covariate_adjust':
+            cov = _load_optional_sidecar(cfg, data_name, 'covariates', 'temp_data')
+            if cov is None:
+                raise FileNotFoundError(f'{data_name}_covariates.parquet is required')
+            adjuster = CovariateAdjuster()
+            adjuster.fit(train_data, cov.iloc[split_arrays['train']].reset_index(drop=True))
+            train_data = adjuster.transform(
+                train_data, cov.iloc[split_arrays['train']].reset_index(drop=True)
+            )
+            val_data = adjuster.transform(
+                val_data, cov.iloc[split_arrays['valid']].reset_index(drop=True)
+            )
+            test_data = adjuster.transform(
+                test_data, cov.iloc[split_arrays['test']].reset_index(drop=True)
+            )
+        elif name == 'combat':
+            batches = _batch_labels_from_sidecars(cfg, data_name, len(targets))
+            if batches is None:
+                raise FileNotFoundError(f'batch labels are required for combat on {data_name}')
+            corrector = CombatCorrector()
+            corrector.fit(train_data, batches[split_arrays['train']])
+            train_data = corrector.transform(train_data, batches[split_arrays['train']])
+            val_data = corrector.transform(val_data, batches[split_arrays['valid']])
+            test_data = corrector.transform(test_data, batches[split_arrays['test']])
+        elif name == 'promoter_min_beta':
+            probe_map = _load_optional_sidecar(cfg, data_name, 'probe_map', 'temp_data')
+            if probe_map is None:
+                raise FileNotFoundError(f'{data_name}_probe_map.parquet is required')
+            selector = PromoterMinBetaSelector()
+            selector.fit(train_data, y_train, probe_map)
+            train_data = selector.transform(train_data)
+            val_data = selector.transform(val_data)
+            test_data = selector.transform(test_data)
+        else:
+            raise ValueError(f'Unknown correction {name!r}')
+
     X_train = train_data.values
     X_val = val_data.values
     X_test = test_data.values
@@ -455,6 +507,12 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
     test_data = pd.DataFrame(
         imputer.transform(test_data), columns=test_data.columns, index=test_data.index
     )
+    if 'median_center' in _resolve_corrections(cfg):
+        centerer = MedianCenterer()
+        centerer.fit(train_data)
+        train_data = centerer.transform(train_data)
+        val_data = centerer.transform(val_data)
+        test_data = centerer.transform(test_data)
 
     X_train_imputed = train_data.values
     X_val_imputed = val_data.values

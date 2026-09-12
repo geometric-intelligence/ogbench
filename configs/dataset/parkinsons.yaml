@@ -51,7 +51,7 @@ split_params:
   data_seed: 0 # k-fold test-fold index; validation is the next fold
   split_type: fixed # or k-fold
   k: 5
-  grouping: null
+  grouping: batch # hybridization-date batches stay unmixed across k-fold splits
 dataloader_params:
   batch_size: 16
   num_workers: 0

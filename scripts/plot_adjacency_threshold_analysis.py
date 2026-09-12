@@ -44,7 +44,7 @@ def load_dataset_config(dataset_name: str) -> dict[str, Any]:
 
     return {
         'data_name': dataset_name,
-        'revision': hf_cfg.get('revision', '83299150394717f0646b1bd44d6a55392ab789db'),
+        'revision': hf_cfg.get('revision', '056dfdc4f434fd35355ffbe5f7b63910d785a97a'),
         'train_val_test_split': cfg['loader']['parameters']['train_val_test_split'],
     }
 

@@ -128,43 +128,6 @@ def _parse_series_matrix(gz_path: str) -> tuple[list[str], np.ndarray, pd.DataFr
     return sample_ids, targets, beta
 
 
-def _select_min_promoter_per_gene(
-    beta: pd.DataFrame, mapping: pd.DataFrame, never_mask: np.ndarray
-) -> tuple[pd.DataFrame, pd.Series]:
-    """For each gene pick the candidate probe with the minimum mean beta in never-smokers.
-
-    Returns:
-        gene_data: DataFrame (samples x genes) of selected probe betas, columns renamed to genes.
-        gene_to_probe: Series mapping gene -> chosen probe_id.
-    """
-    available = mapping[mapping['probe_id'].isin(beta.columns)].copy()
-    if available.empty:
-        raise ValueError('No manifest probes overlap with the beta matrix columns')
-
-    candidate_probes = available['probe_id'].unique().tolist()
-    never_means = beta.loc[never_mask, candidate_probes].mean(axis=0)
-    available['never_mean'] = available['probe_id'].map(never_means)
-
-    available = available.dropna(subset=['never_mean'])
-    if available.empty:
-        raise ValueError('All candidate probes have NaN mean across never-smoker samples')
-
-    idx_min = available.groupby('gene')['never_mean'].idxmin()
-    chosen = available.loc[idx_min, ['gene', 'probe_id']]
-    gene_to_probe = pd.Series(
-        chosen['probe_id'].values, index=chosen['gene'].values, name='probe_id'
-    )
-
-    gene_data = beta.loc[:, gene_to_probe.values].copy()
-    gene_data.columns = gene_to_probe.index.astype(str)
-
-    print(
-        f'Selected {gene_data.shape[1]} gene-level features from '
-        f'{len(candidate_probes)} candidate promoter probes'
-    )
-    return gene_data, gene_to_probe
-
-
 def process_smoking(output_dir: str = 'temp_data') -> None:
     """Download and process the smoking (GSE50660) methylation dataset."""
     os.makedirs(output_dir, exist_ok=True)
@@ -191,32 +154,20 @@ def process_smoking(output_dir: str = 'temp_data') -> None:
     print('Building probe-to-gene promoter mapping...')
     mapping = _build_probe_gene_mapping(manifest_path)
 
-    print('Selecting per-gene minimum-beta promoter in never-smokers...')
-    never_mask = targets == 0
-    if never_mask.sum() == 0:
-        raise ValueError('No never-smoker samples found (smoking == 0)')
-    gene_data, gene_to_probe = _select_min_promoter_per_gene(beta, mapping, never_mask)
-
-    all_nan_cols = gene_data.columns[gene_data.isna().all(axis=0)]
-    if len(all_nan_cols) > 0:
-        print(f'Dropping {len(all_nan_cols)} all-NaN gene columns')
-        gene_data = gene_data.drop(columns=all_nan_cols)
-        gene_to_probe = gene_to_probe.drop(index=all_nan_cols)
-
-    if gene_data.isna().any().any():
-        nan_cells = int(gene_data.isna().sum().sum())
-        print(f'Imputing {nan_cells} remaining NaN cells with column means')
-        gene_data = gene_data.fillna(gene_data.mean(axis=0))
-
-    print('Median-centering per gene across samples...')
-    gene_data = gene_data - gene_data.median(axis=0)
-
-    assert not gene_data.isna().any().any(), 'Gene data has NaN values after processing'
-    assert not np.isnan(targets).any(), 'Targets have NaN values'
-    assert gene_data.shape[0] == len(targets), 'Sample count mismatch between data and targets'
+    available = mapping[mapping['probe_id'].isin(beta.columns)].copy()
+    if available.empty:
+        raise ValueError('No manifest probes overlap with the beta matrix columns')
+    candidate_probes = available['probe_id'].unique().tolist()
+    probe_data = beta.loc[:, candidate_probes].copy()
+    print(
+        f'Keeping {probe_data.shape[1]} TSS1500/TSS200 promoter probes covering '
+        f'{available["gene"].nunique()} genes; probe pick, impute, and median-center '
+        'run train-only in HFOmics.'
+    )
 
     # Collapse the original 3-class GEO encoding (0=never, 1=former, 2=current) into a binary
     # never (0) vs ever-smoker (1 = former + current) target for downstream modeling.
+    # Class 0 remains never-smoker so PromoterMinBetaSelector can use train labels.
     targets_binary = (targets > 0).astype(np.int64)
     class_names = ['never', 'ever']
     class_mapping = {'never': 0, 'ever': 1}
@@ -225,25 +176,31 @@ def process_smoking(output_dir: str = 'temp_data') -> None:
         'former': int((targets == 1).sum()),
         'current': int((targets == 2).sum()),
     }
+    if original_class_counts['never'] == 0:
+        raise ValueError('No never-smoker samples found (smoking == 0)')
 
-    # Build gene map: feature columns are gene symbols, which STRING resolves
-    # directly via its alias lookup (same approach as brca/addneuromed).
+    assert probe_data.shape[0] == len(
+        targets_binary
+    ), 'Sample count mismatch between data and targets'
+
     gene_map = pd.DataFrame(
         {
-            'node_id': list(gene_data.columns),
-            'string_id': list(gene_data.columns),
+            'node_id': available['gene'].astype(str).unique(),
+            'string_id': available['gene'].astype(str).unique(),
         }
     )
-    gene_map['node_id'] = gene_map['node_id'].astype(str)
-    gene_map['string_id'] = gene_map['string_id'].astype(str)
 
     data_file = os.path.join(output_dir, 'smoking_data.parquet')
     targets_file = os.path.join(output_dir, 'smoking_targets.parquet')
     map_file = os.path.join(output_dir, 'smoking_map.parquet')
+    probe_map_file = os.path.join(output_dir, 'smoking_probe_map.parquet')
 
-    gene_data.reset_index(drop=True).to_parquet(data_file)
+    probe_data.reset_index(drop=True).to_parquet(data_file)
     pd.DataFrame({'target': targets_binary}).to_parquet(targets_file)
     gene_map.reset_index(drop=True).to_parquet(map_file, index=False)
+    available[['probe_id', 'gene']].drop_duplicates().reset_index(drop=True).to_parquet(
+        probe_map_file, index=False
+    )
 
     target_stats: dict = {
         'class_mapping': class_mapping,
@@ -253,29 +210,36 @@ def process_smoking(output_dir: str = 'temp_data') -> None:
             name: int((targets_binary == idx).sum()) for name, idx in class_mapping.items()
         },
         'original_geo_class_counts': original_class_counts,
+        'n_promoter_probes': int(probe_data.shape[1]),
+        'n_mapped_genes': int(available['gene'].nunique()),
     }
 
     metadata = create_dataset_metadata(
         dataset_name='smoking',
         download_urls=urls,
         num_samples=len(targets_binary),
-        num_features=gene_data.shape[1],
+        num_features=probe_data.shape[1],
         target_stats=target_stats,
         preprocessing_notes=(
-            'GSE50660 Illumina 450k beta values mapped to genes using the HumanMethylation450 '
-            'v1.2 manifest, restricted to probes annotated as TSS1500 or TSS200 promoter '
-            'regions. For each gene, the candidate promoter probe with the minimum mean beta '
-            'across never-smoker samples (original GEO smoking == 0) is kept as the gene-level '
-            'feature. Values are then median-centered per gene across samples. The original '
-            '3-class GEO smoking status (0=never, 1=former, 2=current) is collapsed into a '
-            'binary target: 0=never, 1=ever (former or current).'
+            'GSE50660 Illumina 450k beta values restricted to HumanMethylation450 v1.2 '
+            'probes annotated as TSS1500 or TSS200. Hub matrices are uncorrected promoter '
+            'probes. ogbench picks, for each gene, the candidate probe with the minimum mean '
+            'beta on training never-smokers (label 0), imputes remaining NaNs with training '
+            'column means, and median-centers each gene on the training split only. The '
+            'original 3-class GEO smoking status (0=never, 1=former, 2=current) is collapsed '
+            'into a binary target: 0=never, 1=ever (former or current).'
         ),
     )
 
-    data_files = {'data': data_file, 'targets': targets_file, 'map': map_file}
+    data_files = {
+        'data': data_file,
+        'targets': targets_file,
+        'map': map_file,
+        'probe_map': probe_map_file,
+    }
     upload_to_huggingface('smoking', data_files, metadata)
 
     print('Successfully processed and uploaded smoking dataset')
     print(f'  Samples: {len(targets_binary)}')
-    print(f'  Features (genes): {gene_data.shape[1]}')
+    print(f'  Features (promoter probes): {probe_data.shape[1]}')
     print(f'  Target stats: {target_stats}')

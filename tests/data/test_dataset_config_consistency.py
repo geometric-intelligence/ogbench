@@ -74,6 +74,8 @@ class TestDatasetConfigConsistency:
             ('loader', 'parameters', 'data_name'),
             ('loader', 'parameters', 'adjacency_threshold'),
             ('loader', 'parameters', 'species'),
+            ('loader', 'parameters', 'corrections'),
+            ('split_params', 'grouping'),
             ('parameters', 'num_classes'),
             ('parameters', 'num_samples'),
             ('parameters', 'full_num_nodes'),
