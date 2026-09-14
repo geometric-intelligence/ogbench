@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import queue
 import subprocess
+import sys
 from unittest.mock import Mock
 
 import pytest
@@ -67,6 +68,7 @@ def test_run_training_enforces_thread_and_dataloader_limits(
     assert error is None
     assert metrics is not None and metrics['objective'] == 0.5
     command = run.call_args.args[0]
+    assert command[:3] == [sys.executable, '-m', 'ogbench.run']
     assert 'dataset.dataloader_params.num_workers=0' in command
     assert 'dataset.dataloader_params.persistent_workers=false' in command
     env = run.call_args.kwargs['env']

@@ -156,6 +156,9 @@ class OptunaSearchConfig:
     training_seed: int
     fixed: dict[str, Any]
     ablations: dict[str, list[Any]]
+    ablation_mode: str
+    ablation_baseline: dict[str, Any]
+    per_model_ablation_baseline: dict[str, dict[str, Any]]
     exclude_cells: list[dict[str, Any]]
     search_space: dict[str, SearchSpaceSpec]
     per_model_search_space: dict[str, dict[str, SearchSpaceSpec]]
@@ -197,6 +200,34 @@ class OptunaSearchConfig:
         for name, values in ablations.items():
             if not isinstance(values, list) or not values:
                 raise ValueError(f"Ablation axis '{name}' must be a non-empty list")
+        ablation_design = raw.get('ablation_design', {})
+        if not isinstance(ablation_design, dict):
+            raise TypeError('ablation_design must be a mapping')
+        ablation_mode = str(ablation_design.get('mode', 'full_factorial'))
+        if ablation_mode not in {'full_factorial', 'one_factor_at_a_time'}:
+            raise ValueError(
+                "ablation_design.mode must be 'full_factorial' or 'one_factor_at_a_time'"
+            )
+        ablation_baseline = dict(ablation_design.get('baseline', {}))
+        per_model_ablation_baseline = {
+            str(model): dict(values)
+            for model, values in ablation_design.get('per_model_baseline', {}).items()
+        }
+        if ablation_mode == 'one_factor_at_a_time':
+            missing_baselines = set(ablations) - set(ablation_baseline)
+            if missing_baselines:
+                raise ValueError(
+                    'one_factor_at_a_time requires a baseline for every ablation axis: '
+                    f'{sorted(missing_baselines)}'
+                )
+            _validate_ablation_baseline('baseline', ablation_baseline, ablations)
+            for model, baseline in per_model_ablation_baseline.items():
+                if model not in raw['models']:
+                    raise ValueError(f'Unknown per-model ablation baseline: {model}')
+                merged = {**ablation_baseline, **baseline}
+                _validate_ablation_baseline(
+                    f'per_model_baseline.{model}', merged, ablations
+                )
         exclude_cells = raw.get('exclude_cells', [])
         if not isinstance(exclude_cells, list) or any(
             not isinstance(item, dict) for item in exclude_cells
@@ -248,6 +279,9 @@ class OptunaSearchConfig:
             training_seed=int(raw.get('training_seed', 42)),
             fixed=dict(raw.get('fixed', {})),
             ablations={key: list(values) for key, values in ablations.items()},
+            ablation_mode=ablation_mode,
+            ablation_baseline=ablation_baseline,
+            per_model_ablation_baseline=per_model_ablation_baseline,
             exclude_cells=[dict(item) for item in exclude_cells],
             search_space=search_space,
             per_model_search_space=per_model_search_space,
@@ -281,14 +315,20 @@ class OptunaSearchConfig:
     @property
     def fingerprint(self) -> str:
         """Hash settings that affect objective comparability."""
+        comparable_fixed = {
+            key: value for key, value in self.fixed.items() if key != 'paths.root_dir'
+        }
         payload = {
             'datasets': self.datasets,
             'models': self.models,
             'folds': self.folds,
             'k': self.k,
             'training_seed': self.training_seed,
-            'fixed': self.fixed,
+            'fixed': comparable_fixed,
             'ablations': self.ablations,
+            'ablation_mode': self.ablation_mode,
+            'ablation_baseline': self.ablation_baseline,
+            'per_model_ablation_baseline': self.per_model_ablation_baseline,
             'exclude_cells': self.exclude_cells,
             'search_space': {
                 key: asdict(value) for key, value in sorted(self.search_space.items())
@@ -525,6 +565,23 @@ def _parse_search_space(raw: Any) -> dict[str, SearchSpaceSpec]:
     return {name: SearchSpaceSpec.from_raw(name, value) for name, value in raw.items()}
 
 
+def _validate_ablation_baseline(
+    label: str,
+    baseline: dict[str, Any],
+    ablations: dict[str, list[Any]],
+) -> None:
+    unknown = set(baseline) - set(ablations)
+    if unknown:
+        raise ValueError(f'{label} references unknown ablation axes: {sorted(unknown)}')
+    invalid = {
+        key: value
+        for key, value in baseline.items()
+        if value not in ablations[key]
+    }
+    if invalid:
+        raise ValueError(f'{label} contains values outside their ablation axes: {invalid}')
+
+
 def _parse_thresholds(raw: Any) -> dict[tuple[str, float | str, str], float]:
     if not isinstance(raw, dict):
         raise TypeError('per_dataset_ratio_method_grid must be a mapping')
@@ -621,11 +678,30 @@ def build_outer_cells(
     if unknown_datasets:
         raise ValueError(f'Unknown dataset filters: {sorted(unknown_datasets)}')
 
-    axis_names = list(config.ablations)
     cells: list[OuterCell] = []
     for model, dataset in itertools.product(selected_models, selected_datasets):
-        for combination in itertools.product(*(config.ablations[name] for name in axis_names)):
-            values = dict(zip(axis_names, combination, strict=True))
+        if config.ablation_mode == 'one_factor_at_a_time':
+            baseline = {
+                **config.ablation_baseline,
+                **config.per_model_ablation_baseline.get(model, {}),
+            }
+            combinations = [baseline]
+            combinations.extend(
+                {**baseline, axis: value}
+                for axis, choices in config.ablations.items()
+                for value in choices
+                if value != baseline[axis]
+            )
+        else:
+            axis_names = list(config.ablations)
+            combinations = [
+                dict(zip(axis_names, combination, strict=True))
+                for combination in itertools.product(
+                    *(config.ablations[name] for name in axis_names)
+                )
+            ]
+        for combination in combinations:
+            values = dict(combination)
             candidate = {'model': model, 'dataset': dataset, **values}
             if any(
                 all(candidate.get(key) == value for key, value in exclusion.items())
@@ -653,6 +729,33 @@ def build_outer_cells(
                 )
             )
     return cells
+
+
+def study_shard(study_name: str, num_shards: int) -> int:
+    """Return the deterministic virtual shard for a study."""
+    if num_shards < 1:
+        raise ValueError('num_shards must be positive')
+    return int(_stable_hash(study_name), 16) % num_shards
+
+
+def select_study_shards(
+    cells: Sequence[OuterCell],
+    num_shards: int,
+    shard_indices: Sequence[int] | None,
+) -> list[OuterCell]:
+    """Select a disjoint union of deterministic virtual study shards."""
+    if num_shards < 1:
+        raise ValueError('num_shards must be positive')
+    selected = list(range(num_shards)) if shard_indices is None else list(shard_indices)
+    if len(set(selected)) != len(selected):
+        raise ValueError('shard_indices must not contain duplicates')
+    invalid = [index for index in selected if index < 0 or index >= num_shards]
+    if invalid:
+        raise ValueError(
+            f'shard_indices must be between 0 and {num_shards - 1}: {invalid}'
+        )
+    selected_set = set(selected)
+    return [cell for cell in cells if study_shard(cell.study_name, num_shards) in selected_set]
 
 
 def _sample_parameters(
@@ -1025,30 +1128,39 @@ def _cache_configs(config: OptunaSearchConfig, cells: Sequence[OuterCell]) -> li
     """Compose and deduplicate complete loader configs for all folds."""
     config_dir = Path(__file__).resolve().parent.parent / 'configs'
     composed: dict[str, Any] = {}
+    requests: dict[str, tuple[OuterCell, int, dict[str, Any]]] = {}
+    for cell in cells:
+        for fold in config.folds:
+            parameters = {**config.fixed, **cell.values}
+            parameters.update(
+                {
+                    'dataset.split_params.split_type': 'k-fold',
+                    'dataset.split_params.k': config.k,
+                    'dataset.split_params.data_seed': fold,
+                }
+            )
+            # Models do not affect dataset caches. Collapse equivalent requests
+            # before the comparatively expensive Hydra composition step.
+            request_key = _stable_hash(
+                {'dataset': cell.dataset, 'parameters': parameters}, length=32
+            )
+            requests[request_key] = (cell, fold, parameters)
+
     if GlobalHydra.instance().is_initialized():
         GlobalHydra.instance().clear()
     try:
         with initialize_config_dir(
             config_dir=str(config_dir), job_name='optuna_cache_warmup', version_base='1.3'
         ):
-            for cell in cells:
-                for fold in config.folds:
-                    parameters = {**config.fixed, **cell.values}
-                    parameters.update(
-                        {
-                            'dataset.split_params.split_type': 'k-fold',
-                            'dataset.split_params.k': config.k,
-                            'dataset.split_params.data_seed': fold,
-                        }
-                    )
-                    overrides = [
-                        f'dataset={cell.dataset}',
-                    ]
-                    overrides.extend(to_override(key, value) for key, value in parameters.items())
-                    cfg = compose(config_name='train.yaml', overrides=overrides)
-                    loader = OmegaConf.to_container(cfg.dataset.loader, resolve=True)
-                    signature = _stable_hash(loader, length=32)
-                    composed[signature] = OmegaConf.create(loader)
+            for cell, _fold, parameters in requests.values():
+                overrides = [
+                    f'dataset={cell.dataset}',
+                ]
+                overrides.extend(to_override(key, value) for key, value in parameters.items())
+                cfg = compose(config_name='train.yaml', overrides=overrides)
+                loader = OmegaConf.to_container(cfg.dataset.loader, resolve=True)
+                signature = _stable_hash(loader, length=32)
+                composed[signature] = OmegaConf.create(loader)
     finally:
         if GlobalHydra.instance().is_initialized():
             GlobalHydra.instance().clear()
@@ -1062,23 +1174,61 @@ def _seed_cache_randomness(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def warmup_caches(config: OptunaSearchConfig, cells: Sequence[OuterCell]) -> None:
-    """Sequentially instantiate every unique fold-aware dataset cache."""
+def _warmup_cache(
+    loader_config: Any,
+    *,
+    index: int,
+    total: int,
+    training_seed: int,
+) -> None:
+    """Build one cache in an isolated one-thread worker."""
     enforce_single_thread_process()
+    _seed_cache_randomness(training_seed)
+    params = loader_config.parameters
+    print(
+        f'  [{index}/{total}] {params.data_name} '
+        f'fold={params.fold}/{params.k} method={params.method} '
+        f'adjacency={params.adjacency_method}',
+        flush=True,
+    )
+    loader = instantiate(loader_config)
+    loader.load_dataset()
+
+
+def warmup_caches(
+    config: OptunaSearchConfig,
+    cells: Sequence[OuterCell],
+    n_jobs: int = 1,
+) -> None:
+    """Build unique fold-aware dataset caches in parallel."""
+    enforce_single_thread_process()
+    if n_jobs < 1:
+        raise ValueError('warmup_jobs must be positive')
     loaders = _cache_configs(config, cells)
-    print(f'Warming {len(loaders)} unique fold-aware dataset caches...')
-    for index, loader_config in enumerate(loaders, start=1):
-        # Training resets all RNGs before loading each fold. Mirror that here
-        # so random feature-selection caches are identical to real runs.
-        _seed_cache_randomness(config.training_seed)
-        params = loader_config.parameters
-        print(
-            f'  [{index}/{len(loaders)}] {params.data_name} '
-            f'fold={params.fold}/{params.k} method={params.method} '
-            f'adjacency={params.adjacency_method}'
-        )
-        loader = instantiate(loader_config)
-        loader.load_dataset()
+    workers = min(n_jobs, len(loaders))
+    print(
+        f'Warming {len(loaders)} unique fold-aware dataset caches ' f'with {workers} workers...',
+        flush=True,
+    )
+    if workers == 1:
+        for index, loader_config in enumerate(loaders, start=1):
+            _warmup_cache(
+                loader_config,
+                index=index,
+                total=len(loaders),
+                training_seed=config.training_seed,
+            )
+    else:
+        with parallel_backend('loky', inner_max_num_threads=1):
+            Parallel(n_jobs=workers, verbose=10)(
+                delayed(_warmup_cache)(
+                    loader_config,
+                    index=index,
+                    total=len(loaders),
+                    training_seed=config.training_seed,
+                )
+                for index, loader_config in enumerate(loaders, start=1)
+            )
 
 
 def _dry_run(config: OptunaSearchConfig, cells: Sequence[OuterCell]) -> pd.DataFrame:
@@ -1164,15 +1314,21 @@ def run_search(
     models: Sequence[str] | None = None,
     datasets: Sequence[str] | None = None,
     studies: Sequence[str] | None = None,
+    num_shards: int = 1,
+    shard_indices: Sequence[int] | None = None,
     requested_gpus: Sequence[int] | None = None,
     jobs_per_gpu: int = 1,
     n_jobs: int | None = None,
+    warmup_jobs: int | None = None,
     retry_failed: bool = False,
     skip_warmup: bool = False,
+    warmup_only: bool = False,
     dry_run: bool = False,
 ) -> pd.DataFrame:
     """Run or resume all selected Optuna studies."""
     enforce_single_thread_process()
+    if warmup_only and skip_warmup:
+        raise ValueError('warmup_only and skip_warmup cannot be used together')
     cells = build_outer_cells(config, models=models, datasets=datasets)
     if studies:
         requested_studies = set(studies)
@@ -1180,8 +1336,9 @@ def run_search(
         missing = requested_studies - {cell.study_name for cell in cells}
         if missing:
             raise ValueError(f'Unknown study filters: {sorted(missing)}')
+    cells = select_study_shards(cells, num_shards, shard_indices)
     if not cells:
-        raise ValueError('No ablation cells selected')
+        raise ValueError('No ablation cells selected after applying filters and shards')
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
     if dry_run:
@@ -1197,6 +1354,9 @@ def run_search(
     workers = slots if n_jobs is None else min(n_jobs, slots)
     if workers < 1:
         raise ValueError('n_jobs must be positive')
+    cache_workers = workers if warmup_jobs is None else warmup_jobs
+    if cache_workers < 1:
+        raise ValueError('warmup_jobs must be positive')
 
     print('=' * 72)
     print('OPTUNA ABLATION SWEEP')
@@ -1204,13 +1364,18 @@ def run_search(
         f'Cells: {len(cells)} | folds/trial: {config.folds} | target trials/cell: {config.n_trials}'
     )
     print(f'GPU devices: {[device.logical_id for device in devices] or ["CPU"]}')
+    print(f'Virtual shards: {list(shard_indices or range(num_shards))}/{num_shards}')
     print(f'Jobs/GPU: {jobs_per_gpu} | parallel workers: {workers} | CPU threads/job: 1')
+    print(f'Cache warmup workers: {cache_workers} | CPU threads/worker: 1')
     print(f'Storage: {config.storage}')
     print(f'Output: {config.output_dir}')
     print('=' * 72)
 
     if not skip_warmup:
-        warmup_caches(config, cells)
+        warmup_caches(config, cells, n_jobs=cache_workers)
+    if warmup_only:
+        print(f'Cache warmup complete for {len(cells)} selected studies')
+        return pd.DataFrame()
 
     ledger_path = config.output_dir / 'run_ledger.sqlite3'
     ledger = RunLedger(ledger_path)
@@ -1253,12 +1418,40 @@ def run_search(
     return trials
 
 
+def _apply_runtime_overrides(
+    config: OptunaSearchConfig,
+    *,
+    output_dir: str | None = None,
+    storage: str | None = None,
+    root_dir: str | None = None,
+) -> None:
+    """Apply server-local paths supplied by the launcher CLI."""
+    if output_dir:
+        config.output_dir = Path(output_dir).resolve()
+    if storage:
+        config.storage = _normalize_sqlite_url(storage, Path.cwd())
+    if root_dir:
+        config.fixed['paths.root_dir'] = str(Path(root_dir).resolve())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True, help='Optuna search YAML')
     parser.add_argument('--models', nargs='+', help='Only run these configured models')
     parser.add_argument('--datasets', nargs='+', help='Only run these configured datasets')
     parser.add_argument('--studies', nargs='+', help='Only run exact deterministic study names')
+    parser.add_argument(
+        '--num-shards',
+        type=int,
+        default=1,
+        help='Deterministically partition studies into this many virtual shards',
+    )
+    parser.add_argument(
+        '--shard-indices',
+        nargs='+',
+        type=int,
+        help='Run this union of zero-based virtual shard indices (default: all)',
+    )
     parser.add_argument(
         '--gpus',
         nargs='+',
@@ -1273,32 +1466,52 @@ def main() -> None:
     )
     parser.add_argument('--n-jobs', type=int, help='Optional cap on total parallel workers')
     parser.add_argument(
+        '--warmup-jobs',
+        type=int,
+        help='Parallel cache builders (default: total training workers)',
+    )
+    parser.add_argument(
         '--retry-failed',
         action='store_true',
         help='Re-enqueue failed trials and rerun only missing/failed folds',
     )
     parser.add_argument('--skip-warmup', action='store_true')
     parser.add_argument(
+        '--warmup-only',
+        action='store_true',
+        help='Build selected caches and exit without opening studies or training',
+    )
+    parser.add_argument(
         '--dry-run',
         action='store_true',
         help='Sample and instantiate one configuration per cell without training or persistence',
     )
     parser.add_argument('--output-dir', help='Override training.output_dir from YAML')
+    parser.add_argument('--storage', help='Override optuna.storage from YAML')
+    parser.add_argument('--root-dir', help='Override fixed paths.root_dir from YAML')
     args = parser.parse_args()
 
     config = OptunaSearchConfig.from_yaml(args.config)
-    if args.output_dir:
-        config.output_dir = Path(args.output_dir).resolve()
+    _apply_runtime_overrides(
+        config,
+        output_dir=args.output_dir,
+        storage=args.storage,
+        root_dir=args.root_dir,
+    )
     run_search(
         config,
         models=args.models,
         datasets=args.datasets,
         studies=args.studies,
+        num_shards=args.num_shards,
+        shard_indices=args.shard_indices,
         requested_gpus=args.gpus,
         jobs_per_gpu=args.jobs_per_gpu,
         n_jobs=args.n_jobs,
+        warmup_jobs=args.warmup_jobs,
         retry_failed=args.retry_failed,
         skip_warmup=args.skip_warmup,
+        warmup_only=args.warmup_only,
         dry_run=args.dry_run,
     )
 

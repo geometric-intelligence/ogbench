@@ -25,9 +25,12 @@ from scripts.optuna_search import (
     _objective,
     build_outer_cells,
     run_search,
+    select_study_shards,
+    study_shard,
 )
 
 CONFIG_PATH = Path('configs/hparams_search/optuna_smoke_test.yaml')
+SEP24_CONFIG_PATH = Path('configs/hparams_search/sep24_ofat_optuna.yaml')
 
 
 @pytest.fixture
@@ -65,7 +68,9 @@ def test_outer_cell_exclusions_are_applied(search_config: OptunaSearchConfig) ->
 def test_cache_configs_include_every_fold_setting(
     search_config: OptunaSearchConfig,
 ) -> None:
-    loaders = _cache_configs(search_config, build_outer_cells(search_config))
+    cell = build_outer_cells(search_config)[0]
+    same_caches_other_model = replace(cell, model='gin', study_name='other-study')
+    loaders = _cache_configs(search_config, [cell, same_caches_other_model])
 
     assert len(loaders) == 5
     assert {loader.parameters.fold for loader in loaders} == {0, 1, 2, 3, 4}
@@ -364,3 +369,107 @@ def test_structured_categorical_is_decoded_for_hydra(
 
     assert sampled['model.backbone.num_layers'] in ([2, 3], [3, 4])
     assert json.loads(trial.params['model.backbone.num_layers']) in ([2, 3], [3, 4])
+
+
+def test_sep24_ofat_builds_426_single_axis_cells() -> None:
+    config = OptunaSearchConfig.from_yaml(SEP24_CONFIG_PATH)
+
+    cells = build_outer_cells(config)
+
+    assert len(cells) == 426
+    baseline = config.ablation_baseline
+    for cell in cells:
+        model_baseline = {**baseline, **config.per_model_ablation_baseline.get(cell.model, {})}
+        changed_axes = [
+            key for key in config.ablations if cell.values[key] != model_baseline[key]
+        ]
+        assert len(changed_axes) <= 1
+
+
+def test_sep24_mlp_uses_valid_model_specific_baseline() -> None:
+    config = OptunaSearchConfig.from_yaml(SEP24_CONFIG_PATH)
+
+    cells = build_outer_cells(config, models=['mlp'], datasets=['parkinsons'])
+
+    assert len(cells) == 7
+    assert {cell.values['experiment'] for cell in cells} == {'no_readout'}
+
+
+def test_virtual_shards_are_deterministic_disjoint_and_exhaustive() -> None:
+    config = OptunaSearchConfig.from_yaml(SEP24_CONFIG_PATH)
+    cells = build_outer_cells(config)
+
+    shards = [select_study_shards(cells, 7, [index]) for index in range(7)]
+    names = [{cell.study_name for cell in shard} for shard in shards]
+
+    assert sum(map(len, names)) == 426
+    assert set().union(*names) == {cell.study_name for cell in cells}
+    assert all(names[left].isdisjoint(names[right]) for left in range(7) for right in range(left))
+    assert all(
+        study_shard(cell.study_name, 7) == index
+        for index, shard in enumerate(shards)
+        for cell in shard
+    )
+
+
+def test_virtual_shard_validation(search_config: OptunaSearchConfig) -> None:
+    cells = build_outer_cells(search_config)
+
+    with pytest.raises(ValueError, match='positive'):
+        select_study_shards(cells, 0, [0])
+    with pytest.raises(ValueError, match='duplicates'):
+        select_study_shards(cells, 2, [0, 0])
+    with pytest.raises(ValueError, match='between'):
+        select_study_shards(cells, 2, [2])
+
+
+def test_runtime_path_overrides_are_portable(
+    search_config: OptunaSearchConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    optuna_search._apply_runtime_overrides(
+        search_config,
+        output_dir='server-output',
+        storage='sqlite:///server-output/server.db',
+        root_dir='server-data',
+    )
+
+    assert search_config.output_dir == tmp_path / 'server-output'
+    assert search_config.storage == f'sqlite:///{tmp_path / "server-output/server.db"}'
+    assert search_config.fixed['paths.root_dir'] == str(tmp_path / 'server-data')
+
+
+def test_data_root_does_not_change_study_fingerprint(
+    search_config: OptunaSearchConfig,
+) -> None:
+    original = search_config.fingerprint
+
+    search_config.fixed['paths.root_dir'] = '/different/local/scratch/root'
+
+    assert search_config.fingerprint == original
+
+
+def test_warmup_only_does_not_open_studies_or_train(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warmed: list[int] = []
+    monkeypatch.setattr(
+        optuna_search,
+        'warmup_caches',
+        lambda _config, cells, n_jobs: warmed.append(len(cells)),
+    )
+    monkeypatch.setattr(
+        optuna_search,
+        '_storage',
+        lambda _config: pytest.fail('storage should not be opened'),
+    )
+    monkeypatch.setattr('torch.cuda.is_available', lambda: False)
+
+    result = run_search(search_config, warmup_only=True)
+
+    assert result.empty
+    assert warmed == [1]

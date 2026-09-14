@@ -1,13 +1,5 @@
-# Resumable Optuna sweep with separate studies for every ablation cell.
-#
-# Examples:
-#   python scripts/optuna_search.py --config configs/hparams_search/multi_dataset_optuna_search.yaml --gpus 0 2 --jobs-per-gpu 2 --warmup-jobs 4
-#   python scripts/optuna_search.py --config configs/hparams_search/multi_dataset_optuna_search.yaml --models gcn gin --gpus 0
-#   python scripts/optuna_search.py --config configs/hparams_search/multi_dataset_optuna_search.yaml --retry-failed --gpus 0 1
-#   python scripts/optuna_search.py --config configs/hparams_search/multi_dataset_optuna_search.yaml --dry-run --models gcn --datasets motrpac
-#
-# GPU IDs are logical IDs visible to this launcher. For example, after
-# CUDA_VISIBLE_DEVICES=3,5, use --gpus 0 1.
+# September 24 campaign: one-factor-at-a-time ablations with Optuna tuning
+# inside every fixed ablation cell. Runtime paths are overridden per server.
 
 datasets:
   - parkinsons
@@ -28,18 +20,15 @@ models:
   - mlp
   - gps
 
-# Each trial uses one fixed model-initialization RNG seed and all five CV folds.
 training_seed: 42
 k: 5
 folds: [0, 1, 2, 3, 4]
 
 fixed:
-  logger.wandb.project: ogbench_dataset_optuna
+  logger.wandb.project: ogbench_sep24_optuna
   logger.wandb.entity: bioshape-lab
   paths.root_dir: /scratch/lcornelis/ogbench
 
-# Every combination below becomes a separate Optuna study. These values are
-# never sampled by Optuna or compared as candidate hyperparameters.
 ablations:
   experiment:
     - omics_readout
@@ -57,13 +46,23 @@ ablations:
     - correlation
     - distance_correlation
 
-# MLP directly produces flattened graph logits and has no graph
-# backbone_wrapper output for OmicsReadOut to consume.
+# Hold every axis at this baseline, then change exactly one axis at a time.
+# MLP cannot consume OmicsReadOut, so it has a model-specific valid baseline.
+ablation_design:
+  mode: one_factor_at_a_time
+  baseline:
+    experiment: omics_readout
+    dataset.loader.parameters.adjacency_method: wgcna
+    dataset.loader.parameters.node_sample_ratio: 1.0
+    dataset.loader.parameters.method: variance
+  per_model_baseline:
+    mlp:
+      experiment: no_readout
+
 exclude_cells:
   - model: mlp
     experiment: omics_readout
 
-# Shared parameters sampled inside each study.
 search_space:
   optimizer.parameters.lr:
     type: float
@@ -79,7 +78,6 @@ search_space:
     high: 0.5
     step: 0.1
 
-# Only the selected model's conditional space is added to a trial.
 per_model_search_space:
   gcn:
     model.feature_encoder.out_channels: [16, 32, 64, 128]
@@ -139,8 +137,6 @@ per_model_search_space:
         - [LapPE]
         - [RWSE]
 
-# Reuse the calibrated WGCNA thresholds without duplicating the large table.
-# This path is relative to this file.
 thresholds_from: multi_dataset_grid_search.yaml
 string_adjacency_threshold: 0.4
 
@@ -152,15 +148,16 @@ optuna:
   n_trials: 20
   sampler_seed: 1234
   n_startup_trials: 10
-  study_name_prefix: ogbench
-  storage: sqlite:////scratch/lcornelis/ogbench/search_results/multi_dataset_optuna/studies.db
+  study_name_prefix: sep24
+  storage: sqlite:////scratch/lcornelis/ogbench/search_results/sep24_ofat_optuna/studies.db
   heartbeat_interval: 60
   grace_period: 300
   max_retries: 1
 
 tags:
   - optuna_ablation
+  - sep24_ofat
 
 training:
   timeout: 3600
-  output_dir: /scratch/lcornelis/ogbench/search_results/multi_dataset_optuna
+  output_dir: /scratch/lcornelis/ogbench/search_results/sep24_ofat_optuna

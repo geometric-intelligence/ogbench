@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess  # nosec B404
+import sys
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -131,7 +132,9 @@ def run_training(
 ) -> tuple[bool, str | None, dict[str, Any] | None]:
     """Run one training process with strict resource isolation."""
     effective_overrides = _force_zero_dataloader_workers(overrides)
-    cmd = ['ogbench-train', *effective_overrides]
+    # Use the launcher's interpreter instead of relying on an activated shell
+    # or an environment-specific console-script path.
+    cmd = [sys.executable, '-m', 'ogbench.run', *effective_overrides]
 
     env = single_thread_environment()
     if gpu_id is not None and torch.cuda.is_available():
