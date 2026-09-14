@@ -12,10 +12,8 @@ Usage:
 
 import argparse
 import itertools
-import json
 import multiprocessing
 import os
-import subprocess  # nosec B404
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +30,7 @@ from joblib import Parallel, delayed
 from ogbench.utils.config_resolvers import (
     register_all_resolvers,
 )
+from ogbench.utils.hparam_search import run_training, to_override
 
 register_all_resolvers()
 
@@ -141,20 +140,6 @@ class RunConfig:
     n_threads: int | None = None
 
 
-def to_override(key: str, value: Any) -> str:
-    """Convert a key-value pair to Hydra override string."""
-    if isinstance(value, bool):
-        return f"{key}={'true' if value else 'false'}"
-    if isinstance(value, str):
-        return f'{key}={value}'
-    if isinstance(value, list | tuple):
-        inner = ','.join(str(x) for x in value)
-        return f'{key}=[{inner}]'
-    if value is None:
-        return f'{key}=null'
-    return f'{key}={value}'
-
-
 def product_dict(grid: dict[str, list[Any]]) -> list[dict[str, Any]]:
     """Generate all combinations from a parameter grid."""
     if not grid:
@@ -202,59 +187,6 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
         # Always clean up GlobalHydra to prevent state leakage in parallel execution
         if GlobalHydra().is_initialized():
             GlobalHydra().clear()
-
-
-def run_training(
-    overrides: list[str],
-    timeout: int | None = None,
-    gpu_id: int | None = None,
-    n_threads: int | None = None,
-) -> tuple[bool, str | None, dict[str, Any] | None]:
-    """Run training via subprocess."""
-    cmd = ['ogbench-train'] + overrides
-
-    env = os.environ.copy()
-    if gpu_id is not None and torch.cuda.is_available():
-        env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
-    if n_threads is not None:
-        env['OMP_NUM_THREADS'] = str(n_threads)
-        env['MKL_NUM_THREADS'] = str(n_threads)
-
-    try:
-        result = subprocess.run(  # nosec B603
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env=env,
-            check=False,
-        )
-
-        if result.returncode == 0:
-            metrics = None
-            try:
-                for line in result.stdout.strip().split('\n'):
-                    if line.startswith('{') and line.endswith('}'):
-                        metrics = json.loads(line)
-                        break
-            except (json.JSONDecodeError, ValueError):
-                pass
-            return True, None, metrics
-        else:
-            # Truncate error message to prevent memory issues with large outputs
-            # Show first 500 chars (where error typically is) and last 500 chars
-            stderr_truncated = (
-                result.stderr[:500] + '...' + result.stderr[-500:]
-                if len(result.stderr) > 1000
-                else result.stderr
-            )
-            error_msg = f'Return code {result.returncode}\nSTDERR: {stderr_truncated}'
-            return False, error_msg, None
-
-    except subprocess.TimeoutExpired:
-        return False, f'Timeout after {timeout}s', None
-    except Exception as e:
-        return False, str(e), None
 
 
 def execute_run(config: RunConfig, dry_run: bool = False) -> dict[str, Any]:
@@ -634,10 +566,8 @@ def run_search(
     if n_jobs is None:
         n_jobs = max(n_gpus * jobs_per_gpu, 1)
 
-    # Cap CPU threads per job to avoid thrashing when running in parallel.
-    # Each job gets an equal share of available cores.
     n_cpu = os.cpu_count() or 1
-    n_threads = max(1, n_cpu // n_jobs)
+    n_threads = 1
 
     # Build all run configurations
     configs = build_run_configs(
@@ -659,7 +589,7 @@ def run_search(
     print(f'Total runs: {len(configs)}')
     print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
     print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, jobs_per_gpu={jobs_per_gpu})')
-    print(f'CPU threads per job: {n_threads} (of {n_cpu} total cores)')
+    print(f'CPU threads per job: {n_threads} (strict limit; {n_cpu} cores available)')
     print(f'Output: {search_config.output_dir}')
     print('=' * 60)
 

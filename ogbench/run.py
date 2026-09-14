@@ -29,6 +29,10 @@ from ogbench.utils.config_resolvers import (
     register_all_resolvers,
     sync_num_nodes_from_dataset,
 )
+from ogbench.utils.hparam_search import (
+    configure_torch_threads_from_env,
+    objective_payload,
+)
 
 # PyTorch 2.6+ changed torch.load to default weights_only=True, which blocks
 # Lightning from loading checkpoints containing custom ogbench classes.
@@ -198,7 +202,9 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
                     {'checkpoint': trainer.checkpoint_callback.best_model_path}
                 )
 
-    train_metrics = trainer.callback_metrics
+    # Materialize the validation metrics before an optional test loop mutates
+    # Lightning's callback_metrics mapping.
+    train_metrics = dict(trainer.callback_metrics)
 
     if cfg.get('test'):
         log.info('Starting testing!')
@@ -221,7 +227,7 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
                 ckpt_path = None
             trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
 
-    test_metrics = trainer.callback_metrics
+    test_metrics = dict(trainer.callback_metrics)
 
     # Merge train and test metrics
     metric_dict = {**train_metrics, **test_metrics}
@@ -272,6 +278,9 @@ def main(cfg: DictConfig) -> float | None:
     float | None
         Optional[float] with optimized metric value.
     """
+    # Search launchers explicitly request one CPU thread per subprocess.
+    configure_torch_threads_from_env()
+
     # apply extra utilities
     # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)
     extras(cfg)
@@ -283,6 +292,9 @@ def main(cfg: DictConfig) -> float | None:
     metric_value = get_metric_value(
         metric_dict=metric_dict, metric_name=cfg.get('optimized_metric')
     )
+
+    if metric_value is not None:
+        print(objective_payload(str(cfg.optimized_metric), metric_value), flush=True)
 
     # return optimized metric
     return metric_value
