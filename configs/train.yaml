@@ -17,6 +17,7 @@ defaults:
   - extras: default
   - hydra: default
   - hf: default
+  # Marker / gene identity before MP: disabled | genept | learnable
   - gene_identity: disabled
 
   # experiment configs allow for version control of specific hyperparameters

@@ -1,7 +1,10 @@
 """Tests for learnable node-identity injection."""
 
+import pickle  # nosec B403
+from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 from omegaconf import OmegaConf
@@ -13,7 +16,9 @@ from ogbench.nn.encoders.gene_identity import (
     GeneIdentityFeatureEncoder,
     LearnableGeneIdentityBank,
     apply_gene_identity_to_model,
+    build_genept_matrix,
     is_gene_identity_enabled,
+    load_genept_dict,
     setup_gene_identity,
 )
 
@@ -21,7 +26,32 @@ from ogbench.nn.encoders.gene_identity import (
 def test_is_gene_identity_enabled():
     assert not is_gene_identity_enabled(None)
     assert not is_gene_identity_enabled(OmegaConf.create({'mode': 'disabled'}))
+    assert is_gene_identity_enabled(OmegaConf.create({'mode': 'genept'}))
     assert is_gene_identity_enabled(OmegaConf.create({'mode': 'learnable'}))
+
+
+def test_genept_matrix_alignment():
+    genept = {
+        'TP53': np.ones(4, dtype=np.float32),
+        'BRCA1': np.full(4, 2.0, dtype=np.float32),
+    }
+    node_ids = ['TP53', 'UNKNOWN', 'brca1']
+    matrix, stats = build_genept_matrix(node_ids, genept, resolve_entrez=False)
+    assert matrix.shape == (3, 4)
+    assert torch.allclose(matrix[0], torch.ones(4))
+    assert torch.allclose(matrix[1], torch.zeros(4))
+    assert torch.allclose(matrix[2], torch.full((4,), 2.0))
+    assert stats['matched'] == 2
+    assert abs(stats['coverage'] - 2 / 3) < 1e-6
+
+
+def test_load_genept_dict(tmp_path: Path):
+    path = tmp_path / 'toy_genept.pickle'
+    with open(path, 'wb') as f:
+        pickle.dump({'GeneA': np.arange(3, dtype=np.float32)}, f)  # nosec B301
+    loaded = load_genept_dict(str(path))
+    assert 'GENEA' in loaded
+    assert loaded['GENEA'].shape == (3,)
 
 
 def test_learnable_bank_shape_and_validation():

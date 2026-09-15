@@ -193,6 +193,18 @@ logs/
 datasets/
 run_data/
 webapp/aggregated_final_results_neurips.csv
+temp_data/
+search_results/
+Cancer-Multi-Omics-Benchmark/
+
+# Local analysis CSVs (not source)
+all_datasets_aggregated_final_results.csv
+/kfold_*.csv
+stats/*_summary.csv
+stats/*_distribution.csv
+stats/kfold_*.csv
+stats/smoking/
+stats/tuberculosis/
 
 # Scripts
 scripts/rerun_best_configs

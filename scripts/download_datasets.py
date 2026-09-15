@@ -9,6 +9,7 @@ import typer
 from scripts.processors.addneuromed import process_addneuromed
 from scripts.processors.brca import process_brca
 from scripts.processors.motrpac import process_motrpac
+from scripts.processors.ov import process_ov
 from scripts.processors.parkinsons import process_parkinsons
 from scripts.processors.smoking import process_smoking
 from scripts.processors.tuberculosis import process_tuberculosis
@@ -107,6 +108,21 @@ def brca(
 
 
 @app.command()
+def ov(
+    output_dir: str = typer.Option(
+        'temp_data',
+        '--output-dir',
+        '-o',
+        help='Output directory for temporary files',
+    ),
+) -> None:
+    """Download and upload OV dataset to HuggingFace."""
+    typer.echo('Processing OV dataset...')
+    process_ov(output_dir)
+    typer.echo('✅ OV dataset processed and uploaded successfully!')
+
+
+@app.command()
 def all(
     output_dir: str = typer.Option(
         'temp_data',
@@ -142,6 +158,9 @@ def all(
 
         typer.echo('\n📊 Processing BRCA...')
         process_brca(output_dir)
+
+        typer.echo('\n📊 Processing OV...')
+        process_ov(output_dir)
 
         typer.echo('\n✅ All datasets processed and uploaded successfully!')
 

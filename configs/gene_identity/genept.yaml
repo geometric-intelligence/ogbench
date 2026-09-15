@@ -1,0 +1,36 @@
+# Pretrained GenePT (or compatible {SYMBOL: vector} pickle) identity features.
+# Injected onto data.x before the feature encoder / message passing.
+#
+# Usage:
+#   python -m ogbench.run gene_identity=genept
+#   python -m ogbench.run gene_identity=genept gene_identity.project_dim=64
+#
+# Download embeddings first:
+#   python scripts/download_genept.py
+#
+# Coverage is best when node_id / string_id are HGNC symbols (e.g. BRCA, OV).
+# Entrez / UniProt IDs can be resolved if `mygene` is installed, or via
+# gene_identity.symbol_map_path (CSV/parquet with columns node_id,symbol).
+
+mode: genept
+
+# Path to GenePT_gene_embedding_ada_text.pickle (or gene+protein variant)
+embeddings_path: ${paths.data_dir}/genept/GenePT_gene_embedding_ada_text.pickle
+
+# Concat onto expression (bump encoder in_channels) or project+add (same dim)
+combine: concat
+
+# Ada embeddings are 1536-d; project down before concat (null = keep full dim)
+project_dim: 32
+
+# Fine-tune the GenePT table (and projection) end-to-end
+trainable: false
+
+# zero → unmatched nodes get a zero vector; error → raise
+missing: zero
+
+# Optional node_id → HGNC symbol table (csv or parquet)
+symbol_map_path: null
+
+# Soft-resolve Entrez/UniProt via mygene when installed
+resolve_entrez: true

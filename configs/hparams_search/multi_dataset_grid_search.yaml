@@ -457,3 +457,37 @@ string_adjacency_threshold: 0.4
 training:
   timeout: 3600 # 1 hour per run
   output_dir: ./search_results/multi_dataset_grid_search
+
+  # OV (not yet on main datasets list)
+  ov,1.0,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0004]
+  ov,1.0,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0004]
+  ov,1.0,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0052]
+  ov,1.0,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0005]
+  ov,0.8,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0004]
+  ov,0.8,random:
+    dataset.loader.parameters.adjacency_threshold: [0.001]
+  ov,0.8,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0045]
+  ov,0.8,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0005]
+  ov,0.5,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.001]
+  ov,0.5,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0012]
+  ov,0.5,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0146]
+  ov,0.5,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0009]
+  ov,0.3,variance:
+    dataset.loader.parameters.adjacency_threshold: [0.0009]
+  ov,0.3,random:
+    dataset.loader.parameters.adjacency_threshold: [0.0061]
+  ov,0.3,correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0091]
+  ov,0.3,distance_correlation:
+    dataset.loader.parameters.adjacency_threshold: [0.0012]
