@@ -139,9 +139,9 @@ per_model_search_space:
         - [LapPE]
         - [RWSE]
 
-# Reuse the calibrated WGCNA thresholds without duplicating the large table.
-# This path is relative to this file.
-thresholds_from: multi_dataset_grid_search.yaml
+# WGCNA graphs keep the strongest undirected edges nearest to 10% connectivity
+# on each fold's training samples. STRING still uses a fixed score cutoff.
+wgcna_target_connectivity: 0.10
 string_adjacency_threshold: 0.4
 
 objective:

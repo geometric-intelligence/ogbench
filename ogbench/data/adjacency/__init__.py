@@ -1,11 +1,13 @@
 """Adjacency matrix construction modules."""
 
 from ogbench.data.adjacency.base import AbstractAdjacencyBuilder
+from ogbench.data.adjacency.density import binarize_to_target_connectivity
 from ogbench.data.adjacency.string import STRINGAdjacencyBuilder
 from ogbench.data.adjacency.wgcna import WGCNAAdjacencyBuilder
 
 __all__ = [
     'AbstractAdjacencyBuilder',
+    'binarize_to_target_connectivity',
     'WGCNAAdjacencyBuilder',
     'get_adjacency_builder',
     'ADJACENCY_BUILDER_REGISTRY',

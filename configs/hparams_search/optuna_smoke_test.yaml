@@ -30,7 +30,7 @@ per_model_search_space:
     model.feature_encoder.out_channels: [32]
     model.backbone.num_layers: [2]
 
-thresholds_from: multi_dataset_grid_search.yaml
+wgcna_target_connectivity: 0.10
 string_adjacency_threshold: 0.4
 
 objective:

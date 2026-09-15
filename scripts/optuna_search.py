@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run resumable Optuna studies across fixed ablation cells.
 
-Each Optuna trial evaluates one hyperparameter configuration over every
-configured k-fold split. Dataset/model/experiment/data-construction choices
-remain outer ablation axes and are never optimized against one another.
+Each Optuna trial evaluates one hyperparameter configuration over every configured k-fold split.
+Dataset/model/experiment/data-construction choices remain outer ablation axes and are never
+optimized against one another.
 """
 
 from __future__ import annotations
@@ -54,6 +54,7 @@ ADJACENCY_METHOD = 'dataset.loader.parameters.adjacency_method'
 NODE_SAMPLE_RATIO = 'dataset.loader.parameters.node_sample_ratio'
 SELECTION_METHOD = 'dataset.loader.parameters.method'
 ADJACENCY_THRESHOLD = 'dataset.loader.parameters.adjacency_threshold'
+ADJACENCY_TARGET_CONNECTIVITY = 'dataset.loader.parameters.adjacency_target_connectivity'
 EXPERIMENT = 'experiment'
 REQUIRED_ABLATIONS = (
     EXPERIMENT,
@@ -164,6 +165,7 @@ class OptunaSearchConfig:
     per_model_search_space: dict[str, dict[str, SearchSpaceSpec]]
     thresholds: dict[tuple[str, float | str, str], float]
     string_adjacency_threshold: float
+    wgcna_target_connectivity: float | None
     objective_metric: str
     direction: str
     n_trials: int
@@ -225,9 +227,7 @@ class OptunaSearchConfig:
                 if model not in raw['models']:
                     raise ValueError(f'Unknown per-model ablation baseline: {model}')
                 merged = {**ablation_baseline, **baseline}
-                _validate_ablation_baseline(
-                    f'per_model_baseline.{model}', merged, ablations
-                )
+                _validate_ablation_baseline(f'per_model_baseline.{model}', merged, ablations)
         exclude_cells = raw.get('exclude_cells', [])
         if not isinstance(exclude_cells, list) or any(
             not isinstance(item, dict) for item in exclude_cells
@@ -240,19 +240,36 @@ class OptunaSearchConfig:
             for model, space in raw.get('per_model_search_space', {}).items()
         }
 
+        has_legacy_thresholds = raw.get('per_dataset_ratio_method_grid') is not None or bool(
+            raw.get('thresholds_from')
+        )
+        if 'wgcna_target_connectivity' in raw:
+            target_connectivity_raw = raw.get('wgcna_target_connectivity')
+            wgcna_target_connectivity = (
+                None if target_connectivity_raw is None else float(target_connectivity_raw)
+            )
+        else:
+            wgcna_target_connectivity = None if has_legacy_thresholds else 0.10
+        if wgcna_target_connectivity is not None and not 0 <= wgcna_target_connectivity <= 1:
+            raise ValueError('wgcna_target_connectivity must be between 0 and 1')
+
         threshold_raw = raw.get('per_dataset_ratio_method_grid')
         if threshold_raw is None:
             threshold_source = raw.get('thresholds_from')
-            if not threshold_source:
+            if not threshold_source and wgcna_target_connectivity is None:
                 raise ValueError(
-                    'Set per_dataset_ratio_method_grid or thresholds_from in the Optuna config'
+                    'Set per_dataset_ratio_method_grid, thresholds_from, or '
+                    'wgcna_target_connectivity in the Optuna config'
                 )
-            threshold_path = Path(threshold_source)
-            if not threshold_path.is_absolute():
-                threshold_path = source_path.parent / threshold_path
-            with threshold_path.open() as handle:
-                threshold_config = yaml.safe_load(handle)
-            threshold_raw = threshold_config.get('per_dataset_ratio_method_grid', {})
+            if threshold_source:
+                threshold_path = Path(threshold_source)
+                if not threshold_path.is_absolute():
+                    threshold_path = source_path.parent / threshold_path
+                with threshold_path.open() as handle:
+                    threshold_config = yaml.safe_load(handle)
+                threshold_raw = threshold_config.get('per_dataset_ratio_method_grid', {})
+            else:
+                threshold_raw = {}
         thresholds = _parse_thresholds(threshold_raw)
 
         objective = raw.get('objective', {})
@@ -287,6 +304,7 @@ class OptunaSearchConfig:
             per_model_search_space=per_model_search_space,
             thresholds=thresholds,
             string_adjacency_threshold=float(raw.get('string_adjacency_threshold', 0.4)),
+            wgcna_target_connectivity=wgcna_target_connectivity,
             objective_metric=str(objective.get('metric', 'best_val/f1_macro')),
             direction=direction,
             n_trials=int(optuna_config.get('n_trials', 20)),
@@ -339,6 +357,7 @@ class OptunaSearchConfig:
             },
             'thresholds': sorted((str(key), value) for key, value in self.thresholds.items()),
             'string_adjacency_threshold': self.string_adjacency_threshold,
+            'wgcna_target_connectivity': self.wgcna_target_connectivity,
             'objective_metric': self.objective_metric,
             'direction': self.direction,
             'sampler_seed': self.sampler_seed,
@@ -573,11 +592,7 @@ def _validate_ablation_baseline(
     unknown = set(baseline) - set(ablations)
     if unknown:
         raise ValueError(f'{label} references unknown ablation axes: {sorted(unknown)}')
-    invalid = {
-        key: value
-        for key, value in baseline.items()
-        if value not in ablations[key]
-    }
+    invalid = {key: value for key, value in baseline.items() if value not in ablations[key]}
     if invalid:
         raise ValueError(f'{label} contains values outside their ablation axes: {invalid}')
 
@@ -645,9 +660,13 @@ def _slug(value: Any) -> str:
     return re.sub(r'[^a-z0-9_-]+', '-', text).strip('-')
 
 
-def _threshold_for(config: OptunaSearchConfig, dataset: str, values: dict[str, Any]) -> float:
+def _adjacency_parameters_for(
+    config: OptunaSearchConfig, dataset: str, values: dict[str, Any]
+) -> dict[str, float]:
     if values[ADJACENCY_METHOD] == 'string':
-        return config.string_adjacency_threshold
+        return {ADJACENCY_THRESHOLD: config.string_adjacency_threshold}
+    if config.wgcna_target_connectivity is not None:
+        return {ADJACENCY_TARGET_CONNECTIVITY: config.wgcna_target_connectivity}
     ratio = values[NODE_SAMPLE_RATIO]
     method = str(values[SELECTION_METHOD])
     keys = [(dataset, ratio, method)]
@@ -657,7 +676,7 @@ def _threshold_for(config: OptunaSearchConfig, dataset: str, values: dict[str, A
         pass
     for key in keys:
         if key in config.thresholds:
-            return config.thresholds[key]
+            return {ADJACENCY_THRESHOLD: config.thresholds[key]}
     raise ValueError(
         f'No adjacency threshold for dataset={dataset}, ratio={ratio}, method={method}'
     )
@@ -708,7 +727,7 @@ def build_outer_cells(
                 for exclusion in config.exclude_cells
             ):
                 continue
-            values[ADJACENCY_THRESHOLD] = _threshold_for(config, dataset, values)
+            values.update(_adjacency_parameters_for(config, dataset, values))
             name_parts = [
                 config.study_name_prefix,
                 model,
@@ -751,9 +770,7 @@ def select_study_shards(
         raise ValueError('shard_indices must not contain duplicates')
     invalid = [index for index in selected if index < 0 or index >= num_shards]
     if invalid:
-        raise ValueError(
-            f'shard_indices must be between 0 and {num_shards - 1}: {invalid}'
-        )
+        raise ValueError(f'shard_indices must be between 0 and {num_shards - 1}: {invalid}')
     selected_set = set(selected)
     return [cell for cell in cells if study_shard(cell.study_name, num_shards) in selected_set]
 

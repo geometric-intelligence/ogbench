@@ -116,6 +116,23 @@ def test_cache_name_includes_corrections_when_set():
     assert combat.endswith('corr_combat')
 
 
+def test_wgcna_target_connectivity_replaces_fixed_threshold_in_cache_name():
+    from ogbench.data.utils.split_utils import build_omics_cache_relative_name
+
+    name = build_omics_cache_relative_name(
+        'motrpac',
+        0.0229,
+        'wgcna',
+        'variance',
+        0.5,
+        0.7,
+        adjacency_target_connectivity=0.1,
+    )
+
+    assert 'target_connectivity_0.1' in name
+    assert 'adj_thresh_' not in name
+
+
 def test_group_kfold_keeps_groups_unmixed():
     n_groups = 10
     samples_per_group = 8

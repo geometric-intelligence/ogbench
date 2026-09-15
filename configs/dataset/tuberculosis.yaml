@@ -6,6 +6,7 @@ loader:
     data_name: tuberculosis
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
     adjacency_threshold: 0.0463
+    adjacency_target_connectivity: null
     adjacency_method: wgcna
     species: 83332 # NCBI taxid for M. tuberculosis (used only by STRING adjacency)
     node_sample_ratio: 0.5

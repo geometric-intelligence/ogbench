@@ -127,7 +127,9 @@ per_model_search_space:
         - [LapPE]
         - [RWSE]
 
-thresholds_from: multi_dataset_grid_search.yaml
+# WGCNA graphs are built independently from each fold's training samples. Keep
+# the strongest undirected edges needed to get as close as possible to 10%.
+wgcna_target_connectivity: 0.10
 string_adjacency_threshold: 0.4
 
 objective:

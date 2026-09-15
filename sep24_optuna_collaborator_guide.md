@@ -71,6 +71,13 @@ Fixed reproducibility settings:
 - One CPU thread per training job.
 - Zero dataloader workers in search subprocesses.
 
+WGCNA adjacency is calibrated independently inside every fold. After train-only
+correction, imputation, and node selection, the strongest undirected edges are retained
+to obtain the nearest possible graph connectivity to 10%. Equal-weight edges are
+resolved deterministically. The requested connectivity, achieved connectivity, and
+effective cutoff are saved in that fold cache's `split_info.json`. STRING continues to
+use its fixed confidence threshold of `0.4`.
+
 The campaign configuration is
 [`configs/hparams_search/sep24_factorial_optuna.yaml`](configs/hparams_search/sep24_factorial_optuna.yaml).
 
@@ -343,4 +350,3 @@ disjoint, the three trial tables can be concatenated. Before analysis, verify:
 - A30 server B operator: run only shards `5 6`.
 - Campaign coordinator: collect status numbers, compare them with deadline checkpoints,
   and merge final exports on Parka.
-

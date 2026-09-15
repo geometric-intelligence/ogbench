@@ -19,7 +19,7 @@ from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.io import fs
 from tqdm import tqdm
 
-from ogbench.data.adjacency import get_adjacency_builder
+from ogbench.data.adjacency import binarize_to_target_connectivity, get_adjacency_builder
 from ogbench.data.selectors import get_selector
 from ogbench.data.utils import MeanStdNormalizer
 from ogbench.data.utils.split_utils import (
@@ -88,6 +88,7 @@ class HFOmicsDataset(InMemoryDataset):
         imputation_method: str = 'mean',
         adjacency_threshold: float = 0.3,
         adjacency_method: str = 'string',
+        adjacency_target_connectivity: float | None = None,
         node_sample_ratio: float | str = 1.0,
         train_val_test_split: list[float] | None = None,
         hf_repo_id: str = 'geometric-intelligence/ogbench',
@@ -110,6 +111,8 @@ class HFOmicsDataset(InMemoryDataset):
             imputation_method: Method for handling missing values
             adjacency_threshold: Threshold for adjacency matrix binarization
             adjacency_method: Method for adjacency matrix construction (default: "string")
+            adjacency_target_connectivity: For WGCNA, retain the strongest edges nearest
+                to this train-fold connectivity instead of using ``adjacency_threshold``
             node_sample_ratio: Ratio of nodes to sample
             hf_repo_id: HuggingFace repository ID
             revision: HuggingFace dataset revision/commit hash
@@ -125,6 +128,7 @@ class HFOmicsDataset(InMemoryDataset):
         self.data_name = data_name
         self.adjacency_threshold = adjacency_threshold
         self.adjacency_method = adjacency_method
+        self.adjacency_target_connectivity = adjacency_target_connectivity
         self.string_data_dir = string_data_dir
         self.species = species
         self.node_sample_ratio = node_sample_ratio
@@ -153,6 +157,7 @@ class HFOmicsDataset(InMemoryDataset):
             fold=self.fold,
             corrections=self.corrections,
             grouping=self.grouping,
+            adjacency_target_connectivity=self.adjacency_target_connectivity,
         )
 
         super().__init__(root)
@@ -538,6 +543,16 @@ class HFOmicsDataset(InMemoryDataset):
         logger.info('Calculating adjacency matrix based on training data only...')
         adj_matrix = self.calculate_adjacency_matrix(train_selected, map_df=map_df)
         np.save(osp.join(self.raw_dir, 'adj_matrix.npy'), adj_matrix)
+        if hasattr(self, 'adjacency_achieved_connectivity'):
+            split_info.update(
+                {
+                    'adjacency_target_connectivity': self.adjacency_target_connectivity,
+                    'adjacency_achieved_connectivity': self.adjacency_achieved_connectivity,
+                    'adjacency_effective_cutoff': self.adjacency_effective_cutoff,
+                }
+            )
+            with open(os.path.join(self.raw_dir, 'split_info.json'), 'w') as f:
+                json.dump(split_info, f, indent=4)
 
         # Log statistics
         node_degrees = np.sum(adj_matrix, axis=1)
@@ -571,8 +586,22 @@ class HFOmicsDataset(InMemoryDataset):
 
         # Binarize adjacency matrix
         adjacency = np.nan_to_num(adjacency, nan=0.0)
-        adj_matrix = np.where(adjacency > self.adjacency_threshold, 1, 0)
-        np.fill_diagonal(adj_matrix, 1)
+        if self.adjacency_method == 'wgcna' and self.adjacency_target_connectivity is not None:
+            adj_matrix, cutoff, achieved = binarize_to_target_connectivity(
+                adjacency, self.adjacency_target_connectivity
+            )
+            self.adjacency_effective_cutoff = cutoff
+            self.adjacency_achieved_connectivity = achieved
+            logger.info(
+                'WGCNA train-fold graph target connectivity=%.6f, achieved=%.6f, '
+                'weakest retained weight=%.8g',
+                self.adjacency_target_connectivity,
+                achieved,
+                cutoff,
+            )
+        else:
+            adj_matrix = np.where(adjacency > self.adjacency_threshold, 1, 0)
+            np.fill_diagonal(adj_matrix, 1)
 
         assert not np.isnan(adj_matrix).any(), 'Adjacency matrix has nan values'
         return adj_matrix
@@ -699,6 +728,7 @@ class HFOmicsDataset(InMemoryDataset):
         return (
             f'HFOmicsDataset(data_name={self.data_name}, '
             f'adjacency_threshold={self.adjacency_threshold}, '
+            f'adjacency_target_connectivity={self.adjacency_target_connectivity}, '
             f'adjacency_method={self.adjacency_method}, '
             f'node_sample_ratio={self.node_sample_ratio}, '
             f'method={self.method}, '

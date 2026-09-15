@@ -16,7 +16,8 @@ from optuna.trial import TrialState
 
 from scripts import optuna_search
 from scripts.optuna_search import (
-    ADJACENCY_THRESHOLD,
+    ADJACENCY_METHOD,
+    ADJACENCY_TARGET_CONNECTIVITY,
     OptunaSearchConfig,
     RunLedger,
     _cache_configs,
@@ -31,9 +32,8 @@ from scripts.optuna_search import (
 
 CONFIG_PATH = Path('configs/hparams_search/optuna_smoke_test.yaml')
 SEP24_CONFIG_PATH = Path('configs/hparams_search/sep24_ofat_optuna.yaml')
-SEP24_FACTORIAL_CONFIG_PATH = Path(
-    'configs/hparams_search/sep24_factorial_optuna.yaml'
-)
+SEP24_FACTORIAL_CONFIG_PATH = Path('configs/hparams_search/sep24_factorial_optuna.yaml')
+MULTI_DATASET_OPTUNA_CONFIG_PATH = Path('configs/hparams_search/multi_dataset_optuna_search.yaml')
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def search_config(tmp_path: Path) -> OptunaSearchConfig:
     return config
 
 
-def test_config_builds_separate_outer_cell_with_resolved_threshold(
+def test_config_builds_outer_cell_with_fold_local_connectivity_target(
     search_config: OptunaSearchConfig,
 ) -> None:
     cells = build_outer_cells(search_config)
@@ -53,7 +53,7 @@ def test_config_builds_separate_outer_cell_with_resolved_threshold(
     cell = cells[0]
     assert cell.model == 'gcn'
     assert cell.dataset == 'motrpac'
-    assert cell.values[ADJACENCY_THRESHOLD] == pytest.approx(0.0572)
+    assert cell.values[ADJACENCY_TARGET_CONNECTIVITY] == pytest.approx(0.10)
     assert 'wgcna' in cell.study_name
     assert search_config.folds == [0, 1, 2, 3, 4]
 
@@ -119,9 +119,9 @@ def test_runtime_paths_are_independent_of_launch_directory(
 
 def test_cache_randomness_is_reset_deterministically() -> None:
     optuna_search._seed_cache_randomness(42)
-    first = (random.random(), np.random.random(), torch.rand(1).item())
+    first = (random.random(), np.random.random(), torch.rand(1).item())  # nosec B311
     optuna_search._seed_cache_randomness(42)
-    second = (random.random(), np.random.random(), torch.rand(1).item())
+    second = (random.random(), np.random.random(), torch.rand(1).item())  # nosec B311
 
     assert first == second
 
@@ -379,13 +379,12 @@ def test_sep24_ofat_builds_426_single_axis_cells() -> None:
 
     cells = build_outer_cells(config)
 
+    assert config.wgcna_target_connectivity == pytest.approx(0.10)
     assert len(cells) == 426
     baseline = config.ablation_baseline
     for cell in cells:
         model_baseline = {**baseline, **config.per_model_ablation_baseline.get(cell.model, {})}
-        changed_axes = [
-            key for key in config.ablations if cell.values[key] != model_baseline[key]
-        ]
+        changed_axes = [key for key in config.ablations if cell.values[key] != model_baseline[key]]
         assert len(changed_axes) <= 1
 
 
@@ -395,11 +394,32 @@ def test_sep24_factorial_builds_all_2448_cells_with_seven_trials() -> None:
     cells = build_outer_cells(config)
 
     assert config.ablation_mode == 'full_factorial'
+    assert config.wgcna_target_connectivity == pytest.approx(0.10)
     assert config.n_trials == 7
     assert config.n_startup_trials == 3
     assert len(cells) == 2448
     assert len(build_outer_cells(config, models=['gcn'], datasets=['parkinsons'])) == 48
     assert len(build_outer_cells(config, models=['mlp'], datasets=['parkinsons'])) == 24
+    assert all(
+        cell.values[ADJACENCY_TARGET_CONNECTIVITY] == pytest.approx(0.10)
+        for cell in cells
+        if cell.values[ADJACENCY_METHOD] == 'wgcna'
+    )
+
+
+def test_multi_dataset_optuna_defaults_to_fold_local_wgcna_connectivity() -> None:
+    config = OptunaSearchConfig.from_yaml(MULTI_DATASET_OPTUNA_CONFIG_PATH)
+
+    assert config.wgcna_target_connectivity == pytest.approx(0.10)
+    wgcna_cells = [
+        cell
+        for cell in build_outer_cells(config, models=['gcn'], datasets=['motrpac'])
+        if cell.values[ADJACENCY_METHOD] == 'wgcna'
+    ]
+    assert wgcna_cells
+    assert all(
+        cell.values[ADJACENCY_TARGET_CONNECTIVITY] == pytest.approx(0.10) for cell in wgcna_cells
+    )
 
 
 def test_sep24_mlp_uses_valid_model_specific_baseline() -> None:
