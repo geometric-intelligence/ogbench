@@ -31,6 +31,9 @@ from scripts.optuna_search import (
 
 CONFIG_PATH = Path('configs/hparams_search/optuna_smoke_test.yaml')
 SEP24_CONFIG_PATH = Path('configs/hparams_search/sep24_ofat_optuna.yaml')
+SEP24_FACTORIAL_CONFIG_PATH = Path(
+    'configs/hparams_search/sep24_factorial_optuna.yaml'
+)
 
 
 @pytest.fixture
@@ -384,6 +387,19 @@ def test_sep24_ofat_builds_426_single_axis_cells() -> None:
             key for key in config.ablations if cell.values[key] != model_baseline[key]
         ]
         assert len(changed_axes) <= 1
+
+
+def test_sep24_factorial_builds_all_2448_cells_with_seven_trials() -> None:
+    config = OptunaSearchConfig.from_yaml(SEP24_FACTORIAL_CONFIG_PATH)
+
+    cells = build_outer_cells(config)
+
+    assert config.ablation_mode == 'full_factorial'
+    assert config.n_trials == 7
+    assert config.n_startup_trials == 3
+    assert len(cells) == 2448
+    assert len(build_outer_cells(config, models=['gcn'], datasets=['parkinsons'])) == 48
+    assert len(build_outer_cells(config, models=['mlp'], datasets=['parkinsons'])) == 24
 
 
 def test_sep24_mlp_uses_valid_model_specific_baseline() -> None:
