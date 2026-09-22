@@ -118,7 +118,10 @@ and run ledger are its authoritative resumable state.
 The common frozen handoff is
 `/scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10_rebalance_20260922`.
 Frank and Hall copy it into new server-local rebalance roots; their completed original
-shard outputs must not be overwritten. Detailed commands are in the runbook.
+shard outputs must not be overwritten. Parka filesystem access is not required: the
+private W&B artifact is
+`bioshape-lab/ogbench_sep24_factorial_tc10/sep24-factorial-tc10-rebalance-20260922:v2`.
+Detailed commands are in the runbook.
 
 ## Code version
 

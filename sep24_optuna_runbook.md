@@ -302,8 +302,7 @@ export REPO=/path/to/bgbench
 export PYTHON=/path/to/bgbench-python
 export DATA_ROOT=/local/scratch/path/ogbench
 export SERVER=frank                         # use hall on Hall
-export PARKA=gbg141@parka.ece.ucsb.edu
-export PARKA_BUNDLE=/scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10_rebalance_20260922
+export ARTIFACT=bioshape-lab/ogbench_sep24_factorial_tc10/sep24-factorial-tc10-rebalance-20260922:v2
 export BUNDLE="$DATA_ROOT/search_results/sep24_factorial_tc10_rebalance_20260922"
 export SWEEP_ROOT="$DATA_ROOT/search_results/sep24_factorial_tc10_rebalance_20260922_$SERVER"
 export CONFIG="$BUNDLE/sep24_factorial_optuna.yaml"
@@ -320,14 +319,19 @@ if test -e "$SWEEP_ROOT/studies.db" || test -e "$SWEEP_ROOT/launcher.pid"; then
 fi
 ```
 
-Pull the immutable state and the manifest-aware launch scripts from Parka:
+Download the private W&B handoff artifact; Parka filesystem access is not required:
 
 ```bash
 mkdir -p "$BUNDLE" "$SWEEP_ROOT"
-rsync -av "$PARKA:$PARKA_BUNDLE/" "$BUNDLE/"
-rsync -av "$PARKA:/home/gbg141/bgbench/scripts/optuna_search.py" "$REPO/scripts/"
-rsync -av "$PARKA:/home/gbg141/bgbench/scripts/optuna_status.py" "$REPO/scripts/"
+ARTIFACT="$ARTIFACT" BUNDLE="$BUNDLE" "$PYTHON" - <<'PY'
+import os
+import wandb
+
+wandb.Api().artifact(os.environ['ARTIFACT']).download(root=os.environ['BUNDLE'])
+PY
 (cd "$BUNDLE" && sha256sum -c SHA256SUMS)
+cp "$BUNDLE/code/optuna_search.py" "$REPO/scripts/optuna_search.py"
+cp "$BUNDLE/code/optuna_status.py" "$REPO/scripts/optuna_status.py"
 echo 'fd8b4227a1ab9f9cc9fdb24cdfb1a04793f40720151cc7019aa6e82bdf7a35ea  scripts/optuna_search.py' | (cd "$REPO" && sha256sum -c -)
 echo 'dffde2ac19c4dc18c2a345eb5b5b6bdf1e4c83d85d66399b9ad079c8d7f06c6f  scripts/optuna_status.py' | (cd "$REPO" && sha256sum -c -)
 cp "$BUNDLE/studies.db" "$SWEEP_ROOT/studies.db"
