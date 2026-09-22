@@ -1,7 +1,8 @@
 # Sep 24 Optuna plots
 
-These scripts plot the best trial in each structural cell. Validation search
-chooses that trial; test evaluation scores the same trial on the held-out split.
+These scripts live on **`louis/fold_test_eval`**. They plot the best trial in
+each structural cell. Validation search chooses that trial; test evaluation
+scores the same trial on the held-out split.
 
 ```text
 plotting/plot_sep24_val_best.py    # validation F1 (search CSVs)

@@ -33,23 +33,29 @@ If some studies never completed, the launcher tests only the COMPLETE ones.
 
 ## Code version
 
-All three servers must have the test-eval revision, not only the search
-launcher. Required files:
+Test eval and the Sep 24 plotting scripts live on **`louis/fold_test_eval`**,
+branched from the search campaign. Search may still be on
+`guille/kfold_experiments`; do not run test eval from that older tip.
+
+Required files on this branch:
 
 - `scripts/optuna_test_eval.py`
 - `ogbench/run.py` (prints `metrics_payload`)
 - `ogbench/utils/hparam_search.py` (`parse_metrics_payload`)
+- `plotting/plot_sep24_test_best.py` and `plotting/plot_sep24_val_best.py`
 
 ```bash
 git fetch origin
-git checkout guille/kfold_experiments
+git checkout louis/fold_test_eval
 git pull --ff-only
 test -f scripts/optuna_test_eval.py
+test -f plotting/plot_sep24_test_best.py
 "$PYTHON" -c "from ogbench.utils.hparam_search import metrics_payload; print('ok')"
+git rev-parse --abbrev-ref HEAD   # must print louis/fold_test_eval
 ```
 
-If a server cannot pull yet, copy those three files from a machine that has
-them, then `pip install -e .` in the same env that ran search.
+If a server cannot pull yet, copy those files from a machine that has
+`louis/fold_test_eval`, then `pip install -e .` in the same env that ran search.
 
 ## Conditions before launch (agents: check these)
 
