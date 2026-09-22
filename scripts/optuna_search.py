@@ -775,6 +775,22 @@ def select_study_shards(
     return [cell for cell in cells if study_shard(cell.study_name, num_shards) in selected_set]
 
 
+def read_study_manifest(path: str | Path) -> list[str]:
+    """Read unique study names from a newline-delimited manifest."""
+    manifest_path = Path(path).resolve()
+    studies = [
+        line.strip()
+        for line in manifest_path.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith('#')
+    ]
+    if not studies:
+        raise ValueError(f'Study manifest is empty: {manifest_path}')
+    duplicates = sorted({study for study in studies if studies.count(study) > 1})
+    if duplicates:
+        raise ValueError(f'Study manifest contains duplicate names: {duplicates}')
+    return studies
+
+
 def _sample_parameters(
     trial: optuna.Trial, config: OptunaSearchConfig, model: str
 ) -> dict[str, Any]:
@@ -1296,8 +1312,17 @@ def _best_rows(trials: pd.DataFrame, direction: str) -> pd.DataFrame:
     return complete.loc[index].reset_index(drop=True)
 
 
-def _failure_frame(ledger: RunLedger, config_path: Path, jobs_per_gpu: int) -> pd.DataFrame:
-    failures = ledger.unresolved_failures()
+def _failure_frame(
+    ledger: RunLedger,
+    config_path: Path,
+    jobs_per_gpu: int,
+    study_names: set[str] | None = None,
+) -> pd.DataFrame:
+    failures = [
+        failure
+        for failure in ledger.unresolved_failures()
+        if study_names is None or failure['study_name'] in study_names
+    ]
     for failure in failures:
         failure['retry_command'] = (
             f'python scripts/optuna_search.py --config {shlex.quote(str(config_path))} '
@@ -1422,8 +1447,18 @@ def run_search(
 
     trials = pd.DataFrame(list(itertools.chain.from_iterable(nested_rows)))
     best = _best_rows(trials, config.direction)
-    failures = _failure_frame(ledger, config.source_path, jobs_per_gpu)
+    selected_studies = {cell.study_name for cell in cells}
+    failures = _failure_frame(
+        ledger,
+        config.source_path,
+        jobs_per_gpu,
+        study_names=selected_studies,
+    )
     fold_attempts = pd.DataFrame(ledger.all_attempts())
+    if not fold_attempts.empty:
+        fold_attempts = fold_attempts.loc[
+            fold_attempts['study_name'].isin(selected_studies)
+        ].copy()
     _atomic_write_csv(trials, config.output_dir / 'trials.csv')
     _atomic_write_csv(best, config.output_dir / 'best_trials.csv')
     _atomic_write_csv(fold_attempts, config.output_dir / 'fold_attempts.csv')
@@ -1457,6 +1492,10 @@ def main() -> None:
     parser.add_argument('--models', nargs='+', help='Only run these configured models')
     parser.add_argument('--datasets', nargs='+', help='Only run these configured datasets')
     parser.add_argument('--studies', nargs='+', help='Only run exact deterministic study names')
+    parser.add_argument(
+        '--studies-file',
+        help='Only run study names in this newline-delimited manifest',
+    )
     parser.add_argument(
         '--num-shards',
         type=int,
@@ -1515,11 +1554,16 @@ def main() -> None:
         storage=args.storage,
         root_dir=args.root_dir,
     )
+    requested_studies = list(args.studies or [])
+    if args.studies_file:
+        requested_studies.extend(read_study_manifest(args.studies_file))
+    if len(requested_studies) != len(set(requested_studies)):
+        parser.error('Study filters contain duplicate names')
     run_search(
         config,
         models=args.models,
         datasets=args.datasets,
-        studies=args.studies,
+        studies=requested_studies or None,
         num_shards=args.num_shards,
         shard_indices=args.shard_indices,
         requested_gpus=args.gpus,

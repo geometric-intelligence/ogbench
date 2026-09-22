@@ -20,6 +20,7 @@ from scripts.optuna_search import (
     _best_rows,
     _trial_rows,
     build_outer_cells,
+    read_study_manifest,
     select_study_shards,
     study_shard,
 )
@@ -123,9 +124,16 @@ def collect_status(
     num_shards: int,
     shard_indices: list[int] | None,
     window_hours: float,
+    study_names: list[str] | None = None,
 ) -> tuple[dict[str, Any], pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Collect campaign progress without changing trial or fold state."""
     cells = select_study_shards(build_outer_cells(config), num_shards, shard_indices)
+    if study_names:
+        requested = set(study_names)
+        cells = [cell for cell in cells if cell.study_name in requested]
+        missing = requested - {cell.study_name for cell in cells}
+        if missing:
+            raise ValueError(f'Unknown study filters: {sorted(missing)}')
     expected = {cell.study_name: cell for cell in cells}
     attempts = _read_attempts(config.output_dir)
     if not attempts.empty:
@@ -207,6 +215,10 @@ def main() -> None:
     parser.add_argument('--root-dir')
     parser.add_argument('--num-shards', type=int, default=1)
     parser.add_argument('--shard-indices', nargs='+', type=int)
+    parser.add_argument(
+        '--studies-file',
+        help='Only report study names in this newline-delimited manifest',
+    )
     parser.add_argument('--window-hours', type=float, default=6.0)
     parser.add_argument('--export', action='store_true')
     args = parser.parse_args()
@@ -226,6 +238,7 @@ def main() -> None:
         num_shards=args.num_shards,
         shard_indices=args.shard_indices,
         window_hours=args.window_hours,
+        study_names=read_study_manifest(args.studies_file) if args.studies_file else None,
     )
     _print_status(summary, attempts, num_shards=args.num_shards)
 

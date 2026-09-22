@@ -25,7 +25,7 @@ k: 5
 folds: [0, 1, 2, 3, 4]
 
 fixed:
-  logger.wandb.project: ogbench_sep24_factorial_optuna
+  logger.wandb.project: ogbench_sep24_factorial_tc10
   logger.wandb.entity: bioshape-lab
   paths.root_dir: /scratch/lcornelis/ogbench
 
@@ -140,8 +140,8 @@ optuna:
   n_trials: 7
   sampler_seed: 1234
   n_startup_trials: 3
-  study_name_prefix: sep24f
-  storage: sqlite:////scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna/studies.db
+  study_name_prefix: relaunchsep24tc10factorialwgcna
+  storage: sqlite:////scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10/studies.db
   heartbeat_interval: 60
   grace_period: 300
   max_retries: 1
@@ -149,7 +149,8 @@ optuna:
 tags:
   - optuna_ablation
   - sep24_factorial
+  - foldlocal_wgcna
 
 training:
   timeout: 3600
-  output_dir: /scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna
+  output_dir: /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10

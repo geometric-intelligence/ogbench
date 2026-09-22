@@ -25,6 +25,7 @@ from scripts.optuna_search import (
     _load_or_create_study,
     _objective,
     build_outer_cells,
+    read_study_manifest,
     run_search,
     select_study_shards,
     study_shard,
@@ -457,6 +458,58 @@ def test_virtual_shard_validation(search_config: OptunaSearchConfig) -> None:
         select_study_shards(cells, 2, [0, 0])
     with pytest.raises(ValueError, match='between'):
         select_study_shards(cells, 2, [2])
+
+
+def test_read_study_manifest_ignores_comments_and_rejects_duplicates(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / 'studies.txt'
+    manifest.write_text('# handoff\nstudy-a\n\n study-b \n')
+
+    assert read_study_manifest(manifest) == ['study-a', 'study-b']
+
+    manifest.write_text('study-a\nstudy-a\n')
+    with pytest.raises(ValueError, match='duplicate'):
+        read_study_manifest(manifest)
+
+
+def test_filtered_run_exports_only_selected_study_attempts(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_config.n_trials = 1
+    search_config.ablations['dataset.loader.parameters.method'] = ['variance', 'random']
+    selected, excluded = build_outer_cells(search_config)
+    ledger = RunLedger(search_config.output_dir / 'run_ledger.sqlite3')
+    ledger.record(
+        study_name=excluded.study_name,
+        param_hash='excluded',
+        params={'lr': 0.1},
+        fold=0,
+        training_seed=search_config.training_seed,
+        attempt=1,
+        status='failed',
+        metric=None,
+        elapsed_time=1.0,
+        error='excluded failure',
+        log_path=search_config.output_dir / 'excluded.log',
+        trial_number=0,
+        gpu=None,
+    )
+
+    monkeypatch.setattr(
+        optuna_search,
+        'run_training',
+        lambda overrides, **kwargs: (True, None, {'objective': 0.75}),
+    )
+    monkeypatch.setattr('torch.cuda.is_available', lambda: False)
+
+    run_search(search_config, studies=[selected.study_name], skip_warmup=True)
+
+    attempts = pd.read_csv(search_config.output_dir / 'fold_attempts.csv')
+    failures = pd.read_csv(search_config.output_dir / 'failures.csv')
+    assert set(attempts['study_name']) == {selected.study_name}
+    assert failures.empty
 
 
 def test_runtime_path_overrides_are_portable(

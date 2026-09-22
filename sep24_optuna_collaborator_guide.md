@@ -15,8 +15,8 @@ contains:
 - 17,136 total Optuna trials.
 - 85,680 total fold-level training runs.
 
-Parka is already running its assigned studies. Two additional servers, each with eight
-A30 GPUs, must run the remaining disjoint shards.
+Parka is rebuilding its fold-local caches and relaunching its assigned studies. Two
+additional servers, each with eight A30 GPUs, must run the remaining disjoint shards.
 
 The detailed operational commands are in
 [`sep24_optuna_runbook.md`](sep24_optuna_runbook.md).
@@ -71,6 +71,12 @@ Fixed reproducibility settings:
 - One CPU thread per training job.
 - Zero dataloader workers in search subprocesses.
 
+Corrected campaign identities:
+
+- W&B project: `ogbench_sep24_factorial_tc10`.
+- Study prefix: `relaunchsep24tc10factorialwgcna`.
+- Per-server sweep directory: `search_results/sep24_factorial_tc10`.
+
 WGCNA adjacency is calibrated independently inside every fold. After train-only
 correction, imputation, and node selection, the strongest undirected edges are retained
 to obtain the nearest possible graph connectivity to 10%. Equal-weight edges are
@@ -88,23 +94,38 @@ exactly one shard, so separate servers never optimize or write the same study.
 
 Shard ownership is fixed:
 
-- Parka owns shards `0 1 2`: 1,052 studies and 36,820 fold runs.
-- A30 server A owns shards `3 4`: 676 studies and 23,660 fold runs.
-- A30 server B owns shards `5 6`: 720 studies and 25,200 fold runs.
+- Parka owns shards `0 1 2`: 1,082 studies and 37,870 fold runs.
+- A30 server A owns shards `3 4`: 655 studies and 22,925 fold runs.
+- A30 server B owns shards `5 6`: 711 studies and 24,885 fold runs.
 
-The allocation is intentionally weighted toward Parka because its A100 GPUs are faster.
-Parka currently uses GPUs `0 1 2 7`, with two jobs per GPU. When the other four A100s
-become available, Parka can resume the same shards with all eight GPUs.
+This was the original ownership. On September 22, Frank and Hall had completed their
+original shards while Parka still had 590 incomplete studies. Parka was frozen and those
+remaining studies were reassigned by estimated runtime:
+
+- Parka: 295 studies / 9,459 estimated remaining folds.
+- Frank: 148 studies / 4,709 estimated remaining folds.
+- Hall: 147 studies / 4,712 estimated remaining folds.
+
+The handoff manifests are disjoint and their union is exactly the incomplete set. Parka
+keeps 50% of estimated work because its A100 GPUs are faster; Frank and Hall each receive
+25%. Parka uses four jobs per A100 (32 workers); Frank and Hall use two jobs per A30
+(16 workers each). All three continuations use `--retry-failed`.
 
 Each server must use its own local scratch directory and SQLite database. SQLite must not
 be placed on NFS. W&B is the shared cross-server view, while each server's SQLite database
 and run ledger are its authoritative resumable state.
 
+The common frozen handoff is
+`/scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10_rebalance_20260922`.
+Frank and Hall copy it into new server-local rebalance roots; their completed original
+shard outputs must not be overwritten. Detailed commands are in the runbook.
+
 ## Code version
 
 All servers must run the same revision of `guille/kfold_experiments`. Commit `3d94362`
-contains the distributed launcher implementation; the factorial configuration and this
-documentation must be committed and pushed as a follow-up before collaborators launch.
+contains the distributed launcher but predates the fold-local WGCNA correction. Do not
+launch from it. The correction, factorial configuration, and this documentation must be
+committed and pushed together before collaborators launch.
 
 On each A30 server:
 
@@ -129,6 +150,7 @@ The campaign launcher,
 - Explicit full-factorial or one-factor-at-a-time ablation construction.
 - Deterministic `--num-shards` and `--shard-indices`.
 - Multiple shard indices per server for weighted allocation.
+- Newline-delimited `--studies-file` manifests for exact continuation ownership.
 - Server-local `--root-dir`, `--output-dir`, and `--storage`.
 - `--warmup-only` and `--skip-warmup`.
 - Resumable Optuna studies and durable fold-level attempt history.
@@ -147,6 +169,7 @@ The status utility,
 - Recent fold throughput.
 - ETA based on recent throughput.
 - Trial state counts and unresolved failures.
+- Status and exports filtered to one handoff manifest.
 - Live CSV exports while a launcher is still running.
 
 The STRING data code uses file locks, validated gzip downloads, and atomic cache writes so
@@ -161,17 +184,27 @@ Parka paths:
 
 ```text
 Data/cache root: /scratch/lcornelis/ogbench
-Sweep root:      /scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna
-Optuna database: /scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna/studies.db
-Run ledger:      /scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna/run_ledger.sqlite3
-Launcher log:    /scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna/launcher.log
-Launcher PID:    /scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna/launcher.pid
+Sweep root:      /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10
+Optuna database: /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10/studies.db
+Run ledger:      /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10/run_ledger.sqlite3
+Launcher log:    /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10/launcher.log
+Launcher PID:    /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10/launcher.pid
+Rebalance log:   /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10/rebalance_parka.log
+Parka manifest:  /scratch/lcornelis/ogbench/search_results/sep24_factorial_tc10_rebalance_20260922/parka.txt
 ```
 
-The earlier OFAT attempt was stopped and archived after the design decision changed. Use
-the status command below for current full-factorial progress.
+The superseded static-threshold factorial output is preserved at
+`/scratch/lcornelis/ogbench/search_results/sep24_factorial_optuna_static_thresholds_archived_20260915`.
+It used static dataset/ratio/method thresholds. Its SQLite database, ledger, logs, and
+W&B runs are audit artifacts only and must never be merged with the fold-local campaign.
+The earlier OFAT attempt is also separate and archived.
 
 ## A30 collaborator quick start
+
+The original commands below document the initial shard launch and must not be rerun after
+the September 22 handoff. For remaining Parka work, use section 6 of
+[`sep24_optuna_runbook.md`](sep24_optuna_runbook.md) or the handoff's
+`A30_COMMANDS.md`.
 
 The A30 servers use different filesystem paths, so set these variables separately on each
 server:
@@ -180,7 +213,7 @@ server:
 export REPO=/path/to/bgbench
 export PYTHON=/path/to/the/bgbench/environment/bin/python
 export DATA_ROOT=/local/scratch/path/ogbench
-export SWEEP_ROOT="$DATA_ROOT/search_results/sep24_factorial_optuna"
+export SWEEP_ROOT="$DATA_ROOT/search_results/sep24_factorial_tc10"
 export CONFIG="$REPO/configs/hparams_search/sep24_factorial_optuna.yaml"
 export STORAGE="sqlite:///$SWEEP_ROOT/studies.db"
 export PATH="$(dirname "$PYTHON"):$PATH"

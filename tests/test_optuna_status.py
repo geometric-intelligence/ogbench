@@ -49,3 +49,43 @@ def test_collect_status_reports_durable_progress_without_study_database(
     assert len(attempts) == 2
     assert failures.empty
     assert trials.empty
+
+
+def test_collect_status_filters_to_manifest_studies(tmp_path: Path) -> None:
+    config = OptunaSearchConfig.from_yaml(
+        'configs/hparams_search/optuna_smoke_test.yaml'
+    )
+    config.ablations['dataset.loader.parameters.method'] = ['variance', 'random']
+    config.output_dir = tmp_path / 'output'
+    config.storage = f'sqlite:///{config.output_dir / "studies.db"}'
+    selected, excluded = build_outer_cells(config)
+    ledger = RunLedger(config.output_dir / 'run_ledger.sqlite3')
+    common = {
+        'param_hash': 'params',
+        'params': {'lr': 0.1},
+        'fold': 0,
+        'training_seed': config.training_seed,
+        'attempt': 1,
+        'status': 'success',
+        'metric': 0.8,
+        'elapsed_time': 10.0,
+        'error': None,
+        'log_path': config.output_dir / 'run.log',
+        'trial_number': 0,
+        'gpu': None,
+    }
+    ledger.record(**common, study_name=selected.study_name)
+    ledger.record(**common, study_name=excluded.study_name)
+
+    summary, attempts, failures, trials = collect_status(
+        config,
+        num_shards=1,
+        shard_indices=[0],
+        window_hours=6,
+        study_names=[selected.study_name],
+    )
+
+    assert summary['expected_studies'] == 1
+    assert set(attempts['study_name']) == {selected.study_name}
+    assert failures.empty
+    assert trials.empty
