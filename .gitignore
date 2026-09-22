@@ -193,6 +193,8 @@ logs/
 datasets/
 run_data/
 webapp/aggregated_final_results_neurips.csv
+plotting/plots_sep24_val
+plotting/plots_sep24_test
 
 # Scripts
 scripts/rerun_best_configs

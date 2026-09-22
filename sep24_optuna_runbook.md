@@ -163,6 +163,7 @@ A30 server A owns 676 studies and 23,660 expected fold runs.
 
 ## 4. A30 server B: shards 5 and 6
 
+IMPORTANT: FOR SERVER B RIGHT NOW WE CAN ONLY USE GPU 1-7, NOT GPU 0!
 Set the four server-specific paths from section 1, then warm its local cache:
 
 ```bash
