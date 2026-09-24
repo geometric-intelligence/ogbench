@@ -8,11 +8,12 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 
 ## Overview
 
-- **4 curated omics datasets** on Hugging Face Hub with automatic download
+- **6 curated omics datasets** on Hugging Face Hub with automatic download
 - **9 GNN architectures** — GCN, GATv2, GATv4, GIN, GraphSAGE, ChebNet, SAGN, GPS, MLP
 - **2 graph construction methods** — WGCNA co-expression and STRING protein-protein interaction
 - **GNN-features baselines** — sklearn classifiers (SVM, Elastic Net) on learned GNN embeddings
 - **Hydra configs** for reproducible, composable experiments
+- **Resumable Optuna search** with one configuration evaluated across every fold
 - **PyTorch Lightning** training with WandB logging and multi-GPU support
 - **Interactive leaderboard** webapp with dataset explorer
 
@@ -53,6 +54,7 @@ OGBench includes six curated omics datasets for graph-based classification. All 
 python scripts/download_datasets.py motrpac
 python scripts/download_datasets.py parkinsons
 python scripts/download_datasets.py addneuromed
+python scripts/download_datasets.py brca
 python scripts/download_datasets.py tuberculosis
 python scripts/download_datasets.py smoking
 python scripts/download_datasets.py all
@@ -60,10 +62,18 @@ python scripts/download_datasets.py all
 
 ### Train / validation / test splits
 
-Omics datasets use `dataset.split_params.split_type` (default **`fixed`**):
+Omics datasets use `dataset.split_params.split_type` (default **`k-fold`**):
 
-- **`fixed`** — shuffle with seed 42, then cut 70 / 15 / 15. Graph caches keep the historical path.
 - **`k-fold`** — stratified 3/1/1 rotation over `k` folds (`k` defaults to 5 → about 60 / 20 / 20). `data_seed` is the **test fold**; validation is the next fold. Each sample is test once and validation once across folds `0 .. k-1`.
+- **`fixed`** — legacy 70 / 15 / 15 split after shuffling with seed 42. Fixed-split graph caches retain their historical path.
+
+A normal training command runs one fold; the dataset configs default to fold 0. Run folds
+`0,1,2,3,4` to evaluate the full rotation.
+
+```bash
+python ogbench/run.py --multirun dataset=brca model=gcn \
+    dataset.split_params.data_seed=0,1,2,3,4
+```
 
 Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test.
 
@@ -80,6 +90,11 @@ Graphs are constructed from omics feature matrices. Two adjacency methods are su
 
 - **WGCNA** (default) — weighted gene co-expression network analysis with soft thresholding
 - **STRING PPI** — protein-protein interaction edges from the STRING database
+
+WGCNA is computed from each fold's training samples and keeps the strongest edges nearest to
+`adjacency_target_connectivity` (0.10 in the dataset configs). STRING uses
+`adjacency_threshold` as a fixed confidence cutoff. Neither method silently falls back to the
+other method's parameter.
 
 Node (feature) selection methods: `variance`, `correlation`, `distance_correlation`, `random`. The `node_sample_ratio` parameter controls the fraction of features retained.
 
@@ -101,6 +116,9 @@ python ogbench/run.py dataset=motrpac dataset.loader.parameters.node_sample_rati
 ```bash
 # Train GATv2 on MotrPac (default: WGCNA, variance selection, GPU)
 python ogbench/run.py dataset=motrpac model=gatv2
+
+# Run another fold (the default is fold 0)
+python ogbench/run.py dataset=motrpac model=gatv2 dataset.split_params.data_seed=1
 
 # Train GCN on Parkinson's with specific selection method
 python ogbench/run.py dataset=parkinsons model=gcn dataset.loader.parameters.method=correlation
@@ -136,6 +154,7 @@ OGBench uses [Hydra](https://hydra.cc/) for configuration management. Key config
 - `configs/trainer/` — training backend (`cpu`, `gpu`, `mps`, `ddp`, `ddp_sim`)
 - `configs/logger/` — logging backends (WandB, TensorBoard, CSV, MLflow, etc.)
 - `configs/experiment/` — experiment presets (e.g. `omics_readout`, `no_readout`)
+- `configs/hparams_search/` — standalone Optuna search definitions
 - `configs/transforms/` — data manipulations and topological liftings
 
 Override any parameter from the command line:
@@ -146,6 +165,48 @@ python ogbench/run.py dataset=brca model=gin \
     trainer.max_epochs=200 \
     seed=123
 ```
+
+### Hyperparameter search
+
+[`scripts/optuna_search.py`](scripts/optuna_search.py) runs resumable Optuna studies. Each outer
+ablation cell (dataset, model, experiment, graph method, node ratio, and selector) is a separate
+study. A trial samples one model configuration, evaluates that same configuration on all five
+validation folds, and optimizes the arithmetic mean of `best_val/f1_macro`. Test folds never take
+part in hyperparameter selection.
+
+Start with the smoke config. `--dry-run` composes Hydra configs and instantiates models without
+training or creating a persistent study:
+
+```bash
+python scripts/optuna_search.py \
+    --config configs/hparams_search/optuna_smoke_test.yaml \
+    --dry-run
+```
+
+The reusable multi-dataset config writes its SQLite study and fold-attempt ledger under
+`search_results/`. Machine-specific locations belong on the command line:
+
+```bash
+python scripts/optuna_search.py \
+    --config configs/hparams_search/multi_dataset_optuna_search.yaml \
+    --models gcn gin \
+    --datasets motrpac brca \
+    --gpus 0 1 \
+    --jobs-per-gpu 1 \
+    --root-dir /path/to/ogbench-project \
+    --output-dir /path/to/search-results \
+    --storage sqlite:////path/to/search-results/studies.db
+```
+
+The launcher warms every selected fold-aware dataset cache before training. It constrains each
+subprocess to one CPU thread and sets each dataloader's worker count to zero so parallel jobs do
+not oversubscribe the host. STRING cache downloads and JSON artifacts are locked and installed
+atomically.
+
+Interrupted searches resume from the configured storage. Use `--retry-failed` to re-enqueue
+failed trials while reusing successful fold records. Large campaigns can be partitioned
+deterministically with `--num-shards` and `--shard-indices`, or filtered by exact study names with
+`--studies` / `--studies-file`. Use `--warmup-only` to build caches without opening studies.
 
 ### Learnable node identity
 
@@ -162,7 +223,7 @@ configured encoder dimensions. Set `gene_identity.embed_dim=64` to change the
 embedding size, or use `gene_identity.combine=add` to project identity into the
 existing feature dimension.
 
-## Baselines — GNN-Features Pipeline
+## Baselines
 
 OGBench supports a hybrid baseline approach: train a GNN to learn node embeddings, then use those embeddings as features for sklearn classifiers. This isolates the value of the graph structure from the classifier head.
 
@@ -171,7 +232,12 @@ Two GNN-features baselines are configured per dataset:
 - **`svm_gnn_features`** — LinearSVC with calibration on GNN-learned embeddings
 - **`elastic_net_gnn_features`** — Logistic regression with elastic net penalty on GNN-learned embeddings
 
-Both skip the manual feature selection step (no `SelectKBest`) since the GNN already performs representation learning.
+The standard SVM and elastic-net baselines use the same train-only node selection and node budget
+as the GNNs; they do not apply a second `SelectKBest` pass. For k-fold runs,
+`baseline_hparam_selection: global_kfold_mean_validation` scores every candidate on every
+validation fold, chooses one configuration by mean score, and refits every fold with that shared
+configuration. GNN-features baselines also skip manual feature selection because the GNN has
+already produced the representation.
 
 ```bash
 # Run baselines on a specific dataset
@@ -231,8 +297,11 @@ ogbench/
 │   ├── evaluator/              # Metrics and evaluation
 │   ├── loss/                   # Loss functions
 │   └── optimizer/              # Optimizer construction
-├── configs/                    # Hydra YAML configs
-├── scripts/                    # Utilities (download, processors, export)
+├── configs/                    # Hydra configs and standalone search definitions
+│   └── hparams_search/         # Optuna and search smoke-test YAMLs
+├── scripts/
+│   ├── optuna_search.py        # Resumable fold-mean Optuna launcher
+│   └── ...                     # Download, processing, and export utilities
 ├── tests/                      # Pytest suite
 ├── webapp/                     # Astro/React leaderboard & explorer
 ├── tutorials/                  # Notebooks and analysis scripts

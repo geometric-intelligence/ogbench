@@ -37,6 +37,8 @@ dependencies=[
     "hydra-core==1.3.2",
     "hydra-colorlog==1.2.0",
     "hydra-optuna-sweeper==1.2.0",
+    "optuna>=2.10.0,<3.0.0",
+    "sqlalchemy>=1.3.0,<2.0.0",
     "wandb",
     "fastmcp",
     "einops==0.8.2",
