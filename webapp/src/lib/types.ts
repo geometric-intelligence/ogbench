@@ -30,10 +30,22 @@ export interface GraphStats {
   degree_std: number;
   num_connected_components: number;
   largest_cc_ratio_pct: number;
-  avg_clustering_coeff: number;
-  avg_shortest_path_length: number;
+  /** Approximate average clustering coefficient of the largest connected component. */
+  clustering_coefficient: number | null;
+  /** Approximate (2-sweep) diameter of the largest connected component. */
+  diameter: number | null;
+  /** Louvain modularity of the largest connected component. */
+  modularity: number | null;
+  /** Mean cosine similarity of train-averaged node features along edges. */
+  homophily: number | null;
   dataset: string;
+  adjacency_method?: string;
 }
+
+export type StatsMetric = Exclude<keyof GraphStats, 'dataset' | 'adjacency_method'>;
+
+/** Sample-to-node ratio; 'full' keeps every feature as a node. */
+export type StatsRatio = number | 'full';
 
 export interface LeaderboardEntry {
   rank: number;
@@ -56,7 +68,10 @@ export interface DatasetInfo {
   emoji: string;
 }
 
-export type DatasetName = 'motrpac' | 'addneuromed' | 'parkinsons' | 'brca';
+export type DatasetName = 'motrpac' | 'addneuromed' | 'parkinsons' | 'brca' | 'tuberculosis' | 'smoking';
+
+/** Datasets with benchmark results in results.json (shown on the Leaderboard). */
+export type LeaderboardDatasetName = 'motrpac' | 'addneuromed' | 'parkinsons' | 'brca';
 
 export type NodeSelectionMethod = 'variance' | 'correlation' | 'distance_correlation' | 'random';
 

@@ -1,11 +1,40 @@
-import type { DatasetInfo, DatasetName, ModelCategory, RankingMetric, DisplayMetric, AdjacencyMethod } from './types';
+import type {
+  DatasetInfo,
+  DatasetName,
+  LeaderboardDatasetName,
+  ModelCategory,
+  RankingMetric,
+  DisplayMetric,
+  AdjacencyMethod,
+  StatsMetric,
+} from './types';
 
 export const DATASETS: Record<DatasetName, DatasetInfo> = {
   motrpac: { fullName: 'Heritage', color: '#3b82f6', emoji: '🧬' },
   addneuromed: { fullName: 'AddNeuroMed', color: '#f97316', emoji: '🧠' },
   parkinsons: { fullName: "Parkinson's", color: '#22c55e', emoji: '🔬' },
   brca: { fullName: 'BRCA', color: '#a855f7', emoji: '🎗️' },
+  tuberculosis: { fullName: 'Tuberculosis', color: '#14b8a6', emoji: '🦠' },
+  smoking: { fullName: 'Smoking', color: '#ef4444', emoji: '🚬' },
 };
+
+/** Datasets shown in the Dataset Explorer (all datasets with graph statistics). */
+export const EXPLORER_DATASETS: readonly DatasetName[] = [
+  'motrpac',
+  'addneuromed',
+  'parkinsons',
+  'brca',
+  'tuberculosis',
+  'smoking',
+] as const;
+
+/** Datasets with benchmark results on the Leaderboard. */
+export const LEADERBOARD_DATASETS: readonly LeaderboardDatasetName[] = [
+  'motrpac',
+  'addneuromed',
+  'parkinsons',
+  'brca',
+] as const;
 
 export const MODEL_CATEGORIES: Record<string, ModelCategory> = {
   'MLA-GNN': 'gnn',
@@ -81,17 +110,32 @@ export const CATEGORY_COLORS: Record<ModelCategory, string> = {
   baseline: '#0ea5e9',
 };
 
-export const METRIC_LABELS: Record<string, string> = {
+export const METRIC_LABELS: Record<StatsMetric, string> = {
   num_nodes: 'Number of Nodes',
   num_edges: 'Number of Edges',
   avg_degree: 'Average Node Degree',
   density_pct: 'Graph Density (%)',
-  avg_clustering_coeff: 'Average Clustering Coefficient',
-  largest_cc_ratio_pct: 'Largest Connected Component (%)',
-  avg_shortest_path_length: 'Average Shortest Path Length',
-  num_connected_components: 'Connected Components',
   degree_std: 'Degree Standard Deviation',
+  largest_cc_ratio_pct: 'Largest Connected Component (%)',
+  num_connected_components: 'Connected Components',
+  clustering_coefficient: 'Clustering Coefficient (LCC)',
+  diameter: 'Diameter (LCC)',
+  modularity: 'Modularity (LCC)',
+  homophily: 'Feature Homophily',
 };
+
+/** Metrics shown in the Explorer grid, 3 per row. */
+export const EXPLORER_METRICS: readonly StatsMetric[] = [
+  'num_nodes',
+  'num_edges',
+  'avg_degree',
+  'density_pct',
+  'degree_std',
+  'largest_cc_ratio_pct',
+  'clustering_coefficient',
+  'homophily',
+  'modularity',
+] as const;
 
 export const RANKING_METRICS: Record<RankingMetric, string> = {
   val_f1_macro: 'Val F1 Macro',
