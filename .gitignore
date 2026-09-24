@@ -193,6 +193,7 @@ logs/
 datasets/
 run_data/
 webapp/aggregated_final_results_neurips.csv
+*.csv
 
 # Scripts
 scripts/rerun_best_configs

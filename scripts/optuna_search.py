@@ -249,27 +249,14 @@ class OptunaSearchConfig:
             # Always density-target WGCNA unless the config explicitly opts out with null.
             # A leftover per_dataset_ratio_method_grid must not disable this default.
             wgcna_target_connectivity = 0.10
-        if wgcna_target_connectivity is not None and not 0 <= wgcna_target_connectivity <= 1:
+        if wgcna_target_connectivity is None:
+            raise ValueError(
+                'wgcna_target_connectivity is required; refusing to fall back to '
+                'per_dataset_ratio_method_grid adjacency_threshold values'
+            )
+        if not 0 <= wgcna_target_connectivity <= 1:
             raise ValueError('wgcna_target_connectivity must be between 0 and 1')
-
-        threshold_raw = raw.get('per_dataset_ratio_method_grid')
-        if wgcna_target_connectivity is not None:
-            thresholds = {}
-        else:
-            if threshold_raw is None:
-                threshold_source = raw.get('thresholds_from')
-                if not threshold_source:
-                    raise ValueError(
-                        'Set wgcna_target_connectivity, or provide '
-                        'per_dataset_ratio_method_grid / thresholds_from'
-                    )
-                threshold_path = Path(threshold_source)
-                if not threshold_path.is_absolute():
-                    threshold_path = source_path.parent / threshold_path
-                with threshold_path.open() as handle:
-                    threshold_config = yaml.safe_load(handle)
-                threshold_raw = threshold_config.get('per_dataset_ratio_method_grid', {})
-            thresholds = _parse_thresholds(threshold_raw)
+        thresholds = {}
 
         objective = raw.get('objective', {})
         direction = str(objective.get('direction', 'maximize'))
@@ -596,28 +583,6 @@ def _validate_ablation_baseline(
         raise ValueError(f'{label} contains values outside their ablation axes: {invalid}')
 
 
-def _parse_thresholds(raw: Any) -> dict[tuple[str, float | str, str], float]:
-    if not isinstance(raw, dict):
-        raise TypeError('per_dataset_ratio_method_grid must be a mapping')
-    thresholds: dict[tuple[str, float | str, str], float] = {}
-    for raw_key, values in raw.items():
-        parts = [part.strip() for part in str(raw_key).split(',')]
-        if len(parts) != 3:
-            raise ValueError(f'Invalid threshold key {raw_key!r}; expected dataset,ratio,method')
-        dataset, ratio_raw, method = parts
-        try:
-            ratio: float | str = float(ratio_raw)
-        except ValueError:
-            ratio = ratio_raw
-        threshold_values = values.get(ADJACENCY_THRESHOLD, [])
-        if len(threshold_values) != 1:
-            raise ValueError(
-                f"Threshold entry '{raw_key}' must contain exactly one {ADJACENCY_THRESHOLD}"
-            )
-        thresholds[(dataset, ratio, method)] = float(threshold_values[0])
-    return thresholds
-
-
 def _normalize_sqlite_url(url: str, base_dir: Path) -> str:
     prefix = 'sqlite:///'
     if not url.startswith(prefix):
@@ -660,25 +625,16 @@ def _slug(value: Any) -> str:
 
 
 def _adjacency_parameters_for(
-    config: OptunaSearchConfig, dataset: str, values: dict[str, Any]
+    config: OptunaSearchConfig, _dataset: str, values: dict[str, Any]
 ) -> dict[str, float]:
     if values[ADJACENCY_METHOD] == 'string':
         return {ADJACENCY_THRESHOLD: config.string_adjacency_threshold}
-    if config.wgcna_target_connectivity is not None:
-        return {ADJACENCY_TARGET_CONNECTIVITY: config.wgcna_target_connectivity}
-    ratio = values[NODE_SAMPLE_RATIO]
-    method = str(values[SELECTION_METHOD])
-    keys = [(dataset, ratio, method)]
-    try:
-        keys.append((dataset, float(ratio), method))
-    except (TypeError, ValueError):
-        pass
-    for key in keys:
-        if key in config.thresholds:
-            return {ADJACENCY_THRESHOLD: config.thresholds[key]}
-    raise ValueError(
-        f'No adjacency threshold for dataset={dataset}, ratio={ratio}, method={method}'
-    )
+    if config.wgcna_target_connectivity is None:
+        raise ValueError(
+            'WGCNA requires wgcna_target_connectivity; refusing to fall back to '
+            'adjacency_threshold'
+        )
+    return {ADJACENCY_TARGET_CONNECTIVITY: config.wgcna_target_connectivity}
 
 
 def build_outer_cells(
@@ -1239,7 +1195,7 @@ def warmup_caches(
     loaders = _cache_configs(config, cells)
     workers = min(n_jobs, len(loaders))
     print(
-        f'Warming {len(loaders)} unique fold-aware dataset caches ' f'with {workers} workers...',
+        f'Warming {len(loaders)} unique fold-aware dataset caches with {workers} workers...',
         flush=True,
     )
     if workers == 1:
