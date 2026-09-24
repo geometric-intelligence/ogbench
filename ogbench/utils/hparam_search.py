@@ -6,7 +6,8 @@ import json
 import os
 import subprocess  # nosec B404
 import sys
-from collections.abc import MutableMapping, Sequence
+import time
+from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,14 @@ from typing import Any
 import torch
 
 OBJECTIVE_PAYLOAD_PREFIX = 'OGBENCH_OBJECTIVE='
+OOM_ERROR_PREFIX = 'OOM: '
+OOM_MARKERS = (
+    'CUDA out of memory',
+    'OutOfMemoryError',
+    'CUDA error: out of memory',
+    'CUBLAS_STATUS_ALLOC_FAILED',
+    'CUDNN_STATUS_ALLOC_FAILED',
+)
 THREAD_ENV_VARS = (
     'OMP_NUM_THREADS',
     'MKL_NUM_THREADS',
@@ -236,3 +245,80 @@ def populate_gpu_queue(queue: Any, devices: Sequence[GpuDevice], jobs_per_gpu: i
     for device in devices:
         for _ in range(jobs_per_gpu):
             queue.put(device)
+
+
+def gpu_free_memory_mib(visibility_token: str) -> int | None:
+    """Return a device's free memory from nvidia-smi, or None if it cannot be read."""
+    try:
+        result = subprocess.run(  # nosec B603 B607
+            [
+                'nvidia-smi',
+                '--query-gpu=memory.free',
+                '--format=csv,noheader,nounits',
+                '-i',
+                str(visibility_token),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip().splitlines()[0])
+    except (IndexError, ValueError):
+        return None
+
+
+def acquire_gpu(
+    queue: Any,
+    min_free_mib: int | None,
+    *,
+    poll_seconds: float = 30.0,
+    fallback_min_free_mib: int | None = None,
+    fallback_after_seconds: float | None = None,
+    free_memory: Callable[[str], int | None] = gpu_free_memory_mib,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> GpuDevice:
+    """Take a GPU slot whose device currently has enough free memory.
+
+    Slots on devices below the threshold go back to the end of the queue so
+    other workers can use them. After ``fallback_after_seconds`` the requirement
+    relaxes to ``fallback_min_free_mib``.
+    """
+    started = clock()
+    while True:
+        device = queue.get()
+        threshold = min_free_mib
+        if fallback_after_seconds is not None and clock() - started >= fallback_after_seconds:
+            threshold = fallback_min_free_mib
+        if not threshold:
+            return device
+        free = free_memory(device.visibility_token)
+        if free is None or free >= threshold:
+            return device
+        queue.put(device)
+        sleep(poll_seconds)
+
+
+def is_oom_failure(
+    error: str | None, log_path: str | Path | None = None, tail_bytes: int = 65536
+) -> bool:
+    """Classify a failed training process as a GPU or host out-of-memory failure."""
+    message = error or ''
+    if message.startswith('Timeout after'):
+        return False
+    # The kernel's out-of-memory killer terminates the child with SIGKILL.
+    if message.startswith('Return code -9'):
+        return True
+    texts = [message]
+    if log_path is not None and Path(log_path).is_file():
+        with Path(log_path).open('rb') as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - tail_bytes))
+            texts.append(handle.read().decode(errors='replace'))
+    return any(marker in text for text in texts for marker in OOM_MARKERS)

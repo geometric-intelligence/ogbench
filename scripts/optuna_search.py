@@ -40,8 +40,11 @@ from optuna.trial import TrialState
 
 from ogbench.utils.config_resolvers import register_all_resolvers
 from ogbench.utils.hparam_search import (
+    OOM_ERROR_PREFIX,
     GpuDevice,
+    acquire_gpu,
     enforce_single_thread_process,
+    is_oom_failure,
     populate_gpu_queue,
     run_training,
     to_override,
@@ -67,6 +70,21 @@ SCALAR_TYPES = (str, int, float, bool, type(None))
 
 class FoldExecutionError(RuntimeError):
     """A fold could not produce the configured objective metric."""
+
+
+@dataclass(frozen=True)
+class ExecutionPolicy:
+    """Runtime-only scheduling choices that never affect study comparability."""
+
+    min_free_gpu_mib: int | None = None
+    oom_retries: int = 0
+    oom_min_free_gpu_mib: int | None = None
+    oom_backoff_seconds: float = 60.0
+    oom_gpu_wait_seconds: float = 900.0
+    gpu_poll_seconds: float = 30.0
+
+
+DEFAULT_POLICY = ExecutionPolicy()
 
 
 @dataclass(frozen=True)
@@ -113,11 +131,17 @@ class SearchSpaceSpec:
             raise ValueError(f"Search space '{name}' cannot specify both log and step")
         return cls(kind=kind, low=low, high=high, step=step, log=log)
 
+    @property
+    def structured(self) -> bool:
+        """Whether Optuna stores these categorical choices as JSON strings."""
+        return self.kind == 'categorical' and any(
+            not isinstance(choice, SCALAR_TYPES) for choice in self.choices
+        )
+
     def suggest(self, trial: optuna.Trial, name: str) -> Any:
         """Sample this entry, decoding structured categorical values."""
         if self.kind == 'categorical':
-            structured = any(not isinstance(choice, SCALAR_TYPES) for choice in self.choices)
-            if structured:
+            if self.structured:
                 encoded = tuple(json.dumps(choice, sort_keys=True) for choice in self.choices)
                 return json.loads(trial.suggest_categorical(name, encoded))
             return trial.suggest_categorical(name, self.choices)
@@ -130,6 +154,28 @@ class SearchSpaceSpec:
         if self.step is not None:
             kwargs['step'] = float(self.step)
         return trial.suggest_float(name, float(self.low), float(self.high), **kwargs)
+
+    def canonical(self, value: Any) -> Any:
+        """Return the in-space value equal to a sampled value, or raise ValueError."""
+        if self.kind == 'categorical':
+            for choice in self.choices:
+                if isinstance(choice, bool) == isinstance(value, bool) and choice == value:
+                    return choice
+            raise ValueError(f'{value!r} is not one of {list(self.choices)}')
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise ValueError(f'{value!r} is not numeric')
+        tolerance = 1e-9 * max(1.0, abs(float(self.high)))
+        if not float(self.low) - tolerance <= value <= float(self.high) + tolerance:
+            raise ValueError(f'{value!r} is outside [{self.low}, {self.high}]')
+        if self.step is not None:
+            steps = (value - self.low) / self.step
+            if abs(steps - round(steps)) > 1e-6:
+                raise ValueError(f'{value!r} is not on the step grid of {self.step}')
+        return int(value) if self.kind == 'int' else float(value)
+
+    def raw(self, value: Any) -> Any:
+        """Return the value Optuna stores in trial.params for a sampled value."""
+        return json.dumps(value, sort_keys=True) if self.structured else value
 
 
 @dataclass(frozen=True)
@@ -483,30 +529,68 @@ class RunLedger:
                 ),
             )
 
+    def attempt_budget_used(
+        self,
+        study_name: str,
+        param_hash: str,
+        fold: int,
+        training_seed: int,
+        oom_retries: int = 0,
+    ) -> int:
+        """Count failed attempts, excluding the first ``oom_retries`` out-of-memory failures."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    COALESCE(SUM(CASE WHEN error LIKE ? THEN 0 ELSE 1 END), 0) AS normal,
+                    COALESCE(SUM(CASE WHEN error LIKE ? THEN 1 ELSE 0 END), 0) AS oom
+                FROM fold_attempts
+                WHERE study_name=? AND param_hash=? AND fold=? AND training_seed=?
+                  AND status='failed'
+                """,
+                (
+                    f'{OOM_ERROR_PREFIX}%',
+                    f'{OOM_ERROR_PREFIX}%',
+                    study_name,
+                    param_hash,
+                    fold,
+                    training_seed,
+                ),
+            ).fetchone()
+        return int(row['normal']) + max(0, int(row['oom']) - oom_retries)
+
     def retryable(
         self,
         study_name: str,
         param_hash: str,
         max_attempts: int,
         expected_folds: Sequence[int] | None = None,
+        oom_retries: int = 0,
     ) -> bool:
         """Return whether any unresolved fold can still be attempted."""
         with self._connect() as connection:
             rows = connection.execute(
                 """
                 SELECT fold,
-                       MAX(attempt) AS attempts,
+                       SUM(CASE WHEN status='failed' AND error LIKE ? THEN 1 ELSE 0 END)
+                           AS oom,
+                       SUM(CASE WHEN status='failed' AND (error IS NULL OR error NOT LIKE ?)
+                           THEN 1 ELSE 0 END) AS normal,
                        MAX(CASE WHEN status='success' THEN 1 ELSE 0 END) AS succeeded
                 FROM fold_attempts
                 WHERE study_name=? AND param_hash=?
                 GROUP BY fold
                 """,
-                (study_name, param_hash),
+                (f'{OOM_ERROR_PREFIX}%', f'{OOM_ERROR_PREFIX}%', study_name, param_hash),
             ).fetchall()
         by_fold = {int(row['fold']): row for row in rows}
+
+        def budget_used(row: sqlite3.Row) -> int:
+            return int(row['normal']) + max(0, int(row['oom']) - oom_retries)
+
         if expected_folds is None:
             return any(
-                not row['succeeded'] and int(row['attempts']) < max_attempts for row in rows
+                not row['succeeded'] and budget_used(row) < max_attempts for row in rows
             )
         # All folds may already be durable when a worker dies before Optuna
         # commits the aggregate objective. Re-enqueueing finalizes it without
@@ -520,7 +604,7 @@ class RunLedger:
             row = by_fold.get(fold)
             if row and row['succeeded']:
                 continue
-            return row is None or int(row['attempts']) < max_attempts
+            return row is None or budget_used(row) < max_attempts
         return False
 
     def unresolved_failures(self) -> list[dict[str, Any]]:
@@ -791,11 +875,33 @@ def read_study_manifest(path: str | Path) -> list[str]:
     return studies
 
 
+def _model_space(config: OptunaSearchConfig, model: str) -> dict[str, SearchSpaceSpec]:
+    return {**config.search_space, **config.per_model_search_space.get(model, {})}
+
+
 def _sample_parameters(
     trial: optuna.Trial, config: OptunaSearchConfig, model: str
 ) -> dict[str, Any]:
-    space = {**config.search_space, **config.per_model_search_space.get(model, {})}
+    space = _model_space(config, model)
     return {name: spec.suggest(trial, name) for name, spec in space.items()}
+
+
+def validate_sampled_parameters(
+    config: OptunaSearchConfig, model: str, sampled: dict[str, Any]
+) -> dict[str, Any]:
+    """Return canonical in-space values for a complete parameter set, or raise ValueError."""
+    space = _model_space(config, model)
+    if set(sampled) != set(space):
+        raise ValueError(
+            f'{model} parameters {sorted(sampled)} do not match its search space {sorted(space)}'
+        )
+    canonical = {}
+    for name, spec in space.items():
+        try:
+            canonical[name] = spec.canonical(sampled[name])
+        except ValueError as error:
+            raise ValueError(f'{model} parameter {name}: {error}') from error
+    return canonical
 
 
 def _trial_hyperparameters(cell: OuterCell, sampled: dict[str, Any]) -> dict[str, Any]:
@@ -942,6 +1048,7 @@ def _enqueue_failed_trials(
     ledger: RunLedger,
     max_attempts: int,
     expected_folds: Sequence[int] | None = None,
+    oom_retries: int = 0,
 ) -> dict[str, int]:
     waiting_by_fixed_params = {
         json.dumps(trial.system_attrs.get('fixed_params', trial.params), sort_keys=True): trial
@@ -976,7 +1083,11 @@ def _enqueue_failed_trials(
         if fixed_key in running_fixed_params:
             continue
         if not ledger.retryable(
-            study.study_name, param_hash, max_attempts, expected_folds=expected_folds
+            study.study_name,
+            param_hash,
+            max_attempts,
+            expected_folds=expected_folds,
+            oom_retries=oom_retries,
         ):
             continue
         try:
@@ -988,6 +1099,44 @@ def _enqueue_failed_trials(
     return enqueued
 
 
+def _enqueue_candidate(
+    study: optuna.Study,
+    config: OptunaSearchConfig,
+    cell: OuterCell,
+    candidate: dict[str, Any],
+) -> int:
+    """Queue a fixed candidate configuration once and return how many new trials to run.
+
+    Failed evaluations of the candidate are left to the ``--retry-failed`` path.
+    """
+    param_hash = candidate['param_hash']
+    space = _model_space(config, cell.model)
+    fixed = {name: spec.raw(candidate['sampled_params'][name]) for name, spec in space.items()}
+    fixed_key = json.dumps(fixed, sort_keys=True)
+    for trial in study.trials:
+        if trial.user_attrs.get('param_hash') == param_hash:
+            return 0
+        if trial.state == TrialState.WAITING and (
+            json.dumps(trial.system_attrs.get('fixed_params', trial.params), sort_keys=True)
+            == fixed_key
+        ):
+            return 1
+    study.enqueue_trial(fixed)
+    return 1
+
+
+def _acquire_gpu(gpu_queue: Any, policy: ExecutionPolicy, *, after_oom: bool) -> GpuDevice:
+    if after_oom and policy.oom_min_free_gpu_mib:
+        return acquire_gpu(
+            gpu_queue,
+            policy.oom_min_free_gpu_mib,
+            poll_seconds=policy.gpu_poll_seconds,
+            fallback_min_free_mib=policy.min_free_gpu_mib,
+            fallback_after_seconds=policy.oom_gpu_wait_seconds,
+        )
+    return acquire_gpu(gpu_queue, policy.min_free_gpu_mib, poll_seconds=policy.gpu_poll_seconds)
+
+
 def _objective(
     trial: optuna.Trial,
     *,
@@ -996,6 +1145,8 @@ def _objective(
     ledger_path: Path,
     gpu_queue: Any | None,
     retry_sources: dict[str, int] | None = None,
+    candidate: dict[str, Any] | None = None,
+    policy: ExecutionPolicy = DEFAULT_POLICY,
 ) -> float:
     ledger = RunLedger(ledger_path)
     sampled = _sample_parameters(trial, config, cell.model)
@@ -1005,6 +1156,21 @@ def _objective(
     trial.set_user_attr('param_hash', param_hash)
     if retry_sources and param_hash in retry_sources:
         trial.set_user_attr('retry_of', retry_sources.pop(param_hash))
+    if candidate is not None:
+        if param_hash != candidate['param_hash']:
+            error = (
+                f'Sampled parameters {param_hash} differ from the fixed candidate '
+                f"{candidate['param_hash']}"
+            )
+            trial.set_user_attr('failure', error)
+            raise FoldExecutionError(error)
+        trial.set_user_attr(
+            'transfer_source',
+            {
+                key: candidate.get(key)
+                for key in ('source_study', 'source_rule', 'source_trial_numbers', 'source_mean')
+            },
+        )
 
     fold_scores: dict[str, float] = {}
     reused_folds: list[int] = []
@@ -1018,60 +1184,80 @@ def _objective(
             reused_folds.append(fold)
             continue
 
-        attempt = ledger.next_attempt(cell.study_name, param_hash, fold, config.training_seed)
-        if attempt > max_attempts:
-            raise FoldExecutionError(
-                f'Fold {fold} exceeded the maximum of {max_attempts} attempts'
+        after_oom = False
+        while True:
+            used = ledger.attempt_budget_used(
+                cell.study_name, param_hash, fold, config.training_seed, policy.oom_retries
+            )
+            if used >= max_attempts:
+                error = f'Fold {fold} exceeded the maximum of {max_attempts} attempts'
+                trial.set_user_attr('failed_fold', fold)
+                trial.set_user_attr('failure', error)
+                raise FoldExecutionError(error)
+            attempt = ledger.next_attempt(
+                cell.study_name, param_hash, fold, config.training_seed
             )
 
-        gpu: GpuDevice | None = None
-        if gpu_queue is not None:
-            gpu = gpu_queue.get()
-        log_path = (
-            config.output_dir
-            / 'logs'
-            / cell.study_name
-            / param_hash
-            / f'fold_{fold}_attempt_{attempt}.log'
-        )
-        started = time.time()
-        try:
-            overrides = _fold_overrides(config, cell, hyperparameters, trial.number, fold, attempt)
-            success, error, metrics = run_training(
-                overrides,
-                timeout=config.timeout,
-                gpu_id=None if gpu is None else gpu.visibility_token,
-                n_threads=1,
-                log_path=log_path,
-            )
-        finally:
+            gpu: GpuDevice | None = None
             if gpu_queue is not None:
-                gpu_queue.put(gpu)
-        elapsed = time.time() - started
+                gpu = _acquire_gpu(gpu_queue, policy, after_oom=after_oom)
+            log_path = (
+                config.output_dir
+                / 'logs'
+                / cell.study_name
+                / param_hash
+                / f'fold_{fold}_attempt_{attempt}.log'
+            )
+            started = time.time()
+            try:
+                overrides = _fold_overrides(
+                    config, cell, hyperparameters, trial.number, fold, attempt
+                )
+                success, error, metrics = run_training(
+                    overrides,
+                    timeout=config.timeout,
+                    gpu_id=None if gpu is None else gpu.visibility_token,
+                    n_threads=1,
+                    log_path=log_path,
+                )
+            finally:
+                if gpu_queue is not None:
+                    gpu_queue.put(gpu)
+            elapsed = time.time() - started
 
-        metric = None if not metrics else metrics.get('objective')
-        if success and metric is None:
-            success = False
-            error = f"Training succeeded but did not emit objective '{config.objective_metric}'"
-        elif success and not math.isfinite(float(metric)):
-            success = False
-            error = f'Training emitted a non-finite objective value: {metric}'
-        ledger.record(
-            study_name=cell.study_name,
-            param_hash=param_hash,
-            params=sampled,
-            fold=fold,
-            training_seed=config.training_seed,
-            attempt=attempt,
-            status='success' if success else 'failed',
-            metric=None if metric is None else float(metric),
-            elapsed_time=elapsed,
-            error=error,
-            log_path=log_path,
-            trial_number=trial.number,
-            gpu=gpu,
-        )
-        if not success:
+            metric = None if not metrics else metrics.get('objective')
+            if success and metric is None:
+                success = False
+                error = (
+                    f"Training succeeded but did not emit objective '{config.objective_metric}'"
+                )
+            elif success and not math.isfinite(float(metric)):
+                success = False
+                error = f'Training emitted a non-finite objective value: {metric}'
+            oom = not success and is_oom_failure(error, log_path)
+            if oom:
+                error = f'{OOM_ERROR_PREFIX}{error}'
+            ledger.record(
+                study_name=cell.study_name,
+                param_hash=param_hash,
+                params=sampled,
+                fold=fold,
+                training_seed=config.training_seed,
+                attempt=attempt,
+                status='success' if success else 'failed',
+                metric=None if metric is None else float(metric),
+                elapsed_time=elapsed,
+                error=error,
+                log_path=log_path,
+                trial_number=trial.number,
+                gpu=gpu,
+            )
+            if success:
+                break
+            if oom and policy.oom_retries > 0:
+                after_oom = True
+                time.sleep(policy.oom_backoff_seconds)
+                continue
             trial.set_user_attr('failed_fold', fold)
             trial.set_user_attr('failure', error or 'unknown training failure')
             raise FoldExecutionError(f'Fold {fold} failed: {error}')
@@ -1106,6 +1292,8 @@ def _trial_rows(study: optuna.Study, cell: OuterCell) -> list[dict[str, Any]]:
             'failure': trial.user_attrs.get('failure'),
             'retry_of': trial.user_attrs.get('retry_of'),
         }
+        if 'transfer_source' in trial.user_attrs:
+            row['transfer_source'] = json.dumps(trial.user_attrs['transfer_source'], sort_keys=True)
         rows.append(row)
     return rows
 
@@ -1116,26 +1304,32 @@ def _run_study(
     ledger_path: Path,
     gpu_queue: Any | None,
     retry_failed: bool,
+    candidate: dict[str, Any] | None = None,
+    policy: ExecutionPolicy = DEFAULT_POLICY,
 ) -> list[dict[str, Any]]:
     study = _load_or_create_study(config, cell)
     _fail_stale_trials(study)
     ledger = RunLedger(ledger_path)
     _record_interrupted_trials(study, config, cell, ledger)
-    # Compute the new-suggestion budget before adding retries. The objective
-    # marks fallback Optuna 2.10 retries with retry_of as soon as they start.
-    original_trials = [
-        trial
-        for trial in study.trials
-        if trial.user_attrs.get('retry_of') is None
-        and trial.state not in {TrialState.WAITING, TrialState.RUNNING}
-    ]
-    remaining = max(0, config.n_trials - len(original_trials))
+    if candidate is not None:
+        remaining = _enqueue_candidate(study, config, cell, candidate)
+    else:
+        # Compute the new-suggestion budget before adding retries. The objective
+        # marks fallback Optuna 2.10 retries with retry_of as soon as they start.
+        original_trials = [
+            trial
+            for trial in study.trials
+            if trial.user_attrs.get('retry_of') is None
+            and trial.state not in {TrialState.WAITING, TrialState.RUNNING}
+        ]
+        remaining = max(0, config.n_trials - len(original_trials))
     retry_sources = (
         _enqueue_failed_trials(
             study,
             ledger,
             config.max_retries + 1,
             expected_folds=config.folds,
+            oom_retries=policy.oom_retries,
         )
         if retry_failed
         else {}
@@ -1150,6 +1344,8 @@ def _run_study(
                 ledger_path=ledger_path,
                 gpu_queue=gpu_queue,
                 retry_sources=retry_sources,
+                candidate=candidate,
+                policy=policy,
             ),
             n_trials=trials_to_run,
             catch=(FoldExecutionError,),
@@ -1264,8 +1460,12 @@ def warmup_caches(
             )
 
 
-def _dry_run(config: OptunaSearchConfig, cells: Sequence[OuterCell]) -> pd.DataFrame:
-    """Sample once per cell and validate Hydra composition/model construction."""
+def _dry_run(
+    config: OptunaSearchConfig,
+    cells: Sequence[OuterCell],
+    candidates: dict[str, dict[str, Any]] | None = None,
+) -> pd.DataFrame:
+    """Sample once per cell (or use its fixed candidate) and validate model construction."""
     from scripts.hyperparam_search import dry_run_config
 
     rows = []
@@ -1274,6 +1474,8 @@ def _dry_run(config: OptunaSearchConfig, cells: Sequence[OuterCell]) -> pd.DataF
             direction=config.direction,
             sampler=optuna.samplers.RandomSampler(seed=config.sampler_seed),
         )
+        if candidates is not None:
+            _enqueue_candidate(study, config, cell, candidates[cell.study_name])
         trial = study.ask()
         sampled = _sample_parameters(trial, config, cell.model)
         hyperparameters = _trial_hyperparameters(cell, sampled)
@@ -1366,6 +1568,9 @@ def run_search(
     skip_warmup: bool = False,
     warmup_only: bool = False,
     dry_run: bool = False,
+    export_only: bool = False,
+    candidates: dict[str, dict[str, Any]] | None = None,
+    policy: ExecutionPolicy = DEFAULT_POLICY,
 ) -> pd.DataFrame:
     """Run or resume all selected Optuna studies."""
     enforce_single_thread_process()
@@ -1373,20 +1578,25 @@ def run_search(
         raise ValueError('warmup_only and skip_warmup cannot be used together')
     cells = build_outer_cells(config, models=models, datasets=datasets)
     if studies:
-        requested_studies = set(studies)
-        cells = [cell for cell in cells if cell.study_name in requested_studies]
-        missing = requested_studies - {cell.study_name for cell in cells}
+        # Requested studies run in the order given, so manifests set priority.
+        by_name = {cell.study_name: cell for cell in cells}
+        missing = set(studies) - set(by_name)
         if missing:
             raise ValueError(f'Unknown study filters: {sorted(missing)}')
+        cells = [by_name[name] for name in dict.fromkeys(studies)]
     cells = select_study_shards(cells, num_shards, shard_indices)
     if not cells:
         raise ValueError('No ablation cells selected after applying filters and shards')
+    if candidates is not None:
+        _validate_candidates(config, cells, candidates)
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
     if dry_run:
-        frame = _dry_run(config, cells)
+        frame = _dry_run(config, cells, candidates)
         _atomic_write_csv(frame, config.output_dir / 'dry_run.csv')
         return frame
+    if export_only:
+        return _export_existing(config, cells, jobs_per_gpu)
 
     available = torch.cuda.device_count() if torch.cuda.is_available() else 0
     devices = visible_gpu_devices(requested_gpus, device_count=available)
@@ -1409,6 +1619,10 @@ def run_search(
     print(f'Virtual shards: {list(shard_indices or range(num_shards))}/{num_shards}')
     print(f'Jobs/GPU: {jobs_per_gpu} | parallel workers: {workers} | CPU threads/job: 1')
     print(f'Cache warmup workers: {cache_workers} | CPU threads/worker: 1')
+    if policy != DEFAULT_POLICY:
+        print(f'Execution policy: {policy}')
+    if candidates is not None:
+        print(f'Fixed candidates: {len(cells)} studies, one configuration each')
     print(f'Storage: {config.storage}')
     print(f'Output: {config.output_dir}')
     print('=' * 72)
@@ -1420,11 +1634,18 @@ def run_search(
         return pd.DataFrame()
 
     ledger_path = config.output_dir / 'run_ledger.sqlite3'
-    ledger = RunLedger(ledger_path)
+    RunLedger(ledger_path)
     # Initialize/migrate the Optuna schema once before worker processes open
     # the shared SQLite database concurrently.
     _storage(config)
     _enable_sqlite_wal(config.storage)
+
+    def study_task(cell: OuterCell, gpu_queue: Any | None) -> Any:
+        candidate = None if candidates is None else candidates[cell.study_name]
+        return delayed(_run_study)(
+            config, cell, ledger_path, gpu_queue, retry_failed, candidate, policy
+        )
+
     if workers > 1:
         manager = multiprocessing.Manager()
         gpu_queue = manager.Queue() if devices else None
@@ -1432,8 +1653,7 @@ def run_search(
             populate_gpu_queue(gpu_queue, devices, jobs_per_gpu)
         with parallel_backend('loky', inner_max_num_threads=1):
             nested_rows = Parallel(n_jobs=workers, verbose=10)(
-                delayed(_run_study)(config, cell, ledger_path, gpu_queue, retry_failed)
-                for cell in cells
+                study_task(cell, gpu_queue) for cell in cells
             )
     else:
         gpu_queue = None
@@ -1441,12 +1661,24 @@ def run_search(
             manager = multiprocessing.Manager()
             gpu_queue = manager.Queue()
             populate_gpu_queue(gpu_queue, devices, jobs_per_gpu)
-        nested_rows = [
-            _run_study(config, cell, ledger_path, gpu_queue, retry_failed) for cell in cells
-        ]
+        nested_rows = []
+        for cell in cells:
+            function, args, kwargs = study_task(cell, gpu_queue)
+            nested_rows.append(function(*args, **kwargs))
 
     trials = pd.DataFrame(list(itertools.chain.from_iterable(nested_rows)))
-    best = _best_rows(trials, config.direction)
+    _write_exports(config, cells, trials, jobs_per_gpu)
+    return trials
+
+
+def _write_exports(
+    config: OptunaSearchConfig,
+    cells: Sequence[OuterCell],
+    trials: pd.DataFrame,
+    jobs_per_gpu: int,
+) -> None:
+    ledger = RunLedger(config.output_dir / 'run_ledger.sqlite3')
+    best = _best_rows(trials, config.direction) if not trials.empty else trials
     selected_studies = {cell.study_name for cell in cells}
     failures = _failure_frame(
         ledger,
@@ -1467,7 +1699,49 @@ def run_search(
         f'Completed export: {len(trials)} trials, {len(best)} best configurations, '
         f'{len(failures)} unresolved fold failures'
     )
+
+
+def _export_existing(
+    config: OptunaSearchConfig, cells: Sequence[OuterCell], jobs_per_gpu: int
+) -> pd.DataFrame:
+    """Export CSVs from existing studies without creating studies or training."""
+    storage_path = config.storage.removeprefix('sqlite:///')
+    if config.storage.startswith('sqlite:///') and not Path(storage_path).exists():
+        raise FileNotFoundError(f'No Optuna storage to export: {storage_path}')
+    storage = _storage(config)
+    existing = {summary.study_name for summary in optuna.get_all_study_summaries(storage)}
+    rows: list[dict[str, Any]] = []
+    for cell in cells:
+        if cell.study_name not in existing:
+            continue
+        study = optuna.load_study(study_name=cell.study_name, storage=storage)
+        rows.extend(_trial_rows(study, cell))
+    trials = pd.DataFrame(rows)
+    _write_exports(config, cells, trials, jobs_per_gpu)
     return trials
+
+
+def load_candidates(path: str | Path) -> dict[str, dict[str, Any]]:
+    """Load fixed per-study configurations written by scripts/ratio03_prepare.py."""
+    raw = json.loads(Path(path).read_text())
+    if not isinstance(raw, dict) or not raw:
+        raise ValueError(f'Candidate file must map study names to candidates: {path}')
+    return raw
+
+
+def _validate_candidates(
+    config: OptunaSearchConfig,
+    cells: Sequence[OuterCell],
+    candidates: dict[str, dict[str, Any]],
+) -> None:
+    missing = [cell.study_name for cell in cells if cell.study_name not in candidates]
+    if missing:
+        raise ValueError(f'{len(missing)} selected studies have no candidate, e.g. {missing[:3]}')
+    for cell in cells:
+        candidate = candidates[cell.study_name]
+        canonical = validate_sampled_parameters(config, cell.model, candidate['sampled_params'])
+        if _stable_hash(canonical) != candidate['param_hash']:
+            raise ValueError(f'Candidate hash mismatch for {cell.study_name}')
 
 
 def _apply_runtime_overrides(
@@ -1542,10 +1816,37 @@ def main() -> None:
         action='store_true',
         help='Sample and instantiate one configuration per cell without training or persistence',
     )
+    parser.add_argument(
+        '--export-only',
+        action='store_true',
+        help='Write trial/failure CSVs from existing studies without training',
+    )
+    parser.add_argument(
+        '--candidates-file',
+        help='JSON of one fixed configuration per study; replaces sampling for every study',
+    )
+    parser.add_argument(
+        '--min-free-gpu-mib',
+        type=int,
+        help='Only start a fold on a GPU with at least this much free memory',
+    )
+    parser.add_argument(
+        '--oom-retries',
+        type=int,
+        default=0,
+        help='Out-of-memory failures per fold retried immediately without using max_retries',
+    )
+    parser.add_argument(
+        '--oom-min-free-gpu-mib',
+        type=int,
+        help='Free memory required when retrying a fold after an out-of-memory failure',
+    )
     parser.add_argument('--output-dir', help='Override training.output_dir from YAML')
     parser.add_argument('--storage', help='Override optuna.storage from YAML')
     parser.add_argument('--root-dir', help='Override fixed paths.root_dir from YAML')
     args = parser.parse_args()
+    if args.oom_retries < 0:
+        parser.error('--oom-retries cannot be negative')
 
     config = OptunaSearchConfig.from_yaml(args.config)
     _apply_runtime_overrides(
@@ -1574,6 +1875,13 @@ def main() -> None:
         skip_warmup=args.skip_warmup,
         warmup_only=args.warmup_only,
         dry_run=args.dry_run,
+        export_only=args.export_only,
+        candidates=load_candidates(args.candidates_file) if args.candidates_file else None,
+        policy=ExecutionPolicy(
+            min_free_gpu_mib=args.min_free_gpu_mib,
+            oom_retries=args.oom_retries,
+            oom_min_free_gpu_mib=args.oom_min_free_gpu_mib,
+        ),
     )
 
 

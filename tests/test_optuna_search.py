@@ -14,26 +14,33 @@ import pytest
 import torch
 from optuna.trial import TrialState
 
+from ogbench.utils.hparam_search import GpuDevice, acquire_gpu, is_oom_failure
 from scripts import optuna_search
 from scripts.optuna_search import (
     ADJACENCY_METHOD,
     ADJACENCY_TARGET_CONNECTIVITY,
+    ExecutionPolicy,
     OptunaSearchConfig,
     RunLedger,
     _cache_configs,
     _enqueue_failed_trials,
     _load_or_create_study,
     _objective,
+    _run_study,
+    _stable_hash,
+    _validate_candidates,
     build_outer_cells,
     read_study_manifest,
     run_search,
     select_study_shards,
     study_shard,
+    validate_sampled_parameters,
 )
 
 CONFIG_PATH = Path('configs/hparams_search/optuna_smoke_test.yaml')
 SEP24_CONFIG_PATH = Path('configs/hparams_search/sep24_ofat_optuna.yaml')
 SEP24_FACTORIAL_CONFIG_PATH = Path('configs/hparams_search/sep24_factorial_optuna.yaml')
+RATIO03_CONFIG_PATH = Path('configs/hparams_search/sep24_ratio03_transfer.yaml')
 MULTI_DATASET_OPTUNA_CONFIG_PATH = Path('configs/hparams_search/multi_dataset_optuna_search.yaml')
 
 
@@ -562,3 +569,336 @@ def test_warmup_only_does_not_open_studies_or_train(
 
     assert result.empty
     assert warmed == [1]
+
+
+def _fold_of(overrides) -> int:
+    value = next(item for item in overrides if item.startswith('dataset.split_params.data_seed='))
+    return int(value.rsplit('=', maxsplit=1)[1])
+
+
+def _ratio03_config(tmp_path: Path) -> OptunaSearchConfig:
+    config = OptunaSearchConfig.from_yaml(RATIO03_CONFIG_PATH)
+    config.output_dir = tmp_path / 'ratio03'
+    config.storage = f'sqlite:///{tmp_path / "ratio03.db"}'
+    return config
+
+
+RATIO03_CANDIDATES = {
+    'gcn': {
+        'model.feature_encoder.out_channels': 64,
+        'model.backbone.num_layers': 3,
+    },
+    'gatv4': {
+        'model.backbone.hidden_channels': [32, 64],
+        'model.backbone.heads': [8, 8],
+        'model.backbone.use_layer_norm': False,
+    },
+    'mlp': {
+        'model.backbone.hidden_channels': [16, 32, 8],
+        'model.backbone.norm': None,
+    },
+    'gps': {
+        'model.feature_encoder.out_channels': 16,
+        'model.backbone.num_layers': 4,
+        'model.encodings': ['RWSE'],
+    },
+}
+
+
+def _candidate(config: OptunaSearchConfig, model: str) -> dict:
+    sampled = {
+        'optimizer.parameters.lr': 0.00225757786780932,
+        'optimizer.parameters.weight_decay': 0.0001,
+        'model.backbone.dropout': 0.30000000000000004,
+        **RATIO03_CANDIDATES[model],
+    }
+    canonical = validate_sampled_parameters(config, model, sampled)
+    return {
+        'sampled_params': canonical,
+        'param_hash': _stable_hash(canonical),
+        'source_study': f'source-{model}',
+        'source_rule': 'best_complete_r0.5',
+        'source_trial_numbers': [4],
+        'source_mean': 0.61,
+    }
+
+
+def test_ratio03_config_builds_816_transfer_cells() -> None:
+    config = OptunaSearchConfig.from_yaml(RATIO03_CONFIG_PATH)
+
+    cells = build_outer_cells(config)
+
+    assert len(cells) == 816
+    assert {cell.values['dataset.loader.parameters.node_sample_ratio'] for cell in cells} == {0.3}
+    assert config.fixed['logger.wandb.project'] == 'ogbench_sep24_ratio03_transfer'
+    assert all(cell.study_name.startswith('sep24tc10ratio03transfer_') for cell in cells)
+
+
+@pytest.mark.parametrize('model', sorted(RATIO03_CANDIDATES))
+def test_candidate_runs_fixed_parameters_once_and_resumes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    config = _ratio03_config(tmp_path)
+    cell = next(cell for cell in build_outer_cells(config) if cell.model == model)
+    candidate = _candidate(config, model)
+    calls: list[int] = []
+
+    def fake_training(overrides, **kwargs):
+        calls.append(_fold_of(overrides))
+        return True, None, {'objective': 0.5}
+
+    monkeypatch.setattr(optuna_search, 'run_training', fake_training)
+    ledger_path = config.output_dir / 'run_ledger.sqlite3'
+
+    first = _run_study(config, cell, ledger_path, None, True, candidate)
+    second = _run_study(config, cell, ledger_path, None, True, candidate)
+
+    assert calls == [0, 1, 2, 3, 4]
+    assert len(first) == len(second) == 1
+    assert second[0]['state'] == 'COMPLETE'
+    assert json.loads(second[0]['sampled_params']) == candidate['sampled_params']
+    assert json.loads(second[0]['transfer_source'])['source_study'] == f'source-{model}'
+
+
+def test_failed_candidate_is_retried_only_with_retry_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _ratio03_config(tmp_path)
+    cell = next(cell for cell in build_outer_cells(config) if cell.model == 'gcn')
+    candidate = _candidate(config, 'gcn')
+    calls: list[int] = []
+
+    def flaky_training(overrides, **kwargs):
+        fold = _fold_of(overrides)
+        calls.append(fold)
+        if fold == 1 and calls.count(1) == 1:
+            return False, 'Timeout after 3600s', None
+        return True, None, {'objective': 0.5}
+
+    monkeypatch.setattr(optuna_search, 'run_training', flaky_training)
+    ledger_path = config.output_dir / 'run_ledger.sqlite3'
+
+    _run_study(config, cell, ledger_path, None, False, candidate)
+    _run_study(config, cell, ledger_path, None, False, candidate)
+    rows = _run_study(config, cell, ledger_path, None, True, candidate)
+
+    assert calls == [0, 1, 1, 2, 3, 4]
+    assert [row['state'] for row in rows] == ['FAIL', 'COMPLETE']
+
+
+def test_candidate_validation_rejects_bad_parameters(tmp_path: Path) -> None:
+    config = _ratio03_config(tmp_path)
+    cell = next(cell for cell in build_outer_cells(config) if cell.model == 'gcn')
+    candidate = _candidate(config, 'gcn')
+
+    with pytest.raises(ValueError, match='no candidate'):
+        _validate_candidates(config, [cell], {})
+    with pytest.raises(ValueError, match='hash mismatch'):
+        _validate_candidates(config, [cell], {cell.study_name: {**candidate, 'param_hash': 'x'}})
+    outside = {
+        **candidate,
+        'sampled_params': {**candidate['sampled_params'], 'model.backbone.num_layers': 5},
+    }
+    with pytest.raises(ValueError, match='num_layers'):
+        _validate_candidates(config, [cell], {cell.study_name: outside})
+
+
+def test_validate_sampled_parameters_canonicalizes_numeric_choices(tmp_path: Path) -> None:
+    config = _ratio03_config(tmp_path)
+    sampled = {**_candidate(config, 'gcn')['sampled_params']}
+    sampled['optimizer.parameters.weight_decay'] = 0
+
+    canonical = validate_sampled_parameters(config, 'gcn', sampled)
+
+    assert isinstance(canonical['optimizer.parameters.weight_decay'], float)
+    with pytest.raises(ValueError, match='step grid'):
+        validate_sampled_parameters(config, 'gcn', {**sampled, 'model.backbone.dropout': 0.25})
+
+
+def test_manifest_order_sets_execution_priority(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_config.n_trials = 1
+    search_config.ablations['dataset.loader.parameters.method'] = ['variance', 'random']
+    first, second = build_outer_cells(search_config)
+    order: list[str] = []
+
+    def fake_training(overrides, **kwargs):
+        group = next(item for item in overrides if item.startswith('logger.wandb.group='))
+        order.append(group.split('=', maxsplit=1)[1])
+        return True, None, {'objective': 0.75}
+
+    monkeypatch.setattr(optuna_search, 'run_training', fake_training)
+    monkeypatch.setattr('torch.cuda.is_available', lambda: False)
+
+    run_search(search_config, studies=[second.study_name, first.study_name], skip_warmup=True)
+
+    assert order == [second.study_name] * 5 + [first.study_name] * 5
+
+
+def test_acquire_gpu_skips_devices_without_enough_free_memory() -> None:
+    import queue
+
+    slots: queue.Queue = queue.Queue()
+    busy, free = GpuDevice(0, '0'), GpuDevice(1, '1')
+    slots.put(busy)
+    slots.put(free)
+    memory = {'0': 10_000, '1': 50_000}
+
+    device = acquire_gpu(slots, 30_000, free_memory=memory.get, sleep=lambda _: None)
+
+    assert device == free
+    assert slots.get_nowait() == busy
+
+
+def test_acquire_gpu_relaxes_threshold_after_waiting() -> None:
+    import queue
+
+    slots: queue.Queue = queue.Queue()
+    device = GpuDevice(0, '0')
+    slots.put(device)
+    now = iter([0.0, 0.0, 10.0])
+
+    acquired = acquire_gpu(
+        slots,
+        60_000,
+        fallback_min_free_mib=30_000,
+        fallback_after_seconds=5.0,
+        free_memory=lambda _: 40_000,
+        clock=lambda: next(now),
+        sleep=lambda _: None,
+    )
+
+    assert acquired == device
+
+
+def test_oom_classification(tmp_path: Path) -> None:
+    log = tmp_path / 'fold.log'
+    log.write_text('STDERR:\ntorch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2 GiB\n')
+
+    assert is_oom_failure('Return code 1\nSTDERR: ...', log)
+    assert is_oom_failure('Return code -9\nSTDERR: ')
+    assert not is_oom_failure('Timeout after 3600s', log)
+    assert not is_oom_failure('Return code 1\nSTDERR: KeyError', tmp_path / 'missing.log')
+
+
+def test_oom_failures_retry_inline_without_using_retry_budget(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cell = build_outer_cells(search_config)[0]
+    ledger_path = search_config.output_dir / 'ledger.db'
+    calls: list[int] = []
+
+    def oom_training(overrides, **kwargs):
+        fold = _fold_of(overrides)
+        calls.append(fold)
+        if fold == 1 and calls.count(1) <= 3:
+            return False, 'Return code 1\nSTDERR: torch.OutOfMemoryError: CUDA out of memory', None
+        return True, None, {'objective': 0.5}
+
+    monkeypatch.setattr(optuna_search, 'run_training', oom_training)
+    monkeypatch.setattr(optuna_search.time, 'sleep', lambda _: None)
+    policy = ExecutionPolicy(oom_retries=3, oom_backoff_seconds=0)
+    study = optuna.create_study(direction='maximize', study_name=cell.study_name)
+    study.optimize(
+        lambda trial: _objective(
+            trial,
+            config=search_config,
+            cell=cell,
+            ledger_path=ledger_path,
+            gpu_queue=None,
+            policy=policy,
+        ),
+        n_trials=1,
+    )
+
+    attempts = [row for row in RunLedger(ledger_path).all_attempts() if row['fold'] == 1]
+    assert study.trials[0].state == TrialState.COMPLETE
+    assert calls == [0, 1, 1, 1, 1, 2, 3, 4]
+    assert [row['error'][:5] for row in attempts[:3]] == ['OOM: '] * 3
+    assert attempts[-1]['status'] == 'success'
+
+
+def test_oom_failure_without_policy_fails_the_trial(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cell = build_outer_cells(search_config)[0]
+    monkeypatch.setattr(
+        optuna_search,
+        'run_training',
+        lambda overrides, **kwargs: (False, 'Return code 1\nSTDERR: CUDA out of memory', None),
+    )
+    study = optuna.create_study(direction='maximize', study_name=cell.study_name)
+    study.optimize(
+        lambda trial: _objective(
+            trial,
+            config=search_config,
+            cell=cell,
+            ledger_path=search_config.output_dir / 'ledger.db',
+            gpu_queue=None,
+        ),
+        n_trials=1,
+        catch=(optuna_search.FoldExecutionError,),
+    )
+
+    assert study.trials[0].state == TrialState.FAIL
+    assert len(RunLedger(search_config.output_dir / 'ledger.db').all_attempts()) == 1
+
+
+def test_retry_budget_excludes_free_oom_failures(tmp_path: Path) -> None:
+    ledger = RunLedger(tmp_path / 'ledger.db')
+    for attempt in (1, 2):
+        ledger.record(
+            study_name='study',
+            param_hash='params',
+            params={'lr': 0.1},
+            fold=0,
+            training_seed=42,
+            attempt=attempt,
+            status='failed',
+            metric=None,
+            elapsed_time=1.0,
+            error='OOM: Return code 1',
+            log_path=tmp_path / 'run.log',
+            trial_number=0,
+            gpu=None,
+        )
+
+    assert ledger.attempt_budget_used('study', 'params', 0, 42, oom_retries=2) == 0
+    assert ledger.attempt_budget_used('study', 'params', 0, 42, oom_retries=1) == 1
+    assert ledger.retryable('study', 'params', 1, expected_folds=[0], oom_retries=2)
+    assert not ledger.retryable('study', 'params', 1, expected_folds=[0], oom_retries=1)
+    assert not ledger.retryable('study', 'params', 2, expected_folds=[0])
+
+
+def test_export_only_reads_existing_studies_without_training(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_config.n_trials = 1
+    monkeypatch.setattr(
+        optuna_search,
+        'run_training',
+        lambda overrides, **kwargs: (True, None, {'objective': 0.75}),
+    )
+    monkeypatch.setattr('torch.cuda.is_available', lambda: False)
+    run_search(search_config, skip_warmup=True)
+    (search_config.output_dir / 'trials.csv').unlink()
+    monkeypatch.setattr(
+        optuna_search,
+        'run_training',
+        lambda overrides, **kwargs: pytest.fail('export-only must not train'),
+    )
+
+    trials = run_search(search_config, export_only=True)
+
+    assert len(trials) == 1
+    assert len(pd.read_csv(search_config.output_dir / 'trials.csv')) == 1
+
+
+def test_export_only_requires_existing_storage(search_config: OptunaSearchConfig) -> None:
+    with pytest.raises(FileNotFoundError):
+        run_search(search_config, export_only=True)

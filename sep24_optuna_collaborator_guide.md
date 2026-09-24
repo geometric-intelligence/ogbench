@@ -379,6 +379,24 @@ disjoint, the three trial tables can be concatenated. Before analysis, verify:
 - 5 successful fold scores per complete trial.
 - No unresolved failures.
 
+## Ratio 0.3 transfer results
+
+The factorial design omitted `node_sample_ratio: 0.3`. It was added late, on Parka only,
+without an Optuna search. Each of the 816 ratio-0.3 cells runs **one transferred
+configuration** with the same 5-fold CV and data construction as the other ratios. The
+configuration is the best trial of the same cell at ratio 0.5, else 0.8, else 1.0, else of the
+closest sibling cell (another selection method). The `source_rule` column records which.
+Report these cells as "transferred configuration" rather than "tuned".
+
+- Results: `/scratch/lcornelis/ogbench/search_results/sep24_ratio03_transfer/results_ratio03.csv`
+  and `coverage.md`, refreshed every 30 minutes until Friday 07:00 PDT.
+- Live runs: W&B project `bioshape-lab/ogbench_sep24_ratio03_transfer`.
+- Cells run cheapest models first (mlp, sagn, gcn, chebnet, graph_sage, gatv2, gin, gatv4,
+  gps), plus an extra queue that gives gin, gatv4, and gps their cheapest cells. Ratio 0.3
+  has the largest graphs, so by Friday 07:00 expect mlp through chebnet to be complete,
+  about 60% of graph_sage, little of gatv2, and about 45 cells each of gin, gatv4, and gps.
+- Operational details: section 8 of [`sep24_optuna_runbook.md`](sep24_optuna_runbook.md).
+
 ## Who should run what
 
 - Parka operator: keep shards `0 1 2` alive and expand to eight A100s when available.

@@ -438,3 +438,115 @@ PY
 
 Verify that the merged `trials.csv` contains 2,448 distinct study names and that every
 study has 7 complete trials before using `best_trials.csv` for final analysis.
+
+## 8. Ratio 0.3 transfer (September 23 to 25, Parka only)
+
+The factorial campaign omitted `node_sample_ratio: 0.3`. There was no time for a seven-trial
+search, so each of the 816 ratio-0.3 cells evaluates **one transferred configuration** with the
+same 5-fold CV, fold-local WGCNA (target connectivity 0.10), STRING threshold 0.4, and
+3,600 s timeout. Label these results as transferred, not tuned, in the paper.
+
+The configuration for a cell is the best complete trial of, in order:
+
+1. the same cell at ratio 0.5, then 0.8, then 1.0;
+2. a sibling cell (same model, dataset, experiment, and adjacency; other selection method),
+   at ratio 0.5, then 0.8, then 1.0;
+3. a cell with another adjacency method, then another experiment.
+
+`source_rule` records which rule applied. On September 23: 362 cells used their own ratio-0.5
+trial, 156 their ratio-0.8 trial, 88 their ratio-1.0 trial, and 210 a sibling cell. Only
+Parka-origin studies were on W&B or in Parka's ledger. The Frank/Hall shard studies were
+not available.
+
+Identities and paths:
+
+- Config: `configs/hparams_search/sep24_ratio03_transfer.yaml`, study prefix
+  `sep24tc10ratio03transfer`, W&B project `bioshape-lab/ogbench_sep24_ratio03_transfer`.
+- Root: `/scratch/lcornelis/ogbench/search_results/sep24_ratio03_transfer` with its own
+  `studies.db` and `run_ledger.sqlite3`.
+- Candidates: `candidates_r05/` (`candidates.json`, `candidates.csv`, `priority.txt`,
+  `SHA256SUMS.candidates`), built by `scripts/ratio03_prepare.py`. The cross-check against
+  Parka's studies found 0 best-trial mismatches in 257 studies and a maximum fold-mean gap
+  of 4e-11. Ignore the `prepare/` directory; it holds an abandoned first attempt.
+- Priority: cheapest models first (mlp, sagn, gcn, chebnet, graph_sage, gatv2, gin, gatv4,
+  gps), then cheapest cells, so partial results are complete per model.
+
+Ratio 0.3 is the most expensive ratio. Graphs have `int(n_train / node_sample_ratio)` nodes,
+so 1.67 times as many nodes as ratio 0.5 and 2.67 times as many as ratio 0.8. Measured
+fold times are 1.1 to 1.3 times the source-run times with STRING graphs, and 1.5 to 3 times
+with WGCNA graphs, where the edge count grows with the square of the node count. On the
+morning of September 24 the projection for Friday 07:00 was: mlp, sagn, gcn, chebnet, and
+graph_sage complete; about half of gatv2; nothing for gin, gatv4, or gps. The heavier models
+on the large WGCNA graphs (BRCA, ADNI-neuromed) often hit the 3,600 s timeout. With the extra
+queue below, the projection became: mlp through chebnet complete, about 60% of graph_sage,
+little of gatv2, and about 45 cells each of gin, gatv4, and gps.
+
+The supervisor runs detached and keeps relaunching the launcher with `--retry-failed`. It
+does not start a new pass after Friday 07:00 PDT, but it does not interrupt a running pass.
+It runs 2 jobs per GPU on all eight GPUs. A fold only starts on a GPU with
+at least 30 GB free. Out-of-memory failures are retried up to 3 times per fold (on a GPU with
+60 GB free when available) without using up the normal one-retry budget:
+
+```bash
+export ROOT=/scratch/lcornelis/ogbench/search_results/sep24_ratio03_transfer
+cd /home/gbg141/bgbench
+nohup setsid env PREP="$ROOT/candidates_r05" scripts/ratio03_supervisor.sh \
+  > "$ROOT/supervisor.log" 2>&1 < /dev/null &
+echo $! > "$ROOT/supervisor.pid"
+```
+
+Stop it (and every launcher and training job it started) with
+`kill -TERM -- -"$(cat "$ROOT/supervisor.pid")"`, then wait at least 7 minutes before
+relaunching. Override `JOBS_PER_GPU`, `GPUS`, `MIN_FREE_MIB`, or `DEADLINE` through the
+environment. The retry pass for the seven-trial campaign is deferred until every ratio-0.3
+cell is complete or permanently failed.
+
+`scripts/ratio03_stop.sh` enforces the deadline. It waits until `STOP_AT` (default
+Friday 07:00), stops the supervisor's process group, and writes the final
+`results_ratio03.csv` and `coverage.md` with `ratio03_collect.py --final`, which labels
+unfinished cells `incomplete`. It was started on September 24 with:
+
+```bash
+nohup setsid scripts/ratio03_stop.sh > "$ROOT/stop.log" 2>&1 < /dev/null &
+echo $! > "$ROOT/stop.pid"
+```
+
+Cancel it with `kill "$(cat "$ROOT/stop.pid")"` to let the pass run until the queue drains.
+
+So that gin, gatv4, and gps also get ratio-0.3 results, `scripts/ratio03_extra.sh` runs a
+second launcher with one job per GPU (a third job on each GPU) next to the supervisor. It
+shares `studies.db`, the ledger, and `candidates.json`, and reads the balanced manifest
+`$ROOT/extra_balanced/priority.txt`. That manifest takes the cheapest remaining cell of each
+model in turn, and puts the 59 cells whose projected fold time exceeds the 3,600 s timeout
+last (`extra_queue.csv` has the projections). The supervisor's queue does not reach these
+models before the deadline, so the two launchers never run the same study. Jobs on one GPU
+share its time, so the extra queue takes roughly a third of the GPU time from the main
+queue. It stops itself at Friday 06:59, before the final collect. It was started on
+September 24 at 09:26 with:
+
+```bash
+nohup setsid scripts/ratio03_extra.sh > "$ROOT/extra.log" 2>&1 < /dev/null &
+echo $! > "$ROOT/extra.pid"
+```
+
+Stop it early with `kill -TERM "$(cat "$ROOT/extra.pid")"`. It also stops its launcher's
+process group. Launcher output is in `$ROOT/extra_launcher.log`.
+
+Monitoring (the supervisor also does this every 30 minutes):
+
+```bash
+"$PYTHON" scripts/ratio03_collect.py --output-dir "$ROOT" \
+  --storage "sqlite:///$ROOT/studies.db" --prepare-dir "$ROOT/candidates_r05"
+cat "$ROOT/coverage.md"
+tail -n 3 "$ROOT/status_history.jsonl" "$ROOT/supervisor.log"
+```
+
+Outputs in `$ROOT`: `results_ratio03.csv` (one row per cell in priority order, with status,
+5-fold mean and std, fold scores, and source trial), `coverage.md` (completed cells by model
+and dataset), `status_latest.json`, `trials.csv`, `best_trials.csv`, `fold_attempts.csv`,
+`failures.csv`, `gpu_usage.log`, and `launcher.log`.
+
+To merge with the other ratios, append the `complete` rows of `results_ratio03.csv` to the
+factorial `best_trials.csv` by cell (model, dataset, experiment, adjacency method, selection
+method). The ratio-0.3 study names are distinct from the factorial study names. Keep the
+`protocol` column (`transferred_single_config`) so tables can mark the ratio-0.3 column.
