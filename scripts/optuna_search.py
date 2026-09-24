@@ -134,7 +134,7 @@ class SearchSpaceSpec:
 
 @dataclass(frozen=True)
 class OuterCell:
-    """A fixed ablation cell with its resolved adjacency threshold."""
+    """A fixed ablation cell with its resolved adjacency parameters."""
 
     model: str
     dataset: str
@@ -240,37 +240,36 @@ class OptunaSearchConfig:
             for model, space in raw.get('per_model_search_space', {}).items()
         }
 
-        has_legacy_thresholds = raw.get('per_dataset_ratio_method_grid') is not None or bool(
-            raw.get('thresholds_from')
-        )
         if 'wgcna_target_connectivity' in raw:
             target_connectivity_raw = raw.get('wgcna_target_connectivity')
             wgcna_target_connectivity = (
                 None if target_connectivity_raw is None else float(target_connectivity_raw)
             )
         else:
-            wgcna_target_connectivity = None if has_legacy_thresholds else 0.10
+            # Always density-target WGCNA unless the config explicitly opts out with null.
+            # A leftover per_dataset_ratio_method_grid must not disable this default.
+            wgcna_target_connectivity = 0.10
         if wgcna_target_connectivity is not None and not 0 <= wgcna_target_connectivity <= 1:
             raise ValueError('wgcna_target_connectivity must be between 0 and 1')
 
         threshold_raw = raw.get('per_dataset_ratio_method_grid')
-        if threshold_raw is None:
-            threshold_source = raw.get('thresholds_from')
-            if not threshold_source and wgcna_target_connectivity is None:
-                raise ValueError(
-                    'Set per_dataset_ratio_method_grid, thresholds_from, or '
-                    'wgcna_target_connectivity in the Optuna config'
-                )
-            if threshold_source:
+        if wgcna_target_connectivity is not None:
+            thresholds = {}
+        else:
+            if threshold_raw is None:
+                threshold_source = raw.get('thresholds_from')
+                if not threshold_source:
+                    raise ValueError(
+                        'Set wgcna_target_connectivity, or provide '
+                        'per_dataset_ratio_method_grid / thresholds_from'
+                    )
                 threshold_path = Path(threshold_source)
                 if not threshold_path.is_absolute():
                     threshold_path = source_path.parent / threshold_path
                 with threshold_path.open() as handle:
                     threshold_config = yaml.safe_load(handle)
                 threshold_raw = threshold_config.get('per_dataset_ratio_method_grid', {})
-            else:
-                threshold_raw = {}
-        thresholds = _parse_thresholds(threshold_raw)
+            thresholds = _parse_thresholds(threshold_raw)
 
         objective = raw.get('objective', {})
         direction = str(objective.get('direction', 'maximize'))

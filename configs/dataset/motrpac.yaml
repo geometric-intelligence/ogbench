@@ -10,7 +10,7 @@ loader:
     data_name: motrpac
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
     adjacency_threshold: 0.0229
-    adjacency_target_connectivity: null
+    adjacency_target_connectivity: 0.10
     adjacency_method: wgcna
     node_sample_ratio: 0.5
     method: variance
@@ -62,11 +62,6 @@ dataloader_params:
 baselines:
   svm:
     pipeline:
-      - name: feature_selection
-        _target_: sklearn.feature_selection.SelectKBest
-        score_func:
-          _target_: sklearn.feature_selection.f_classif
-        k: 100
       - name: scaler
         _target_: sklearn.preprocessing.StandardScaler
       - name: calibrated_svm
@@ -78,10 +73,6 @@ baselines:
           random_state: ${seed}
         method: sigmoid
     param_grid:
-      feature_selection__k:
-        - 50
-        - 100
-        - 500
       calibrated_svm__estimator__C:
         - 0.001
         - 0.01
@@ -90,11 +81,6 @@ baselines:
     n_jobs: -1
   elastic_net:
     pipeline:
-      - name: feature_selection
-        _target_: sklearn.feature_selection.SelectKBest
-        score_func:
-          _target_: sklearn.feature_selection.f_classif
-        k: 100
       - name: scaler
         _target_: sklearn.preprocessing.StandardScaler
       - name: elastic_net
@@ -105,10 +91,6 @@ baselines:
         max_iter: 5000
         random_state: ${seed}
     param_grid:
-      feature_selection__k:
-        - 50
-        - 100
-        - 500
       elastic_net__C:
         - 0.001
         - 0.01

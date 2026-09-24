@@ -18,6 +18,7 @@ from scripts import optuna_search
 from scripts.optuna_search import (
     ADJACENCY_METHOD,
     ADJACENCY_TARGET_CONNECTIVITY,
+    ADJACENCY_THRESHOLD,
     OptunaSearchConfig,
     RunLedger,
     _cache_configs,
@@ -57,6 +58,27 @@ def test_config_builds_outer_cell_with_fold_local_connectivity_target(
     assert cell.values[ADJACENCY_TARGET_CONNECTIVITY] == pytest.approx(0.10)
     assert 'wgcna' in cell.study_name
     assert search_config.folds == [0, 1, 2, 3, 4]
+
+
+def test_leftover_threshold_table_does_not_disable_density_targeting(tmp_path: Path) -> None:
+    raw = CONFIG_PATH.read_text().replace(
+        'wgcna_target_connectivity: 0.10',
+        (
+            'per_dataset_ratio_method_grid:\n'
+            '  motrpac,0.5,variance:\n'
+            '    dataset.loader.parameters.adjacency_threshold: [0.0229]\n'
+        ),
+    )
+    path = tmp_path / 'legacy_table.yaml'
+    path.write_text(raw)
+
+    config = OptunaSearchConfig.from_yaml(path)
+    cells = build_outer_cells(config)
+
+    assert config.wgcna_target_connectivity == pytest.approx(0.10)
+    assert config.thresholds == {}
+    assert cells[0].values[ADJACENCY_TARGET_CONNECTIVITY] == pytest.approx(0.10)
+    assert ADJACENCY_THRESHOLD not in cells[0].values
 
 
 def test_outer_cell_exclusions_are_applied(search_config: OptunaSearchConfig) -> None:

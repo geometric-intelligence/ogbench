@@ -297,6 +297,32 @@ def _get_hf_omics_raw_dir(cfg: DictConfig) -> str:
     return osp.join(params.data_dir, name, 'raw')
 
 
+def _select_gnn_nodes(
+    train_data: pd.DataFrame,
+    train_targets: np.ndarray,
+    cfg: DictConfig,
+) -> list[str]:
+    """Return the node columns the GNN pipeline would select for this split.
+
+    Mirrors ``HFOmicsDataset.download``: the node budget is derived from the
+    training split size, and the selector sees training samples only. The
+    global RNG is reseeded first so ``method=random`` matches the GNN cache.
+    """
+    from ogbench.data.selectors import get_selector
+
+    node_sample_ratio = cfg.dataset.loader.parameters.node_sample_ratio
+    n_features = train_data.shape[1]
+    if node_sample_ratio == 'full':
+        n_nodes = n_features
+    else:
+        n_nodes = min(int(len(train_targets) / float(node_sample_ratio)), n_features)
+
+    np.random.seed(cfg.seed)
+    selector = get_selector(cfg.dataset.loader.parameters.method)
+    indices = selector.select(train_data.values, train_targets, n_nodes)
+    return [train_data.columns[i] for i in indices]
+
+
 def _load_split_info(raw_dir: str) -> dict[str, int] | None:
     """Load split indices saved by HFOmicsDataset.download().
 
@@ -514,6 +540,21 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         train_data = centerer.transform(train_data)
         val_data = centerer.transform(val_data)
         test_data = centerer.transform(test_data)
+
+    selected_nodes = _select_gnn_nodes(train_data, y_train, cfg)
+    column_positions = [train_data.columns.get_loc(col) for col in selected_nodes]
+    train_data = train_data.loc[:, selected_nodes]
+    val_data = val_data.loc[:, selected_nodes]
+    test_data = test_data.loc[:, selected_nodes]
+    X_train_raw = X_train_raw[:, column_positions]
+    X_val_raw = X_val_raw[:, column_positions]
+    X_test_raw = X_test_raw[:, column_positions]
+    logger.info(
+        'Selected %s nodes with method=%s, node_sample_ratio=%s',
+        len(selected_nodes),
+        cfg.dataset.loader.parameters.method,
+        cfg.dataset.loader.parameters.node_sample_ratio,
+    )
 
     X_train_imputed = train_data.values
     X_val_imputed = val_data.values
@@ -1170,12 +1211,9 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         data_name = params.data_name
         split_type, k, fold = _resolve_omics_split_settings(cfg)
 
-        if preprocessing == 'gnn_features':
-            nsr = params.node_sample_ratio
-            method = params.method
-            run_name = f'baseline_{baseline_name}_{data_name}_r{nsr}_m{method}'
-        else:
-            run_name = f'baseline_{baseline_name}_{data_name}'
+        nsr = params.node_sample_ratio
+        method = params.method
+        run_name = f'baseline_{baseline_name}_{data_name}_r{nsr}_m{method}'
         if split_type == 'k-fold':
             run_name = f'{run_name}_k-fold_fold{fold}'
 
@@ -1196,9 +1234,8 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             'dataset.split_params.k': k,
         }
 
-        if preprocessing == 'gnn_features':
-            wandb_config['node_sample_ratio'] = params.node_sample_ratio
-            wandb_config['method'] = params.method
+        wandb_config['node_sample_ratio'] = params.node_sample_ratio
+        wandb_config['method'] = params.method
 
         wandb.init(
             project=cfg.logger.wandb.project,

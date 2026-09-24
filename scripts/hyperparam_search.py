@@ -48,6 +48,7 @@ class SearchConfig:
     per_model_dataset_grid: dict[tuple[str, str], dict[str, list[Any]]]
     per_dataset_ratio_method_grid: dict[tuple[str, float | str, str], dict[str, list[Any]]]
     string_adjacency_threshold: float
+    wgcna_target_connectivity: float | None
     hf_revision: str
     timeout: int
     output_dir: str
@@ -108,6 +109,16 @@ class SearchConfig:
                 # Already a tuple (shouldn't happen with YAML but handle it)
                 per_dataset_ratio_method_grid[key] = value
 
+        if 'wgcna_target_connectivity' in config:
+            target_connectivity_raw = config.get('wgcna_target_connectivity')
+            wgcna_target_connectivity = (
+                None if target_connectivity_raw is None else float(target_connectivity_raw)
+            )
+        else:
+            wgcna_target_connectivity = 0.10
+        if wgcna_target_connectivity is not None and not 0 <= wgcna_target_connectivity <= 1:
+            raise ValueError('wgcna_target_connectivity must be between 0 and 1')
+
         return cls(
             datasets=datasets,
             models=config['models'],
@@ -118,6 +129,7 @@ class SearchConfig:
             per_model_dataset_grid=per_model_dataset_grid,
             per_dataset_ratio_method_grid=per_dataset_ratio_method_grid,
             string_adjacency_threshold=config.get('string_adjacency_threshold', 0.4),
+            wgcna_target_connectivity=wgcna_target_connectivity,
             hf_revision=hf_revision,
             timeout=config.get('training', {}).get('timeout', 3600),
             output_dir=config.get('training', {}).get('output_dir', './search_results'),
@@ -247,6 +259,30 @@ def _execute_with_gpu_pool(config: RunConfig, gpu_queue, dry_run: bool = False) 
         gpu_queue.put(gpu_id)
 
 
+def _apply_adjacency_overrides(hp_combo: dict[str, Any], search_config: SearchConfig) -> None:
+    """Set STRING cutoff or WGCNA train-split density targeting.
+
+    Never reuse frozen WGCNA thresholds.
+    """
+    adj_method = hp_combo.get('dataset.loader.parameters.adjacency_method')
+    if adj_method == 'string':
+        hp_combo[
+            'dataset.loader.parameters.adjacency_threshold'
+        ] = search_config.string_adjacency_threshold
+        hp_combo.pop('dataset.loader.parameters.adjacency_target_connectivity', None)
+        return
+    if search_config.wgcna_target_connectivity is None:
+        if 'dataset.loader.parameters.adjacency_threshold' not in hp_combo:
+            raise ValueError(
+                'WGCNA requires wgcna_target_connectivity or an explicit adjacency_threshold'
+            )
+        return
+    hp_combo[
+        'dataset.loader.parameters.adjacency_target_connectivity'
+    ] = search_config.wgcna_target_connectivity
+    hp_combo.pop('dataset.loader.parameters.adjacency_threshold', None)
+
+
 def build_run_configs(
     search_config: SearchConfig,
     models_filter: list[str] | None = None,
@@ -314,14 +350,7 @@ def build_run_configs(
                         # Generate combinations from dataset_ratio_grid and merge each into hp_combo
                         for ratio_hp_combo in product_dict(dataset_ratio_grid):
                             final_hp_combo = {**hp_combo, **ratio_hp_combo}
-
-                            if (
-                                final_hp_combo.get('dataset.loader.parameters.adjacency_method')
-                                == 'string'
-                            ):
-                                final_hp_combo[
-                                    'dataset.loader.parameters.adjacency_threshold'
-                                ] = search_config.string_adjacency_threshold
+                            _apply_adjacency_overrides(final_hp_combo, search_config)
 
                             for seed in search_config.seeds:
                                 run_id += 1
@@ -388,21 +417,7 @@ def build_run_configs(
                         continue  # Skip the else block below
 
                 # No per_dataset_ratio_method_grid match, use hp_combo as-is
-                if hp_combo.get('dataset.loader.parameters.adjacency_method') == 'string':
-                    hp_combo[
-                        'dataset.loader.parameters.adjacency_threshold'
-                    ] = search_config.string_adjacency_threshold
-                elif 'dataset.loader.parameters.adjacency_threshold' not in hp_combo:
-                    adj_method = hp_combo.get(
-                        'dataset.loader.parameters.adjacency_method', 'unknown'
-                    )
-                    ratio = hp_combo.get('dataset.loader.parameters.node_sample_ratio', '?')
-                    method = hp_combo.get('dataset.loader.parameters.method', '?')
-                    raise ValueError(
-                        f'No adjacency_threshold found in per_dataset_ratio_method_grid for '
-                        f'({dataset}, {ratio}, {method}) with adjacency_method={adj_method}. '
-                        f"Add an entry to per_dataset_ratio_method_grid or set adjacency_method to 'string'."
-                    )
+                _apply_adjacency_overrides(hp_combo, search_config)
 
                 for seed in search_config.seeds:
                     run_id += 1
@@ -478,8 +493,9 @@ def warmup_caches(
         print(
             f'  [{i}/{len(dataset_configs)}] {config["data_name"]} | '
             f'ratio={config["node_sample_ratio"]} | method={config["method"]} | '
-            f'threshold={config["adjacency_threshold"]} | '
-            f'adj_method={config["adjacency_method"]}'
+            f'adj_method={config["adjacency_method"]} | '
+            f'target_connectivity={config.get("adjacency_target_connectivity")} | '
+            f'threshold={config.get("adjacency_threshold")}'
         )
 
         kwargs: dict[str, Any] = {
@@ -487,9 +503,12 @@ def warmup_caches(
             'data_name': config['data_name'],
             'node_sample_ratio': config['node_sample_ratio'],
             'method': config['method'],
-            'adjacency_threshold': config['adjacency_threshold'],
             'adjacency_method': config['adjacency_method'],
         }
+        if config.get('adjacency_threshold') is not None:
+            kwargs['adjacency_threshold'] = config['adjacency_threshold']
+        if config.get('adjacency_target_connectivity') is not None:
+            kwargs['adjacency_target_connectivity'] = config['adjacency_target_connectivity']
         if hf_revision:
             kwargs['revision'] = hf_revision
         HFOmicsDataset(**kwargs)
@@ -500,10 +519,9 @@ def warmup_caches(
 def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str, Any]]:
     """Extract unique dataset configurations that need cache warmup.
 
-    Identifies all unique (dataset, node_sample_ratio, method, adjacency_threshold) combinations
-    from the search config to pre-generate caches before parallel training.
+    Identifies unique dataset cache keys from the search config.
     """
-    unique_configs: set[tuple[str, float, str, float, str]] = set()
+    unique_configs: set[tuple] = set()
     adj_method_key = 'dataset.loader.parameters.adjacency_method'
     if adj_method_key in search_config.fixed:
         adjacency_methods = [search_config.fixed[adj_method_key]]
@@ -523,21 +541,28 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
 
         for ratio in ratios:
             for method in methods:
-                ratio_key = (dataset, float(ratio), method)
-                threshold_grid = search_config.per_dataset_ratio_method_grid.get(ratio_key, {})
-                thresholds = threshold_grid.get(
-                    'dataset.loader.parameters.adjacency_threshold', [0.05]
-                )
-
-                for threshold in thresholds:
-                    for adj_method in adjacency_methods:
-                        effective_threshold = (
-                            search_config.string_adjacency_threshold
-                            if adj_method == 'string'
-                            else float(threshold)
-                        )
+                for adj_method in adjacency_methods:
+                    if adj_method == 'string':
                         unique_configs.add(
-                            (dataset, float(ratio), method, effective_threshold, adj_method)
+                            (
+                                dataset,
+                                float(ratio),
+                                method,
+                                adj_method,
+                                search_config.string_adjacency_threshold,
+                                None,
+                            )
+                        )
+                    else:
+                        unique_configs.add(
+                            (
+                                dataset,
+                                float(ratio),
+                                method,
+                                adj_method,
+                                None,
+                                search_config.wgcna_target_connectivity,
+                            )
                         )
 
     return [
@@ -545,10 +570,13 @@ def extract_unique_dataset_configs(search_config: SearchConfig) -> list[dict[str
             'data_name': d,
             'node_sample_ratio': r,
             'method': m,
-            'adjacency_threshold': t,
             'adjacency_method': am,
+            'adjacency_threshold': t,
+            'adjacency_target_connectivity': tc,
         }
-        for d, r, m, t, am in sorted(unique_configs)
+        for d, r, m, am, t, tc in sorted(
+            unique_configs, key=lambda item: (item[0], item[3], item[1], item[2])
+        )
     ]
 
 
