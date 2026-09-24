@@ -386,3 +386,7 @@ disjoint, the three trial tables can be concatenated. Before analysis, verify:
 - A30 server B operator: run only shards `5 6`.
 - Campaign coordinator: collect status numbers, compare them with deadline checkpoints,
   and merge final exports on Parka.
+
+After a server's validation search is complete, run held-out test evaluation with
+[`sep24_test_eval_collaborator_guide.md`](sep24_test_eval_collaborator_guide.md). Plot
+from [`plotting/README.md`](plotting/README.md).

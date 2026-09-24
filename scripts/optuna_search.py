@@ -584,6 +584,16 @@ def _validate_ablation_baseline(
 
 
 def _normalize_sqlite_url(url: str, base_dir: Path) -> str:
+    """Resolve a sqlite:// URL to an absolute path without touching the filesystem.
+
+    This must stay side-effect-free: it runs once from the raw YAML defaults
+    inside ``OptunaSearchConfig.from_yaml`` and again from
+    ``_apply_runtime_overrides`` for any server-local ``--storage`` override.
+    Creating directories here would eagerly `mkdir` the YAML's default path
+    (e.g. another server's scratch directory) before an override has a
+    chance to replace it. Directory creation happens lazily in
+    ``_ensure_sqlite_parent_dir`` at the point the storage is actually opened.
+    """
     prefix = 'sqlite:///'
     if not url.startswith(prefix):
         return url
@@ -591,8 +601,15 @@ def _normalize_sqlite_url(url: str, base_dir: Path) -> str:
     path = Path(raw_path)
     if not path.is_absolute():
         path = (base_dir / path).resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
     return f'sqlite:///{path}'
+
+
+def _ensure_sqlite_parent_dir(url: str) -> None:
+    """Create the parent directory of a sqlite:// URL, if any, right before use."""
+    prefix = 'sqlite:///'
+    if not url.startswith(prefix):
+        return
+    Path(url.removeprefix(prefix)).parent.mkdir(parents=True, exist_ok=True)
 
 
 def _find_project_root(source_path: Path) -> Path:
@@ -803,6 +820,7 @@ def _fold_overrides(
 
 
 def _storage(config: OptunaSearchConfig) -> optuna.storages.RDBStorage:
+    _ensure_sqlite_parent_dir(config.storage)
     engine_kwargs = (
         {'connect_args': {'timeout': 60}} if config.storage.startswith('sqlite:///') else {}
     )

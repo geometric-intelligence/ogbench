@@ -197,3 +197,11 @@ webapp/aggregated_final_results_neurips.csv
 
 # Scripts
 scripts/rerun_best_configs
+
+# Plotting
+plotting/baseline_results
+plotting/fonts
+plotting/plots_sep24_test_with_baseline_copy_before_frank/
+plotting/plots_sep24_test_with_baselines/
+plotting/test_results
+plotting/wandb_ckpt_manifest.csv

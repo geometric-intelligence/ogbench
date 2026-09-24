@@ -31,6 +31,7 @@ from ogbench.utils.config_resolvers import (
 )
 from ogbench.utils.hparam_search import (
     configure_torch_threads_from_env,
+    metrics_payload,
     objective_payload,
 )
 
@@ -295,6 +296,7 @@ def main(cfg: DictConfig) -> float | None:
 
     if metric_value is not None:
         print(objective_payload(str(cfg.optimized_metric), metric_value), flush=True)
+    print(metrics_payload(metric_dict), flush=True)
 
     # return optimized metric
     return metric_value
