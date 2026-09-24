@@ -14,6 +14,7 @@ from typing import Any
 import torch
 
 OBJECTIVE_PAYLOAD_PREFIX = 'OGBENCH_OBJECTIVE='
+METRICS_PAYLOAD_PREFIX = 'OGBENCH_METRICS='
 THREAD_ENV_VARS = (
     'OMP_NUM_THREADS',
     'MKL_NUM_THREADS',
@@ -49,6 +50,40 @@ def objective_payload(metric_name: str, metric_value: float) -> str:
     """Build the machine-readable objective line emitted by the training process."""
     payload = {'metric_name': metric_name, 'metric_value': float(metric_value)}
     return OBJECTIVE_PAYLOAD_PREFIX + json.dumps(payload, sort_keys=True)
+
+
+def metrics_payload(metric_dict: dict[str, Any]) -> str:
+    """Serialize scalar Lightning metrics for the parent launcher to parse."""
+    scalars: dict[str, float] = {}
+    for key, value in metric_dict.items():
+        try:
+            if hasattr(value, 'item') and callable(value.item):
+                value = value.item()
+            scalars[str(key)] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return METRICS_PAYLOAD_PREFIX + json.dumps(scalars, sort_keys=True)
+
+
+def parse_metrics_payload(stdout: str) -> dict[str, float]:
+    """Parse the last OGBENCH_METRICS line from training stdout."""
+    for line in reversed(stdout.splitlines()):
+        if not line.startswith(METRICS_PAYLOAD_PREFIX):
+            continue
+        try:
+            payload = json.loads(line.removeprefix(METRICS_PAYLOAD_PREFIX))
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        parsed: dict[str, float] = {}
+        for key, value in payload.items():
+            try:
+                parsed[str(key)] = float(value)
+            except (TypeError, ValueError):
+                continue
+        return parsed
+    return {}
 
 
 def parse_objective_payload(stdout: str) -> dict[str, Any] | None:
@@ -163,8 +198,9 @@ def run_training(
             _atomic_write_text(Path(log_path), log_content)
 
         if result.returncode == 0:
-            metrics = parse_objective_payload(result.stdout)
-            return True, None, metrics
+            metrics = parse_objective_payload(result.stdout) or {}
+            metrics.update(parse_metrics_payload(result.stdout))
+            return True, None, metrics or None
 
         stderr_truncated = (
             result.stderr[:500] + '...' + result.stderr[-500:]
