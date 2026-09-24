@@ -45,3 +45,4 @@ def test_load_dataset_uses_canonical_fold_zero(
     assert captured['corrections'] == corrections
     assert captured['grouping'] == grouping
     assert captured['species'] == (83332 if dataset_name == 'tuberculosis' else 9606)
+    assert captured['wgcna_binarization'] == 'fixed_threshold'
