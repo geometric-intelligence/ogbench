@@ -69,6 +69,9 @@ def load_dataset(
         data_name=dataset_name,
         method=method,
         adjacency_threshold=adj_thresh,
+        wgcna_binarization=(
+            'fixed_threshold' if adjacency_method == 'wgcna' else 'target_connectivity'
+        ),
         node_sample_ratio=ratio_value,
         train_val_test_split=[0.7, 0.15, 0.15],
         imputation_method='mean',
@@ -148,9 +151,7 @@ def _compute_lcc_metrics(largest_cc_graph: nx.Graph) -> dict[str, float]:
     }
 
 
-def get_graph_stats(
-    dataset: Any, node_features: np.ndarray | None = None
-) -> dict[str, float]:
+def get_graph_stats(dataset: Any, node_features: np.ndarray | None = None) -> dict[str, float]:
     """Get statistics of the graph from the dataset."""
     empty_stats = {
         'num_nodes': 0,
@@ -263,13 +264,15 @@ def process_single_combination(
             node_features = np.mean(sample_features, axis=0)
 
         stats = get_graph_stats(dataset, node_features=node_features)
-        stats.update({
-            'dataset': dataset_name,
-            'adj_thresh': adj_thresh,
-            'node_sample_ratio': node_ratio,
-            'method': method,
-            'adjacency_method': adjacency_method,
-        })
+        stats.update(
+            {
+                'dataset': dataset_name,
+                'adj_thresh': adj_thresh,
+                'node_sample_ratio': node_ratio,
+                'method': method,
+                'adjacency_method': adjacency_method,
+            }
+        )
         return stats
 
     except Exception as e:
@@ -376,9 +379,7 @@ def save_stats_to_csv(all_stats: list[dict[str, Any]], output_file: str) -> None
     print(f'Statistics saved to {output_file}')
 
 
-def save_stats_to_json_for_webapp(
-    all_stats: list[dict[str, Any]], output_file: str
-) -> None:
+def save_stats_to_json_for_webapp(all_stats: list[dict[str, Any]], output_file: str) -> None:
     """Save statistics to JSON for webapp consumption.
 
     The JSON format uses keys like
@@ -394,8 +395,8 @@ def save_stats_to_json_for_webapp(
             continue
 
         key = (
-            f"{stats['dataset']}|{stats['node_sample_ratio']}|{stats['method']}|"
-            f"{stats['adj_thresh']}|{stats.get('adjacency_method', '')}"
+            f'{stats["dataset"]}|{stats["node_sample_ratio"]}|{stats["method"]}|'
+            f'{stats["adj_thresh"]}|{stats.get("adjacency_method", "")}'
         )
         result[key] = stats
 
@@ -582,9 +583,9 @@ def main():
 
     # Process each dataset
     for dataset_name in datasets:
-        print(f"\n{'='*50}")
+        print(f'\n{"=" * 50}')
         print(f'Processing dataset: {dataset_name}')
-        print(f"{'='*50}")
+        print(f'{"=" * 50}')
 
         # Compute statistics for all combinations
         all_stats = compute_stats_for_combinations(

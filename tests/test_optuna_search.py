@@ -60,6 +60,18 @@ def test_config_builds_outer_cell_with_fold_local_connectivity_target(
     assert search_config.folds == [0, 1, 2, 3, 4]
 
 
+def test_explicit_null_wgcna_connectivity_is_rejected(tmp_path: Path) -> None:
+    raw = CONFIG_PATH.read_text().replace(
+        'wgcna_target_connectivity: 0.10',
+        'wgcna_target_connectivity: null',
+    )
+    path = tmp_path / 'null_connectivity.yaml'
+    path.write_text(raw)
+
+    with pytest.raises(ValueError, match='refusing to fall back'):
+        OptunaSearchConfig.from_yaml(path)
+
+
 def test_leftover_threshold_table_does_not_disable_density_targeting(tmp_path: Path) -> None:
     raw = CONFIG_PATH.read_text().replace(
         'wgcna_target_connectivity: 0.10',

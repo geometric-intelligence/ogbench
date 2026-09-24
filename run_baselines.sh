@@ -1,6 +1,8 @@
 #!/bin/bash
 # Sklearn baselines on exactly the feature sets the GNNs see:
 # same k-fold splits, same train-only corrections, same node selection.
+# One hyperparameter configuration is selected by mean validation score across
+# all five folds and then reused for every fold, matching the GNN Optuna trials.
 # No adjacency matrix is built; baselines never use the graph.
 
 set -uo pipefail
@@ -14,6 +16,7 @@ echo "========================================="
 echo "Standard baselines (SVM, Elastic Net)"
 echo "datasets=${DATASETS} folds=${FOLDS}"
 echo "ratios=${NODE_RATIOS} methods=${METHODS}"
+echo "hparam_selection=global_kfold_mean_validation"
 echo "========================================="
 
 if python ogbench/baseline.py --multirun \

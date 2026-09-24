@@ -116,7 +116,12 @@ class SearchConfig:
             )
         else:
             wgcna_target_connectivity = 0.10
-        if wgcna_target_connectivity is not None and not 0 <= wgcna_target_connectivity <= 1:
+        if wgcna_target_connectivity is None:
+            raise ValueError(
+                'wgcna_target_connectivity is required; refusing to fall back to '
+                'adjacency_threshold'
+            )
+        if not 0 <= wgcna_target_connectivity <= 1:
             raise ValueError('wgcna_target_connectivity must be between 0 and 1')
 
         return cls(
@@ -272,11 +277,10 @@ def _apply_adjacency_overrides(hp_combo: dict[str, Any], search_config: SearchCo
         hp_combo.pop('dataset.loader.parameters.adjacency_target_connectivity', None)
         return
     if search_config.wgcna_target_connectivity is None:
-        if 'dataset.loader.parameters.adjacency_threshold' not in hp_combo:
-            raise ValueError(
-                'WGCNA requires wgcna_target_connectivity or an explicit adjacency_threshold'
-            )
-        return
+        raise ValueError(
+            'WGCNA requires wgcna_target_connectivity; refusing to fall back to '
+            'adjacency_threshold'
+        )
     hp_combo[
         'dataset.loader.parameters.adjacency_target_connectivity'
     ] = search_config.wgcna_target_connectivity
@@ -615,7 +619,7 @@ def run_search(
     print(f'Models: {models_filter or search_config.models}')
     print(f'Seeds: {search_config.seeds}')
     print(f'Total runs: {len(configs)}')
-    print(f"Mode: {'DRY RUN' if dry_run else 'TRAINING'}")
+    print(f'Mode: {"DRY RUN" if dry_run else "TRAINING"}')
     print(f'Parallel: {parallel} (n_jobs={n_jobs}, n_gpus={n_gpus}, jobs_per_gpu={jobs_per_gpu})')
     print(f'CPU threads per job: {n_threads} (strict limit; {n_cpu} cores available)')
     print(f'Output: {search_config.output_dir}')

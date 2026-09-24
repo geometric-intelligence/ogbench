@@ -3,12 +3,50 @@
 import numpy as np
 import pytest
 
-from ogbench.data.adjacency.density import binarize_to_target_connectivity
+from ogbench.data.adjacency.density import (
+    WGCNA_BINARIZATION_FIXED_THRESHOLD,
+    binarize_to_target_connectivity,
+    require_adjacency_binarization_params,
+)
 
 
 def _connectivity(adjacency: np.ndarray) -> float:
     n_nodes = adjacency.shape[0]
     return np.triu(adjacency, k=1).sum() / (n_nodes * (n_nodes - 1) / 2)
+
+
+def test_wgcna_requires_target_connectivity() -> None:
+    with pytest.raises(ValueError, match='refusing to fall back'):
+        require_adjacency_binarization_params(
+            'wgcna',
+            adjacency_threshold=0.05,
+            adjacency_target_connectivity=None,
+        )
+
+
+def test_string_requires_threshold() -> None:
+    with pytest.raises(ValueError, match='STRING requires adjacency_threshold'):
+        require_adjacency_binarization_params(
+            'string',
+            adjacency_threshold=None,
+            adjacency_target_connectivity=0.10,
+        )
+
+
+def test_wgcna_fixed_threshold_mode_requires_threshold() -> None:
+    require_adjacency_binarization_params(
+        'wgcna',
+        adjacency_threshold=0.4,
+        adjacency_target_connectivity=None,
+        wgcna_binarization=WGCNA_BINARIZATION_FIXED_THRESHOLD,
+    )
+    with pytest.raises(ValueError, match='fixed-threshold'):
+        require_adjacency_binarization_params(
+            'wgcna',
+            adjacency_threshold=None,
+            adjacency_target_connectivity=None,
+            wgcna_binarization=WGCNA_BINARIZATION_FIXED_THRESHOLD,
+        )
 
 
 def test_target_connectivity_keeps_exact_nearest_edge_count() -> None:

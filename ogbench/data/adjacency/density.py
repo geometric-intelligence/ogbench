@@ -2,6 +2,42 @@
 
 import numpy as np
 
+WGCNA_BINARIZATION_TARGET_CONNECTIVITY = 'target_connectivity'
+WGCNA_BINARIZATION_FIXED_THRESHOLD = 'fixed_threshold'
+
+
+def require_adjacency_binarization_params(
+    adjacency_method: str,
+    *,
+    adjacency_threshold: float | None,
+    adjacency_target_connectivity: float | None,
+    wgcna_binarization: str = WGCNA_BINARIZATION_TARGET_CONNECTIVITY,
+) -> None:
+    """Fail loudly instead of mixing STRING cutoffs with WGCNA density targeting."""
+    if adjacency_method == 'string':
+        if adjacency_threshold is None:
+            raise ValueError('STRING requires adjacency_threshold')
+        return
+    if adjacency_method != 'wgcna':
+        raise ValueError(f'Unknown adjacency_method {adjacency_method!r}')
+    if wgcna_binarization == WGCNA_BINARIZATION_TARGET_CONNECTIVITY:
+        if adjacency_target_connectivity is None:
+            raise ValueError(
+                'WGCNA requires adjacency_target_connectivity; '
+                'refusing to fall back to adjacency_threshold'
+            )
+        if not 0.0 <= float(adjacency_target_connectivity) <= 1.0:
+            raise ValueError('adjacency_target_connectivity must be between 0 and 1')
+        return
+    if wgcna_binarization == WGCNA_BINARIZATION_FIXED_THRESHOLD:
+        if adjacency_threshold is None:
+            raise ValueError('WGCNA fixed-threshold binarization requires adjacency_threshold')
+        return
+    raise ValueError(
+        f'wgcna_binarization must be {WGCNA_BINARIZATION_TARGET_CONNECTIVITY!r} or '
+        f'{WGCNA_BINARIZATION_FIXED_THRESHOLD!r}, got {wgcna_binarization!r}'
+    )
+
 
 def binarize_to_target_connectivity(
     adjacency: np.ndarray, target_connectivity: float
