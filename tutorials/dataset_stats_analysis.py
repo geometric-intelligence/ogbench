@@ -59,6 +59,7 @@ def load_dataset(
     cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
 ) -> Any:
     """Load the fold-0 k-fold graph for the given parameters."""
+    from ogbench.data.adjacency import WGCNA_BINARIZATION_FIXED_THRESHOLD
     from ogbench.data.datasets.hf_omics import HFOmicsDataset
 
     # Pass 'full' as string, not None, because HFOmicsDataset checks for 'full' string
@@ -69,6 +70,8 @@ def load_dataset(
         data_name=dataset_name,
         method=method,
         adjacency_threshold=adj_thresh,
+        # This explorer sweeps adj_thresh, so it opts out of density targeting.
+        wgcna_binarization=WGCNA_BINARIZATION_FIXED_THRESHOLD,
         node_sample_ratio=ratio_value,
         train_val_test_split=[0.7, 0.15, 0.15],
         imputation_method='mean',

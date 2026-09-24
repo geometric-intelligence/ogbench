@@ -226,7 +226,7 @@ def omics_cache_split_suffix(
 
 def build_omics_cache_relative_name(
     data_name: str,
-    adjacency_threshold: float,
+    adjacency_threshold: float | None,
     adjacency_method: str,
     method: str,
     node_sample_ratio: float | str,
@@ -236,11 +236,17 @@ def build_omics_cache_relative_name(
     fold: int = 0,
     corrections: list[str] | None = None,
     grouping: str | None = None,
+    adjacency_target_connectivity: float | None = None,
 ) -> str:
     """Build the relative HFOmics cache directory name (under data_dir)."""
+    adjacency_setting = (
+        f'target_connectivity_{adjacency_target_connectivity}'
+        if adjacency_method == 'wgcna' and adjacency_target_connectivity is not None
+        else f'adj_thresh_{adjacency_threshold}'
+    )
     parts = [
         f'{data_name}',
-        f'adj_thresh_{adjacency_threshold}',
+        adjacency_setting,
         f'adj_method_{adjacency_method}',
         f'{method}',
         f'p_{node_sample_ratio}',
