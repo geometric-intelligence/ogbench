@@ -63,6 +63,7 @@ import wandb
 # ---------------------------------------------------------------------------
 # Args that are NOT sampled hyperparameters: skip them when building
 # sampled_params so the dict contains only Optuna-tuned keys.
+# (used for runs that DO log _wandb.value.args — legacy / baseline format)
 # ---------------------------------------------------------------------------
 _SKIP_ARG_STARTS = (
     'model=',
@@ -92,6 +93,104 @@ _METADATA_ARG_KEYS = [
     'dataset.loader.parameters.adjacency_target_connectivity',
 ]
 
+# ---------------------------------------------------------------------------
+# Nested Hydra config extraction (Optuna runs — no _wandb.value.args)
+# ---------------------------------------------------------------------------
+
+# Sampled paths common to all models (nested → dot-notation key)
+_COMMON_SAMPLED_NESTED = [
+    (('optimizer', 'parameters', 'lr'), 'optimizer.parameters.lr'),
+    (('optimizer', 'parameters', 'weight_decay'), 'optimizer.parameters.weight_decay'),
+    (('model', 'backbone', 'dropout'), 'model.backbone.dropout'),
+]
+# Per-model extra sampled paths (superset — only present paths are emitted)
+_EXTRA_SAMPLED_NESTED = [
+    (('model', 'feature_encoder', 'out_channels'), 'model.feature_encoder.out_channels'),
+    (('model', 'backbone', 'num_layers'), 'model.backbone.num_layers'),
+    (('model', 'backbone', 'heads'), 'model.backbone.heads'),
+    (('model', 'backbone', 'num_heads'), 'model.backbone.num_heads'),
+    (('model', 'backbone', 'hidden_channels'), 'model.backbone.hidden_channels'),
+    (('model', 'encodings'), 'model.encodings'),
+]
+
+# Known model config-group names (lowercase) used in Hydra overrides
+_MODEL_NAME_MAP = {
+    'gps': 'gps',
+    'gin': 'gin',
+    'gcn': 'gcn',
+    'gatv2': 'gatv2',
+    'sage': 'sage',
+    'graphsage': 'sage',
+    'graph_sage': 'sage',
+    'sagn': 'sagn',
+    'chebnet': 'chebnet',
+    'mlagnn': 'gatv4',
+    'gatv4': 'gatv4',
+    'mlp': 'mlp',
+}
+
+
+def _nested_get(d: dict, *keys):
+    """Walk a nested dict; return None if any key is missing."""
+    cur = d
+    for k in keys:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(k)
+    return cur
+
+
+def _extract_from_nested_config(config: dict) -> dict:
+    """Extract metadata + sampled_params from a nested Hydra W&B config dict.
+
+    Used for Optuna search runs which do not log ``_wandb.value.args``.
+    Returns a dict with the same keys as ``_METADATA_ARG_KEYS`` plus
+    ``_sampled_params`` (dict, not JSON string yet).
+    """
+    # --- model name (Hydra config-group key) ---------------------------------
+    model_raw = _nested_get(config, 'model', 'model_name') or ''
+    model = _MODEL_NAME_MAP.get(str(model_raw).strip().lower(), str(model_raw).strip().lower())
+
+    # --- dataset / loader parameters -----------------------------------------
+    lp = _nested_get(config, 'dataset', 'loader', 'parameters') or {}
+    dataset = lp.get('data_name')
+    adj_meth = lp.get('adjacency_method')
+    ratio = lp.get('node_sample_ratio')
+    method = lp.get('method')
+    threshold = lp.get('adjacency_threshold')
+    conn = lp.get('adjacency_target_connectivity')
+
+    # --- experiment (readout type only — adjacency is a separate override) ---
+    # Tags: ['omics_readout', 'GPS', 'smoking', 'correlation']
+    # Hydra config group is 'omics_readout' or 'no_readout'; adjacency_method
+    # is passed separately via dataset.loader.parameters.adjacency_method.
+    tags = config.get('tags') or []
+    readout_tag = next((str(t) for t in tags if 'readout' in str(t).lower()), None)
+    experiment = readout_tag  # e.g. 'omics_readout' or 'no_readout'
+
+    # --- sampled hyper-parameters --------------------------------------------
+    sampled: dict = {}
+    for nested_keys, dot_key in _COMMON_SAMPLED_NESTED:
+        v = _nested_get(config, *nested_keys)
+        if v is not None:
+            sampled[dot_key] = v
+    for nested_keys, dot_key in _EXTRA_SAMPLED_NESTED:
+        v = _nested_get(config, *nested_keys)
+        if v is not None:
+            sampled[dot_key] = v
+
+    return {
+        'model': model or None,
+        'dataset': dataset,
+        'experiment': experiment,
+        'dataset.loader.parameters.adjacency_method': adj_meth,
+        'dataset.loader.parameters.node_sample_ratio': ratio,
+        'dataset.loader.parameters.method': method,
+        'dataset.loader.parameters.adjacency_threshold': threshold,
+        'dataset.loader.parameters.adjacency_target_connectivity': conn,
+        '_sampled_params': sampled,
+    }
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -100,7 +199,7 @@ _METADATA_ARG_KEYS = [
 
 def _parse_run_name(run_name: str, group: str) -> tuple[int, int, int] | None:
     """Return (trial_number, fold, attempt) from a search run name, or None."""
-    suffix = run_name[len(group) + 1:] if run_name.startswith(group + '_') else run_name
+    suffix = run_name[len(group) + 1 :] if run_name.startswith(group + '_') else run_name
     m = re.match(r'^trial(\d+)_fold(\d+)_attempt(\d+)$', suffix)
     if m:
         return int(m.group(1)), int(m.group(2)), int(m.group(3))
@@ -246,19 +345,33 @@ def fetch_runs(projects: list[str]) -> pd.DataFrame:
 
             all_args = _parse_all_args(run.config)
 
-            records.append({
-                'study_name': study_name,
-                'trial_number': trial_number,
-                'fold': fold,
-                'attempt': attempt,
-                'val_f1': v,
-                'ckpt_dir': cd,
-                'server_root': _server_root_from_ckpt_dir(cd),
-                'host': _host(run.config),
-                'wandb_run_id': run.id,
-                'wandb_project': project,
-                '_all_args': all_args,
-            })
+            # For Optuna runs, _wandb.value.args is absent → extract from
+            # the nested Hydra config dict instead.
+            if all_args:
+                # args-based format (legacy / baseline Hydra runs)
+                meta = _extract_metadata(all_args)
+                sampled_params = _extract_sampled_params(all_args)
+                meta['_sampled_params'] = json.loads(sampled_params)
+            else:
+                meta = _extract_from_nested_config(run.config)
+                sampled_params = json.dumps(meta.pop('_sampled_params', {}), sort_keys=True)
+                meta['_sampled_params'] = json.loads(sampled_params)
+
+            records.append(
+                {
+                    'study_name': study_name,
+                    'trial_number': trial_number,
+                    'fold': fold,
+                    'attempt': attempt,
+                    'val_f1': v,
+                    'ckpt_dir': cd,
+                    'server_root': _server_root_from_ckpt_dir(cd),
+                    'host': _host(run.config),
+                    'wandb_run_id': run.id,
+                    'wandb_project': project,
+                    '_all_args': meta,  # carries metadata + _sampled_params
+                }
+            )
             fetched += 1
             if fetched % 500 == 0:
                 print(f'  … {fetched} runs collected', flush=True)
@@ -276,16 +389,14 @@ def fetch_runs(projects: list[str]) -> pd.DataFrame:
 def select_best_trials(runs: pd.DataFrame) -> pd.DataFrame:
     """Return one row per (study, fold) for the best trial per study.
 
-    Best trial = highest mean val_f1 across folds, ties broken by highest
-    trial_number.
+    Best trial = highest mean val_f1 across folds, ties broken by highest trial_number.
     """
     if runs.empty:
         return runs
 
     # Latest attempt per (study, trial, fold)
-    latest = (
-        runs.sort_values('attempt')
-        .drop_duplicates(['study_name', 'trial_number', 'fold'], keep='last')
+    latest = runs.sort_values('attempt').drop_duplicates(
+        ['study_name', 'trial_number', 'fold'], keep='last'
     )
 
     trial_means = (
@@ -295,8 +406,7 @@ def select_best_trials(runs: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={'val_f1': 'val_f1_mean'})
     )
     best = (
-        trial_means
-        .sort_values(['val_f1_mean', 'trial_number'], ascending=[False, False])
+        trial_means.sort_values(['val_f1_mean', 'trial_number'], ascending=[False, False])
         .drop_duplicates('study_name', keep='first')
         .rename(columns={'trial_number': 'best_trial_number'})
     )
@@ -317,19 +427,31 @@ def select_best_trials(runs: pd.DataFrame) -> pd.DataFrame:
 def build_manifest(best_runs: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict] = []
     for _, row in best_runs.iterrows():
-        all_args: dict = row.get('_all_args') or {}
-        rows.append({
-            'study_name': row['study_name'],
-            **_extract_metadata(all_args),
-            'trial_number': int(row['trial_number']),
-            'fold': int(row['fold']),
-            'ckpt_dir': row['ckpt_dir'],
-            'server_root': row.get('server_root'),
-            'host': row.get('host'),
-            'sampled_params': _extract_sampled_params(all_args),
-            'val_f1_mean': row.get('val_f1_mean'),
-            'wandb_run_id': row.get('wandb_run_id'),
-        })
+        meta: dict = row.get('_all_args') or {}
+        # Extract metadata: prefer pre-computed keys from _extract_from_nested_config
+        # (they sit directly in meta), else fall back to _extract_metadata(meta).
+        if meta.get('model') is not None or meta.get('dataset') is not None:
+            # Nested-config path: keys are already top-level in meta
+            metadata = {k: meta.get(k) for k in _METADATA_ARG_KEYS}
+            sampled_params = json.dumps(meta.get('_sampled_params', {}), sort_keys=True)
+        else:
+            # args-based path (should rarely happen after the fetch_runs fix)
+            metadata = _extract_metadata(meta)
+            sampled_params = _extract_sampled_params(meta)
+        rows.append(
+            {
+                'study_name': row['study_name'],
+                **metadata,
+                'trial_number': int(row['trial_number']),
+                'fold': int(row['fold']),
+                'ckpt_dir': row['ckpt_dir'],
+                'server_root': row.get('server_root'),
+                'host': row.get('host'),
+                'sampled_params': sampled_params,
+                'val_f1_mean': row.get('val_f1_mean'),
+                'wandb_run_id': row.get('wandb_run_id'),
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -364,20 +486,20 @@ def main() -> None:
         print('ERROR: no runs fetched — check project names and W&B credentials')
         sys.exit(1)
 
-    print(f'\nTotal runs fetched: {len(runs_df)} '
-          f'({runs_df["study_name"].nunique()} studies)')
+    print(f'\nTotal runs fetched: {len(runs_df)} ' f'({runs_df["study_name"].nunique()} studies)')
 
     best_runs = select_best_trials(runs_df)
-    print(f'Best-trial fold rows: {len(best_runs)} '
-          f'({best_runs["study_name"].nunique()} studies × folds)')
+    print(
+        f'Best-trial fold rows: {len(best_runs)} '
+        f'({best_runs["study_name"].nunique()} studies × folds)'
+    )
 
     manifest = build_manifest(best_runs)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     manifest.to_csv(args.output, index=False)
 
-    print(f'\nManifest: {len(manifest)} rows '
-          f'({manifest["study_name"].nunique()} studies)')
+    print(f'\nManifest: {len(manifest)} rows ' f'({manifest["study_name"].nunique()} studies)')
     print('By server_root:')
     for root, n in manifest['server_root'].value_counts().items():
         print(f'  {root}: {n} fold rows')

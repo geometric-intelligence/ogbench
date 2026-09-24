@@ -73,7 +73,6 @@ from scripts.optuna_test_eval import (
     _parse_json_or_literal,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -162,6 +161,7 @@ def load_ckpt_map(paths: list[Path], server_root: str | None = None) -> pd.DataF
         if server_root:
             prefix = server_root.rstrip('/')
             df = df[df['ckpt_dir'].astype(str).str.startswith(prefix)].copy()
+
         # Scan locally for *.ckpt in each ckpt_dir
         def _resolve(ckpt_dir: str | float) -> str | None:
             if not isinstance(ckpt_dir, str) or not ckpt_dir:
@@ -171,6 +171,7 @@ def load_ckpt_map(paths: list[Path], server_root: str | None = None) -> pd.DataF
                 return None
             ckpts = sorted(d.glob('*.ckpt'))
             return str(ckpts[-1]) if ckpts else None
+
         df['ckpt_path'] = df['ckpt_dir'].apply(_resolve)
 
     # ---- filesystem map: optionally filter by ckpt_path prefix
@@ -243,8 +244,12 @@ def _evaluate_fold(
             log_path=None,
             params_json=json.dumps(sampled, sort_keys=True),
         )
-        return {'study_name': cell.study_name, 'fold': fold, 'status': 'failed',
-                'error': 'checkpoint_missing'}
+        return {
+            'study_name': cell.study_name,
+            'fold': fold,
+            'status': 'failed',
+            'error': 'checkpoint_missing',
+        }
 
     gpu = gpu_queue.get() if gpu_queue is not None else None
     attempt = ledger.next_attempt(cell.study_name, trial_number, fold)
@@ -324,13 +329,20 @@ def _export(ledger: TestLedger, best: pd.DataFrame, output_dir: Path) -> None:
     latest = success.sort_values('attempt').drop_duplicates(
         ['study_name', 'trial_number', 'fold'], keep='last'
     )
-    summary = latest.groupby(['study_name', 'trial_number'], as_index=False).agg(
-        n_folds=('fold', 'nunique'),
-        test_f1_mean=('test_f1', 'mean'),
-        test_f1_std=('test_f1', 'std'),
-        val_f1_mean=('val_f1', 'mean'),
-        val_f1_std=('val_f1', 'std'),
-    )
+    # Aggregate all available test / val metrics so downstream tables can use them.
+    _fold_metrics = [
+        ('test_f1', 'test_f1'),
+        ('test_f1_weighted', 'test_f1_weighted'),
+        ('test_accuracy', 'test_accuracy'),
+        ('test_auroc', 'test_auroc'),
+        ('val_f1', 'val_f1'),
+    ]
+    agg_kwargs: dict = {'n_folds': ('fold', 'nunique')}
+    for out_prefix, col in _fold_metrics:
+        if col in latest.columns and latest[col].notna().any():
+            agg_kwargs[f'{out_prefix}_mean'] = (col, 'mean')
+            agg_kwargs[f'{out_prefix}_std'] = (col, 'std')
+    summary = latest.groupby(['study_name', 'trial_number'], as_index=False).agg(**agg_kwargs)
     merged = best.merge(summary, on=['study_name', 'trial_number'], how='left')
     _atomic_write_csv(merged, output_dir / 'live_test_best_trials.csv')
 
@@ -393,8 +405,7 @@ def main() -> None:
     if _sort_col:
         study_level = study_level.sort_values(_sort_col, ascending=False)
     study_level = (
-        study_level
-        .drop_duplicates('study_name', keep='first')
+        study_level.drop_duplicates('study_name', keep='first')
         .drop(columns=_drop_extra)  # fold-level columns not needed here
         .reset_index(drop=True)
     )
@@ -410,10 +421,7 @@ def main() -> None:
     if 'search_root_server' in ckpt_map.columns:
         server_counts = ckpt_map['search_root_server'].value_counts().to_dict()
 
-    print(
-        f'Studies: {len(study_level)} | fold jobs: {len(jobs)} '
-        f'| output: {args.output_dir}'
-    )
+    print(f'Studies: {len(study_level)} | fold jobs: {len(jobs)} ' f'| output: {args.output_dir}')
     if server_counts:
         print('  Fold jobs by search_root_server:')
         for srv, cnt in sorted(server_counts.items()):
