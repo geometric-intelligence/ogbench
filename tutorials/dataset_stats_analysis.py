@@ -2,10 +2,14 @@
 """Analyze dataset statistics across different parameters. Generates plots for all combinations of
 node_sample_ratio and sampling_method.
 
+Graphs are the fold-0 training graphs from 5-fold CV (same node selection, corrections, grouping,
+and split as the Optuna sweep). Website stats therefore describe one canonical fold, not an average
+over folds.
+
 Usage examples:
     python dataset_stats_analysis.py
     python dataset_stats_analysis.py --n-jobs 8
-    python dataset_stats_analysis.py --datasets addneuromed parkinsons
+    python dataset_stats_analysis.py --datasets addneuromed parkinsons smoking tuberculosis
     python dataset_stats_analysis.py --adj-thresholds 21
     python dataset_stats_analysis.py --skip-plots
     python dataset_stats_analysis.py --node-ratios full 1.0 0.5 --methods variance random
@@ -25,8 +29,23 @@ import numpy as np
 from joblib import Parallel, delayed
 import pandas as pd
 
+# Match configs/dataset/*.yaml so fold-0 caches align with the training pipeline.
+K_FOLDS = 5
+FOLD = 0
+TRAINING_SEED = 42
+
 SPECIES_BY_DATASET = {
     'tuberculosis': 83332,  # M. tuberculosis (STRING adjacency)
+}
+
+CORRECTIONS_BY_DATASET: dict[str, list[str]] = {
+    'motrpac': ['covariate_adjust'],
+    'addneuromed': ['combat'],
+    'smoking': ['promoter_min_beta', 'median_center'],
+}
+
+GROUPING_BY_DATASET: dict[str, str] = {
+    'parkinsons': 'batch',
 }
 
 
@@ -39,29 +58,38 @@ def load_dataset(
     string_data_dir: str | None = None,
     cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
 ) -> Any:
-    """Load the dataset with specified parameters."""
-    from omegaconf import OmegaConf
-
+    """Load the fold-0 k-fold graph for the given parameters."""
     from ogbench.data.datasets.hf_omics import HFOmicsDataset
-
-    train_val_test_split = OmegaConf.create([0.7, 0.15, 0.15])
 
     # Pass 'full' as string, not None, because HFOmicsDataset checks for 'full' string
     ratio_value = 'full' if node_sample_ratio == 'full' else float(node_sample_ratio)
+    np.random.seed(TRAINING_SEED)
     dataset = HFOmicsDataset(
         root=cache_root,
         data_name=dataset_name,
         method=method,
         adjacency_threshold=adj_thresh,
         node_sample_ratio=ratio_value,
-        train_val_test_split=train_val_test_split,
+        train_val_test_split=[0.7, 0.15, 0.15],
         imputation_method='mean',
         adjacency_method=adjacency_method,
         string_data_dir=string_data_dir,
         species=SPECIES_BY_DATASET.get(dataset_name, 9606),
+        split_type='k-fold',
+        k=K_FOLDS,
+        fold=FOLD,
+        corrections=CORRECTIONS_BY_DATASET.get(dataset_name, []),
+        grouping=GROUPING_BY_DATASET.get(dataset_name),
     )
 
     return dataset
+
+
+def _train_idx(dataset: Any) -> int:
+    """Number of training samples in the reordered train|val|test cache."""
+    split_path = osp.join(dataset.raw_dir, 'split_info.json')
+    with open(split_path) as f:
+        return int(json.load(f)['train_idx'])
 
 
 def _compute_feature_homophily(graph: nx.Graph, node_features: np.ndarray) -> float:
@@ -148,17 +176,7 @@ def get_graph_stats(
             graph.add_nodes_from(range(num_nodes))
             graph.add_edges_from(edge_list)
         else:
-            root = '/home/lcornelis/code/ogbench-1/run_data/omics/'
-            name = osp.join(
-                root,
-                f'{dataset.data_name}',
-                f'adj_thresh_{dataset.adjacency_threshold}',
-                f'adj_method_{dataset.adjacency_method}',
-                f'{dataset.method}',
-                f'p_{dataset.node_sample_ratio}',
-                f'train_split_{dataset.train_val_test_split[0]}',
-                'raw/adj_matrix.npy',
-            )
+            name = osp.join(dataset.raw_dir, 'adj_matrix.npy')
             try:
                 adj_matrix = np.load(name)
                 graph = nx.from_numpy_array(adj_matrix)
@@ -240,7 +258,8 @@ def process_single_combination(
 
         node_features = None
         if len(dataset) > 0:
-            sample_features = [dataset[i].x.numpy() for i in range(len(dataset))]
+            n_train = _train_idx(dataset)
+            sample_features = [dataset[i].x.numpy() for i in range(n_train)]
             node_features = np.mean(sample_features, axis=0)
 
         stats = get_graph_stats(dataset, node_features=node_features)
@@ -479,12 +498,12 @@ def main():
         '--datasets',
         nargs='+',
         default=[
-            'addneuromed',
-            'parkinsons',
             'motrpac',
-            'brca',
-            'smoking',
             'tuberculosis',
+            'parkinsons',
+            'addneuromed',
+            'smoking',
+            'brca',
         ],
         help='List of datasets to process',
     )
@@ -547,6 +566,7 @@ def main():
     n_jobs = args.n_jobs
 
     print(f'Processing {len(datasets)} datasets')
+    print(f'Using 5-fold CV fold {FOLD} (training seed {TRAINING_SEED})')
     print(f'Node sample ratios: {node_sample_ratios}')
     print(f'Sampling methods: {sampling_methods}')
     print(f'Adjacency thresholds: {len(adj_thresholds)} values from 0.0 to 1.0')
