@@ -31,6 +31,17 @@ def all_configs() -> dict[str, dict]:
 class TestDatasetConfigConsistency:
     """Ensure key parameters are consistent across all dataset configs."""
 
+    def test_all_datasets_default_to_five_fold_rotation(self, all_configs):
+        split_settings = {
+            name: (cfg['split_params']['split_type'], cfg['split_params']['k'])
+            for name, cfg in all_configs.items()
+        }
+
+        assert set(split_settings.values()) == {('k-fold', 5)}, (
+            'Expected every dataset to default to 5-fold rotation, but got '
+            + ', '.join(f'{name}={setting}' for name, setting in split_settings.items())
+        )
+
     def test_all_datasets_have_same_train_val_test_split(self, all_configs):
         splits = {
             name: tuple(cfg['loader']['parameters']['train_val_test_split'])

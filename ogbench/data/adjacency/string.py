@@ -1,9 +1,14 @@
 """STRING PPI-based adjacency matrix builder."""
 
+import fcntl
 import hashlib
 import json
 import logging
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -12,6 +17,42 @@ import requests
 from ogbench.data.adjacency.base import AbstractAdjacencyBuilder
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _exclusive_file_lock(path: str) -> Iterator[None]:
+    """Serialize access to shared STRING cache artifacts across processes."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, 'a') as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _valid_gzip(path: str) -> bool:
+    """Fully validate a gzip stream, including its end-of-stream marker."""
+    import gzip
+
+    try:
+        with gzip.open(path, 'rb') as handle:
+            while handle.read(1024 * 1024):
+                pass
+    except (EOFError, OSError):
+        return False
+    return True
+
+
+def _atomic_json_dump(value: Any, path: str) -> None:
+    temporary = f'{path}.tmp-{os.getpid()}'
+    try:
+        with open(temporary, 'w') as handle:
+            json.dump(value, handle)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
 
 
 class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
@@ -192,6 +233,11 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         return result
 
     def _map_to_string_ids(self, identifiers: list[str]) -> dict[str, str]:
+        lock_path = os.path.join(self.cache_dir, f'string_id_map_{self.species}.lock')
+        with _exclusive_file_lock(lock_path):
+            return self._map_to_string_ids_locked(identifiers)
+
+    def _map_to_string_ids_locked(self, identifiers: list[str]) -> dict[str, str]:
         """Map identifiers to STRING internal IDs using local alias file.
 
         Downloads STRING alias file once — no API dependency.
@@ -202,8 +248,11 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
 
         cached: dict[str, str] = {}
         if os.path.exists(cache_file):
-            with open(cache_file) as f:
-                cached = json.load(f)
+            try:
+                with open(cache_file) as f:
+                    cached = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                logger.warning('Ignoring corrupt STRING ID cache: %s', cache_file)
 
         to_query = [x for x in identifiers if x not in cached]
 
@@ -216,14 +265,11 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
                     alias_file = local
                     logger.info('Using local alias file: %s', alias_file)
             if not os.path.exists(alias_file):
-                logger.info('Downloading STRING alias file (one-time download)...')
                 url = f'https://stringdb-downloads.org/download/protein.aliases.v12.0/{alias_name}'
-                r = requests.get(url, timeout=300, stream=True)
-                r.raise_for_status()
-                with open(alias_file, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                logger.info('Download complete.')
+                self._ensure_gzip_download(alias_file, url, 'STRING alias file')
+            elif os.path.dirname(alias_file) == self.cache_dir:
+                url = f'https://stringdb-downloads.org/download/protein.aliases.v12.0/{alias_name}'
+                self._ensure_gzip_download(alias_file, url, 'STRING alias file')
 
             query_set = set(to_query)
             logger.info('Mapping %d identifiers from alias file...', len(to_query))
@@ -243,8 +289,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
                 if x not in cached:
                     cached[x] = ''
 
-            with open(cache_file, 'w') as f:
-                json.dump(cached, f)
+            _atomic_json_dump(cached, cache_file)
 
             resolved = sum(1 for x in to_query if cached.get(x))
             logger.info('Resolved %d/%d identifiers', resolved, len(to_query))
@@ -257,15 +302,24 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
             json.dumps(sorted(string_ids)).encode(),
             usedforsecurity=False,
         ).hexdigest()[:12]
+        lock_path = os.path.join(self.cache_dir, f'interactions_{self.species}_{ids_hash}.lock')
+        with _exclusive_file_lock(lock_path):
+            return self._fetch_interactions_locked(string_ids, ids_hash)
+
+    def _fetch_interactions_locked(self, string_ids: list[str], ids_hash: str) -> list[dict]:
+        """Read or construct one interaction cache while holding its lock."""
         cache_file = os.path.join(
             self.cache_dir,
             f'interactions_{self.species}_{ids_hash}.json',
         )
 
         if os.path.exists(cache_file):
-            logger.info('Loading interactions from cache...')
-            with open(cache_file) as f:
-                return json.load(f)
+            try:
+                logger.info('Loading interactions from cache...')
+                with open(cache_file) as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError):
+                logger.warning('Ignoring corrupt interaction cache: %s', cache_file)
 
         bulk_name = f'{self.species}.protein.links.v12.0.txt.gz'
         bulk_file = os.path.join(self.cache_dir, bulk_name)
@@ -275,14 +329,11 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
                 bulk_file = local
                 logger.info('Using local bulk file: %s', bulk_file)
         if not os.path.exists(bulk_file):
-            logger.info('Downloading STRING bulk interaction file (one-time download ~100MB)...')
             url = f'https://stringdb-downloads.org/download/protein.links.v12.0/{bulk_name}'
-            r = requests.get(url, timeout=300, stream=True)
-            r.raise_for_status()
-            with open(bulk_file, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            logger.info('Download complete.')
+            self._ensure_gzip_download(bulk_file, url, 'STRING bulk interaction file (~100MB)')
+        elif os.path.dirname(bulk_file) == self.cache_dir:
+            url = f'https://stringdb-downloads.org/download/protein.links.v12.0/{bulk_name}'
+            self._ensure_gzip_download(bulk_file, url, 'STRING bulk interaction file (~100MB)')
 
         # Parse bulk file and filter to our proteins
         import gzip
@@ -311,7 +362,37 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         logger.info('Found %d interactions.', len(interactions))
 
         # Cache the filtered result so we never parse the bulk file again for this config
-        with open(cache_file, 'w') as f:
-            json.dump(interactions, f)
+        _atomic_json_dump(interactions, cache_file)
 
         return interactions
+
+    def _ensure_gzip_download(self, path: str, url: str, label: str) -> None:
+        """Validate or atomically download a shared gzip cache artifact."""
+        marker = f'{path}.complete'
+        with _exclusive_file_lock(f'{path}.download.lock'):
+            if os.path.exists(path):
+                if os.path.exists(marker) or _valid_gzip(path):
+                    Path(marker).touch()
+                    return
+                logger.warning('Removing truncated %s: %s', label, path)
+                os.remove(path)
+                if os.path.exists(marker):
+                    os.remove(marker)
+
+            temporary = f'{path}.tmp-{os.getpid()}'
+            logger.info('Downloading %s...', label)
+            try:
+                response = requests.get(url, timeout=300, stream=True)
+                response.raise_for_status()
+                with open(temporary, 'wb') as handle:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            handle.write(chunk)
+                if not _valid_gzip(temporary):
+                    raise EOFError(f'Downloaded {label} is not a complete gzip stream')
+                os.replace(temporary, path)
+                Path(marker).touch()
+                logger.info('%s download complete.', label)
+            finally:
+                if os.path.exists(temporary):
+                    os.remove(temporary)
