@@ -532,6 +532,32 @@ echo $! > "$ROOT/extra.pid"
 Stop it early with `kill -TERM "$(cat "$ROOT/extra.pid")"`. It also stops its launcher's
 process group. Launcher output is in `$ROOT/extra_launcher.log`.
 
+Frank and Hall (eight A30s each) joined on September 24. They run the work Parka will not
+reach before the deadline:
+
+- **First tier:** all gatv2 cells, cheapest first, alternating between the two servers.
+- **Second tier:** graph_sage in reverse Parka priority, so it meets Parka's forward queue
+  only once graph_sage is fully covered.
+
+Within each tier, cells projected to exceed the timeout on an A30 go last.
+`scripts/ratio03_a30_split.py` wrote `frank.txt`, `hall.txt`, and `a30_queue.csv` to
+`$ROOT/a30_handoff`. It uses the projected A30 fold time: the source estimate, times Parka's
+measured ratio-0.3 slowdown, times an assumed A30 factor of 1.6. That directory, with the
+candidates, checksums, and `A30_RATIO03_COMMANDS.md`, is the W&B artifact
+`ratio03-a30-handoff-20260924`. Each A30 server runs `scripts/ratio03_a30.sh` from a worktree
+at commit `38df8a5`. The script wraps `ratio03_extra.sh` at two jobs per GPU with a 6 GB
+free-memory gate. At 06:59 it collects with `--final` and uploads
+`ratio03-a30-results-<server>`. Merge on Parka after the final collect:
+
+```bash
+"$PYTHON" scripts/ratio03_merge.py --download frank hall
+cat "$ROOT/merged/coverage.md"
+```
+
+Use `--server NAME=DIR` instead of `--download` for results copied by hand. Merged outputs
+are in `$ROOT/merged/`. `server` records where each cell's row came from, and
+`duplicate_servers` lists other servers that also completed it.
+
 Monitoring (the supervisor also does this every 30 minutes):
 
 ```bash

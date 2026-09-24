@@ -381,7 +381,7 @@ disjoint, the three trial tables can be concatenated. Before analysis, verify:
 
 ## Ratio 0.3 transfer results
 
-The factorial design omitted `node_sample_ratio: 0.3`. It was added late, on Parka only,
+The factorial design omitted `node_sample_ratio: 0.3`. It was added late, mostly on Parka,
 without an Optuna search. Each of the 816 ratio-0.3 cells runs **one transferred
 configuration** with the same 5-fold CV and data construction as the other ratios. The
 configuration is the best trial of the same cell at ratio 0.5, else 0.8, else 1.0, else of the
@@ -393,9 +393,29 @@ Report these cells as "transferred configuration" rather than "tuned".
 - Live runs: W&B project `bioshape-lab/ogbench_sep24_ratio03_transfer`.
 - Cells run cheapest models first (mlp, sagn, gcn, chebnet, graph_sage, gatv2, gin, gatv4,
   gps), plus an extra queue that gives gin, gatv4, and gps their cheapest cells. Ratio 0.3
-  has the largest graphs, so by Friday 07:00 expect mlp through chebnet to be complete,
-  about 60% of graph_sage, little of gatv2, and about 45 cells each of gin, gatv4, and gps.
+  has the largest graphs, so by Friday 07:00 expect Parka to complete mlp through chebnet,
+  about 60% of graph_sage, and about 45 cells each of gin, gatv4, and gps. Frank and Hall
+  (below) add most gatv2 cells that fit within the timeout and more of graph_sage.
 - Operational details: section 8 of [`sep24_optuna_runbook.md`](sep24_optuna_runbook.md).
+
+### Ratio 0.3 on Frank and Hall
+
+From Thursday September 24 until Friday 06:59 PDT, Frank and Hall run the gatv2 cells and
+then graph_sage from the expensive end: the work Parka will not reach. Each server has a
+96-cell queue.
+
+- Code: branch `guille/ratio03_transfer`, commit `38df8a5`, checked out as a separate
+  worktree. It is exactly the code running on Parka. Do not use the tip of
+  `guille/kfold_experiments`.
+- Handoff: private W&B artifact
+  `bioshape-lab/ogbench_sep24_ratio03_transfer/ratio03-a30-handoff-20260924`. It holds
+  `frank.txt`, `hall.txt`, the candidate configurations, checksums, and
+  `A30_RATIO03_COMMANDS.md`, the step-by-step commands: build caches, launch, verify.
+- `scripts/ratio03_a30.sh` stops itself at 06:59. It then writes that server's
+  `results_ratio03.csv` and uploads it as the artifact `ratio03-a30-results-frank` or
+  `ratio03-a30-results-hall`. On Parka, `scripts/ratio03_merge.py --download frank hall`
+  merges them into `$ROOT/merged/results_ratio03.csv` and `coverage.md`, with a `server`
+  column. Parka's row wins when a cell completed on more than one server.
 
 ## Who should run what
 
