@@ -1,16 +1,16 @@
 import { useState, useEffect, useMemo, lazy } from 'react';
 
 const Plot = lazy(() => import('react-plotly.js'));
-import type { ResultEntry, DatasetName, RankingMetric, DisplayMetric } from '../lib/types';
-import { DATASETS, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS, ADJACENCY_METHOD_LABELS } from '../lib/constants';
+import type { ResultEntry, LeaderboardDatasetName, RankingMetric, DisplayMetric } from '../lib/types';
+import { DATASETS, LEADERBOARD_DATASETS, MODEL_ORDER, BASELINE_MODELS, MODEL_COLORS, RANKING_METRICS, DISPLAY_METRICS, VALID_METHODS, VALID_RATIOS, METHOD_LABELS, RATIO_LABELS, ADJACENCY_METHOD_LABELS } from '../lib/constants';
 import { computeLeaderboard, filterResults, getModelsByDataset, getDisplayMetricValue } from '../lib/data';
 
-const ALL_DATASETS: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons', 'brca'];
+const ALL_DATASETS: readonly LeaderboardDatasetName[] = LEADERBOARD_DATASETS;
 
 export default function Leaderboard() {
   const [results, setResults] = useState<ResultEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [datasetFilter, setDatasetFilter] = useState<DatasetName | 'all'>('all');
+  const [datasetFilter, setDatasetFilter] = useState<LeaderboardDatasetName | 'all'>('all');
   const [methodFilter, setMethodFilter] = useState<string | 'all'>('all');
   const [ratioFilter, setRatioFilter] = useState<number | 'all'>('all');
   const [adjacencyMethodFilter, setAdjacencyMethodFilter] = useState<string | 'all'>('all');
@@ -79,12 +79,10 @@ export default function Leaderboard() {
   }, [chartFilteredResults, displayMetric, rankBy]);
 
   const baselinesByDataset = useMemo(() => {
-    const baselines: Record<DatasetName, Record<string, { value: number; std: number }>> = {
-      motrpac: {},
-      addneuromed: {},
-      parkinsons: {},
-      brca: {},
-    };
+    const baselines = Object.fromEntries(ALL_DATASETS.map((ds) => [ds, {}])) as Record<
+      LeaderboardDatasetName,
+      Record<string, { value: number; std: number }>
+    >;
 
     for (const ds of ALL_DATASETS) {
       for (const model of BASELINE_MODELS) {
@@ -341,12 +339,12 @@ export default function Leaderboard() {
             <div className="control-label">Dataset Filter</div>
             <select
               value={datasetFilter}
-              onChange={(e) => setDatasetFilter(e.target.value as DatasetName | 'all')}
+              onChange={(e) => setDatasetFilter(e.target.value as LeaderboardDatasetName | 'all')}
             >
               <option value="all">📊 All Datasets (Aggregate)</option>
-              {Object.entries(DATASETS).map(([key, ds]) => (
+              {ALL_DATASETS.map((key) => (
                 <option key={key} value={key}>
-                  {ds.emoji} {ds.fullName}
+                  {DATASETS[key].emoji} {DATASETS[key].fullName}
                 </option>
               ))}
             </select>

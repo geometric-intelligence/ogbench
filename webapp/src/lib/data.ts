@@ -1,5 +1,15 @@
-import type { ResultEntry, GraphStats, LeaderboardEntry, DatasetName, RankingMetric, DisplayMetric } from './types';
-import { MODEL_CATEGORIES } from './constants';
+import type {
+  ResultEntry,
+  GraphStats,
+  LeaderboardEntry,
+  DatasetName,
+  LeaderboardDatasetName,
+  RankingMetric,
+  DisplayMetric,
+  StatsMetric,
+  StatsRatio,
+} from './types';
+import { MODEL_CATEGORIES, LEADERBOARD_DATASETS, METRIC_LABELS } from './constants';
 
 function getRankingMetricValue(entry: ResultEntry, metric: RankingMetric): { value: number; std: number } {
   switch (metric) {
@@ -119,9 +129,24 @@ export function filterResults(
   return filtered;
 }
 
+/** Parse a ratio segment of a stats key: 'full' stays a string, everything else is numeric. */
+export function parseStatsRatio(raw: string): StatsRatio | null {
+  if (raw === 'full') return 'full';
+  const n = parseFloat(raw);
+  return Number.isNaN(n) ? null : n;
+}
+
+/** Sort ratios numerically with 'full' (all features) last. */
+export function compareStatsRatios(a: StatsRatio, b: StatsRatio): number {
+  if (a === b) return 0;
+  if (a === 'full') return 1;
+  if (b === 'full') return -1;
+  return a - b;
+}
+
 export function getStatsKey(
   dataset: string,
-  ratio: number,
+  ratio: StatsRatio,
   method: string,
   threshold: number,
   adjacencyMethod?: string
@@ -135,7 +160,7 @@ export function getStatsKey(
 export function getStats(
   allStats: Record<string, GraphStats>,
   dataset: string,
-  ratio: number,
+  ratio: StatsRatio,
   method: string,
   threshold: number,
   adjacencyMethod?: string
@@ -144,26 +169,18 @@ export function getStats(
   return allStats[key] || null;
 }
 
-export function computeMetricMaxValues(stats: Record<string, GraphStats>): Record<string, number> {
-  const metrics = [
-    'num_nodes',
-    'num_edges',
-    'avg_degree',
-    'density_pct',
-    'avg_clustering_coeff',
-    'largest_cc_ratio_pct',
-    'avg_shortest_path_length',
-    'num_connected_components',
-    'degree_std',
-  ];
-
-  const maxValues: Record<string, number> = {};
-
-  for (const metric of metrics) {
-    const values = Object.values(stats).map((s) => s[metric as keyof GraphStats] as number);
-    maxValues[metric] = values.length > 0 ? Math.max(...values) * 1.2 : 1;
+/** Per-metric y-axis ceiling (1.2 × max) over the given stats; null/NaN values are ignored. */
+export function computeMetricMaxValues(stats: Iterable<GraphStats>): Record<StatsMetric, number> {
+  const maxValues = {} as Record<StatsMetric, number>;
+  const entries = [...stats];
+  for (const metric of Object.keys(METRIC_LABELS) as StatsMetric[]) {
+    let max = 0;
+    for (const s of entries) {
+      const v = s[metric];
+      if (typeof v === 'number' && Number.isFinite(v) && v > max) max = v;
+    }
+    maxValues[metric] = max > 0 ? max * 1.2 : 1;
   }
-
   return maxValues;
 }
 
@@ -181,33 +198,27 @@ export function getModelsByDataset(
   modelOrder: string[],
   displayMetric: DisplayMetric = 'test_f1_macro',
   rankBy?: RankingMetric
-): Record<DatasetName, Record<string, ModelDataByDataset>> {
+): Record<LeaderboardDatasetName, Record<string, ModelDataByDataset>> {
   const rankMetric = rankBy || (displayMetric as unknown as RankingMetric) || 'val_f1_macro';
 
-  const allDatasets: DatasetName[] = ['motrpac', 'addneuromed', 'parkinsons', 'brca'];
-
-  const byDatasetModel: Record<DatasetName, Record<string, ResultEntry[]>> = {
-    motrpac: {},
-    addneuromed: {},
-    parkinsons: {},
-    brca: {},
-  };
+  const byDatasetModel = Object.fromEntries(LEADERBOARD_DATASETS.map((ds) => [ds, {}])) as Record<
+    LeaderboardDatasetName,
+    Record<string, ResultEntry[]>
+  >;
 
   for (const r of results) {
-    const ds = r.dataset as DatasetName;
+    const ds = r.dataset as LeaderboardDatasetName;
     if (!byDatasetModel[ds]) continue;
     if (!byDatasetModel[ds][r.model]) byDatasetModel[ds][r.model] = [];
     byDatasetModel[ds][r.model].push(r);
   }
 
-  const result: Record<DatasetName, Record<string, ModelDataByDataset>> = {
-    motrpac: {},
-    addneuromed: {},
-    parkinsons: {},
-    brca: {},
-  };
+  const result = Object.fromEntries(LEADERBOARD_DATASETS.map((ds) => [ds, {}])) as Record<
+    LeaderboardDatasetName,
+    Record<string, ModelDataByDataset>
+  >;
 
-  for (const ds of allDatasets) {
+  for (const ds of LEADERBOARD_DATASETS) {
     for (const model of modelOrder) {
       const entries = byDatasetModel[ds][model];
       if (entries && entries.length > 0) {

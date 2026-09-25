@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Build webapp/public/data/stats.json from the graph_stats_comprehensive_*.csv files.
+"""Build webapp/public/data/stats.json from stats/<dataset>/graph_stats_comprehensive.csv.
 
-Key format matches getStatsKey in webapp: dataset|ratio|method|threshold[|adjacency_method].
-Node sample ratio "full" is normalized to 1.0 so the Explorer can look up by 1.0.
-If the CSV contains an adjacency_method column, it is appended to the key.
+Key format matches getStatsKey in the webapp: dataset|ratio|method|threshold|adjacency_method.
+
+Node sample ratio is the sample-to-node ratio used by HFOmicsDataset
+(``n_nodes = n_train / ratio``), so "full" (all features) is a distinct graph from
+"1.0" and is kept as its own ratio value. Numeric ratios are normalized to the JS
+string form (1.0 -> "1", 0.5 -> "0.5").
 
 Usage:
   From repo root: python webapp/scripts/build_stats_from_csv.py
@@ -12,131 +15,106 @@ Usage:
 
 from __future__ import annotations
 
+import csv
 import json
+import math
 from pathlib import Path
 
-# Paths relative to this script
 SCRIPT_DIR = Path(__file__).resolve().parent
 WEBAPP_DIR = SCRIPT_DIR.parent
 REPO_ROOT = WEBAPP_DIR.parent
-STATS_DIR = REPO_ROOT / 'tutorials' / 'stats'
+STATS_DIR = REPO_ROOT / 'stats'
 OUTPUT_PATH = WEBAPP_DIR / 'public' / 'data' / 'stats.json'
 
-WGCNA_CSV_FILES = [
-    STATS_DIR / 'addneuromed' / 'graph_stats_comprehensive_addneuro.csv',
-    STATS_DIR / 'motrpac' / 'graph_stats_comprehensive_motrpac.csv',
-    STATS_DIR / 'parkinsons' / 'graph_stats_comprehensive_parkinsons.csv',
-    STATS_DIR / 'brca' / 'graph_stats_comprehensive_brca.csv',
-]
+CSV_FILES = sorted(STATS_DIR.glob('*/graph_stats_comprehensive.csv'))
 
-STRING_STATS_DIR = REPO_ROOT / 'stats'
-STRING_CSV_FILES = [
-    STRING_STATS_DIR / 'addneuromed' / 'graph_stats_comprehensive.csv',
-    STRING_STATS_DIR / 'motrpac' / 'graph_stats_comprehensive.csv',
-    STRING_STATS_DIR / 'parkinsons' / 'graph_stats_comprehensive.csv',
-    STRING_STATS_DIR / 'brca' / 'graph_stats_comprehensive.csv',
-]
+INT_METRICS = ('num_nodes', 'num_edges', 'num_connected_components')
+FLOAT_METRICS = (
+    'avg_degree',
+    'density_pct',
+    'largest_cc_ratio_pct',
+    'degree_std',
+    'clustering_coefficient',
+    'diameter',
+    'modularity',
+    'homophily',
+)
 
 
 def normalize_ratio(node_sample_ratio: str) -> str:
-    """Map 'full' to '1'; keep numeric strings so they match JS (1.0 -> '1', 0.5 -> '0.5')."""
+    """Keep 'full' as-is; format numeric ratios the way JS stringifies numbers."""
     s = node_sample_ratio.strip().lower()
     if s == 'full':
-        return '1'
-    if s in ('1.0', '1'):
-        return '1'
-    return node_sample_ratio.strip()
+        return 'full'
+    return format_number(float(s))
 
 
-def format_threshold(adj_thresh: float) -> str:
-    """Format threshold so it matches JavaScript string representation (e.g. 0.11 not 0.1)."""
-    t = float(adj_thresh)
-    if t == int(t):
-        return str(int(t))
-    return str(t)
+def format_number(value: float) -> str:
+    """Format a float so it matches JavaScript's String(number) (1.0 -> '1', 0.11 -> '0.11')."""
+    if value == int(value):
+        return str(int(value))
+    return str(value)
 
 
-def row_to_key_and_stats(
-    row: dict, *, default_adjacency_method: str = ''
-) -> tuple[str, dict] | None:
+def _float(val: str | None) -> float | None:
+    if val is None or val.strip() == '':
+        return None
+    try:
+        parsed = float(val)
+    except ValueError:
+        return None
+    if math.isnan(parsed) or math.isinf(parsed):
+        return None
+    return parsed
+
+
+def row_to_key_and_stats(row: dict[str, str]) -> tuple[str, dict[str, object]] | None:
     """Convert a CSV row to (key, stats) for the webapp JSON.
 
-    Returns None to skip row.
+    Returns None to skip the row.
     """
     dataset = row.get('dataset', '').strip()
-    if not dataset:
-        return None
-    adj_thresh = row.get('adj_thresh', '')
-    try:
-        thresh_val = float(adj_thresh)
-    except (TypeError, ValueError):
-        return None
-    ratio_key = normalize_ratio(row.get('node_sample_ratio', ''))
     method = row.get('method', '').strip()
-    if not method:
+    adjacency_method = row.get('adjacency_method', '').strip()
+    thresh_val = _float(row.get('adj_thresh'))
+    if not dataset or not method or not adjacency_method or thresh_val is None:
         return None
-    adjacency_method = row.get('adjacency_method', '').strip() or default_adjacency_method
+    if row.get('error', '').strip() or _float(row.get('num_nodes')) is None:
+        return None
 
-    key = f'{dataset}|{ratio_key}|{method}|{format_threshold(thresh_val)}'
-    if adjacency_method:
-        key += f'|{adjacency_method}'
+    ratio_key = normalize_ratio(row.get('node_sample_ratio', ''))
+    key = f'{dataset}|{ratio_key}|{method}|{format_number(thresh_val)}|{adjacency_method}'
 
-    def num(val, default=0):
-        if val is None or val == '':
-            return default
-        try:
-            return float(val)
-        except (TypeError, ValueError):
-            return default
-
-    stats = {
-        'num_nodes': int(num(row.get('num_nodes'), 0)),
-        'num_edges': int(num(row.get('num_edges'), 0)),
-        'avg_degree': num(row.get('avg_degree')),
-        'density_pct': num(row.get('density_pct')),
-        'largest_cc_ratio_pct': num(row.get('largest_cc_ratio_pct')),
-        'num_connected_components': int(num(row.get('num_connected_components'), 0)),
-        'degree_std': num(row.get('degree_std')),
-        'avg_clustering_coeff': num(row.get('avg_clustering_coeff')),
-        'avg_shortest_path_length': num(row.get('avg_shortest_path_length')),
-        'dataset': dataset,
-    }
-    if adjacency_method:
-        stats['adjacency_method'] = adjacency_method
-    return (key, stats)
-
-
-def _read_csvs(
-    csv_files: list[Path],
-    result: dict[str, dict],
-    *,
-    default_adjacency_method: str = '',
-) -> None:
-    import csv as csv_module
-
-    for csv_path in csv_files:
-        if not csv_path.exists():
-            print(f'Skip (not found): {csv_path}')
-            continue
-        count = 0
-        with open(csv_path, newline='', encoding='utf-8') as f:
-            reader = csv_module.DictReader(f)
-            for row in reader:
-                pair = row_to_key_and_stats(row, default_adjacency_method=default_adjacency_method)
-                if pair:
-                    key, stats = pair
-                    result[key] = stats
-                    count += 1
-        print(f'Read {csv_path} ({count} entries)')
+    stats: dict[str, object] = {}
+    for metric in INT_METRICS:
+        value = _float(row.get(metric))
+        stats[metric] = int(value) if value is not None else 0
+    for metric in FLOAT_METRICS:
+        # null (not NaN) so the JSON stays parseable by fetch().json()
+        stats[metric] = _float(row.get(metric))
+    stats['dataset'] = dataset
+    stats['adjacency_method'] = adjacency_method
+    return key, stats
 
 
 def main() -> None:
-    result: dict[str, dict] = {}
-    _read_csvs(WGCNA_CSV_FILES, result, default_adjacency_method='wgcna')
-    _read_csvs(STRING_CSV_FILES, result, default_adjacency_method='string')
+    result: dict[str, dict[str, object]] = {}
+    for csv_path in CSV_FILES:
+        count = 0
+        with csv_path.open(newline='', encoding='utf-8') as f:
+            for row in csv.DictReader(f):
+                pair = row_to_key_and_stats(row)
+                if pair is None:
+                    continue
+                key, stats = pair
+                result[key] = stats
+                count += 1
+        print(f'Read {csv_path.relative_to(REPO_ROOT)} ({count} entries)')
+
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
+    with OUTPUT_PATH.open('w', encoding='utf-8') as f:
         json.dump(result, f, indent=2)
+        f.write('\n')
     print(f'Wrote {len(result)} entries to {OUTPUT_PATH}')
 
 

@@ -93,13 +93,7 @@ If you already have the graph-statistics CSV files (e.g. from a previous run of 
 python webapp/scripts/build_stats_from_csv.py
 ```
 
-This reads:
-
-- `tutorials/stats/addneuromed/graph_stats_comprehensive_addneuro.csv`
-- `tutorials/stats/motrpac/graph_stats_comprehensive_motrpac.csv`
-- `tutorials/stats/parkinsons/graph_stats_comprehensive_parkinsons.csv`
-
-and writes `webapp/public/data/stats.json`. Run this after updating any of those CSVs or when setting up the webapp on a fresh clone so the Dataset Explorer has data. The Explorer’s Node Sample Ratio and Adjacency Threshold sliders will only show values that exist in the generated stats. If the CSVs contain an `adjacency_method` column, it will be included in the key and the Explorer will show a Graph Construction dropdown.
+This reads every `stats/<dataset>/graph_stats_comprehensive.csv` in the repo root (one file per dataset, both `string` and `wgcna` rows) and writes `webapp/public/data/stats.json`. `make build` runs it automatically. Run it after updating any of those CSVs or when setting up the webapp on a fresh clone so the Dataset Explorer has data. The Explorer’s Sample-to-Node Ratio and Adjacency Threshold sliders only show values that exist in the generated stats. `full` (all features) is kept as its own ratio value; it is a different graph from `1.0`.
 
 ### Regenerating Graph Statistics (full pipeline)
 
@@ -138,13 +132,15 @@ This will:
 
 **Parameters computed:**
 
-| Parameter            | Values                                                      |
-| -------------------- | ----------------------------------------------------------- |
-| Datasets             | `motrpac`, `addneuromed`, `parkinsons`, `covidaki`          |
-| Node sample ratios   | `full`, `1.0`, `0.5`, `0.3`                                 |
-| Selection methods    | `variance`, `correlation`, `distance_correlation`, `random` |
-| Adjacency thresholds | 10 values from 0.0 to 1.0                                   |
-| Graph construction   | `string` (PPI Network), `wgcna` (Co-expression)             |
+| Parameter            | Values                                                                    |
+| -------------------- | ------------------------------------------------------------------------- |
+| Datasets             | `motrpac`, `addneuromed`, `parkinsons`, `brca`, `tuberculosis`, `smoking` |
+| Sample-to-node ratio | `full`, `1.0`, `0.5`, `0.3` (`n_nodes = n_train / ratio`; `full` = all)   |
+| Selection methods    | `variance`, `correlation`, `distance_correlation`, `random`               |
+| Adjacency thresholds | 10 values from 0.0 to 1.0                                                 |
+| Graph construction   | `string` (PPI Network), `wgcna` (Co-expression)                           |
+
+Graphs are the fold-0 training graphs of the 5-fold rotation (see the script docstring).
 
 **Metrics computed per graph:**
 
@@ -155,8 +151,10 @@ This will:
 - `degree_std` — Standard deviation of degrees
 - `num_connected_components` — Number of connected components
 - `largest_cc_ratio_pct` — Largest connected component / total nodes (%)
-- `avg_clustering_coeff` — Average clustering coefficient
-- `avg_shortest_path_length` — Average shortest path length
+- `clustering_coefficient` — Approximate average clustering coefficient of the largest connected component
+- `diameter` — Approximate (2-sweep) diameter of the largest connected component
+- `modularity` — Louvain modularity of the largest connected component
+- `homophily` — Mean cosine similarity of train-averaged node features along edges
 
 **Expected runtime:** Varies based on number of parallel jobs and dataset sizes.
 
@@ -194,8 +192,10 @@ This will:
     "degree_std": 240.65,
     "num_connected_components": 172,
     "largest_cc_ratio_pct": 77.68,
-    "avg_clustering_coeff": 0.72,
-    "avg_shortest_path_length": 2.59,
+    "clustering_coefficient": 0.72,
+    "diameter": 6.0,
+    "modularity": 0.41,
+    "homophily": 0.03,
     "dataset": "motrpac",
     "adjacency_method": "string"
   }
@@ -222,8 +222,8 @@ Stats key: `{dataset}|{ratio}|{method}|{threshold}|{adjacency_method}`
 
 Where:
 
-- `dataset`: `motrpac`, `addneuromed`, `parkinsons`, or `covidaki`
-- `ratio`: node sample ratio (`full`, `1.0`, `0.5`, `0.3`)
+- `dataset`: `motrpac`, `addneuromed`, `parkinsons`, `brca`, `tuberculosis`, or `smoking` (results.json currently covers the first four)
+- `ratio`: sample-to-node ratio (`full`, `1`, `0.5`, `0.3` — numeric values use JS number formatting, so `1.0` is written `1`)
 - `method`: `variance`, `correlation`, `distance_correlation`, or `random`
 - `threshold`: adjacency threshold (0.0–1.0)
 - `readout`: `NoReadOut`, `OmicsReadOut`, or `baseline`
