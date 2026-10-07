@@ -9,6 +9,11 @@ from sklearn.utils import shuffle as sklearn_shuffle
 
 from ogbench.dataloader import DataloadDataset
 
+# Part of the Optuna study fingerprint: bump whenever a change alters which samples a
+# run trains, validates, or tests on, so studies from before the change cannot resume.
+# v2: GNN loaders keep the precomputed omics fold (before, k-fold runs were re-split).
+SPLIT_PROTOCOL = 'omics-precomputed-fold-v2'
+
 
 def compute_omics_split_indices(
     labels: np.ndarray,
@@ -165,6 +170,37 @@ def group_kfold_is_feasible(
     return True, f'{n_groups} groups support k={k} group-aware rotation'
 
 
+def resolve_split_groups(
+    grouping: str | None,
+    batches: np.ndarray | None,
+    labels: np.ndarray,
+    *,
+    split_type: str,
+    k: int,
+) -> np.ndarray | None:
+    """Return group labels for the split, failing instead of silently dropping grouping.
+
+    ``grouping=batch`` requires batch labels, ``split_type=k-fold``, and a feasible
+    group-aware 3/1/1 rotation in which every split keeps both classes.
+    """
+    if grouping in (None, 'null', ''):
+        return None
+    if grouping != 'batch':
+        raise ValueError(f"grouping must be null or 'batch', got {grouping!r}")
+    if batches is None:
+        raise FileNotFoundError('grouping=batch requires batch labels')
+    if split_type != 'k-fold':
+        raise ValueError(
+            f'grouping={grouping} keeps batches unmixed only under split_type=k-fold, '
+            f'got split_type={split_type!r}. Set grouping=null to use a fixed split.'
+        )
+    groups = np.asarray(batches)
+    ok, reason = group_kfold_is_feasible(groups, labels, int(k))
+    if not ok:
+        raise ValueError(f'Group-aware k={k} split is not feasible: {reason}')
+    return groups
+
+
 def print_group_split_inventory(
     groups: np.ndarray,
     labels: np.ndarray,
@@ -237,18 +273,33 @@ def build_omics_cache_relative_name(
     corrections: list[str] | None = None,
     grouping: str | None = None,
     adjacency_target_connectivity: float | None = None,
+    *,
+    revision: str,
+    imputation_method: str,
+    wgcna_binarization: str = 'target_connectivity',
 ) -> str:
-    """Build the relative HFOmics cache directory name (under data_dir)."""
-    adjacency_setting = (
-        f'target_connectivity_{adjacency_target_connectivity}'
-        if adjacency_method == 'wgcna' and adjacency_target_connectivity is not None
-        else f'adj_thresh_{adjacency_threshold}'
-    )
+    """Build the relative HFOmics cache directory name (under data_dir).
+
+    Every setting that changes the cached matrix or graph is part of the name, so a cache built
+    with another HF revision, imputer, or WGCNA binarization is never reused.
+    """
+    if adjacency_method == 'wgcna' and wgcna_binarization == 'target_connectivity':
+        if adjacency_target_connectivity is None:
+            raise ValueError('WGCNA target_connectivity binarization needs a target value')
+        adjacency_setting = f'target_connectivity_{adjacency_target_connectivity}'
+    elif adjacency_method == 'wgcna':
+        adjacency_setting = f'{wgcna_binarization}_{adjacency_threshold}'
+    else:
+        adjacency_setting = f'adj_thresh_{adjacency_threshold}'
+    if not revision:
+        raise ValueError('revision is required to key the omics cache')
     parts = [
         f'{data_name}',
+        f'hf_{str(revision)[:12]}',
         adjacency_setting,
         f'adj_method_{adjacency_method}',
         f'{method}',
+        f'impute_{imputation_method}',
         f'p_{node_sample_ratio}',
         f'train_split_{train_split}',
     ]
@@ -547,9 +598,11 @@ def load_inductive_splits(dataset, parameters):
     assert len(dataset) > 1, 'Datasets should have more than one graph in an inductive setting.'
     labels = np.array([data.y.squeeze(0).numpy() for data in dataset.data_list])
 
-    # Omics caches already reorder samples to train|val|test and attach
-    # contiguous split_idx. Prefer that over re-splitting (avoids double CV).
-    if getattr(dataset, 'uses_precomputed_split', False) and hasattr(dataset, 'split_idx'):
+    # Omics caches already reorder samples to train|val|test for one fold and attach
+    # contiguous split_idx; re-splitting them would mix train, val, and test.
+    if getattr(dataset, 'uses_precomputed_split', False):
+        if not hasattr(dataset, 'split_idx'):
+            raise ValueError('uses_precomputed_split is set but the dataset has no split_idx')
         split_idx = dataset.split_idx
 
     elif parameters.split_type == 'random':

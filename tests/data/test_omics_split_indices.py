@@ -8,7 +8,15 @@ from ogbench.data.utils.split_utils import (
     compute_omics_split_indices,
     group_kfold_is_feasible,
     omics_cache_split_suffix,
+    resolve_split_groups,
 )
+
+_CACHE_KEYS = {
+    'adjacency_target_connectivity': 0.1,
+    'revision': '056dfdc4f434fd35355ffbe5f7b63910d785a97a',
+    'imputation_method': 'mean',
+    'wgcna_binarization': 'target_connectivity',
+}
 
 
 def _balanced_labels(n: int = 100, n_classes: int = 2) -> np.ndarray:
@@ -108,9 +116,11 @@ def test_cache_suffix_separates_grouped_folds():
 def test_cache_name_includes_corrections_when_set():
     from ogbench.data.utils.split_utils import build_omics_cache_relative_name
 
-    plain = build_omics_cache_relative_name('addneuromed', 0.1, 'wgcna', 'variance', 0.5, 0.7)
+    plain = build_omics_cache_relative_name(
+        'addneuromed', 0.4, 'wgcna', 'variance', 0.5, 0.7, **_CACHE_KEYS
+    )
     combat = build_omics_cache_relative_name(
-        'addneuromed', 0.1, 'wgcna', 'variance', 0.5, 0.7, corrections=['combat']
+        'addneuromed', 0.4, 'wgcna', 'variance', 0.5, 0.7, corrections=['combat'], **_CACHE_KEYS
     )
     assert 'corr_combat' not in plain
     assert combat.endswith('corr_combat')
@@ -120,17 +130,35 @@ def test_wgcna_target_connectivity_replaces_fixed_threshold_in_cache_name():
     from ogbench.data.utils.split_utils import build_omics_cache_relative_name
 
     name = build_omics_cache_relative_name(
-        'motrpac',
-        0.0229,
-        'wgcna',
-        'variance',
-        0.5,
-        0.7,
-        adjacency_target_connectivity=0.1,
+        'motrpac', 0.4, 'wgcna', 'variance', 0.5, 0.7, **_CACHE_KEYS
     )
 
     assert 'target_connectivity_0.1' in name
     assert 'adj_thresh_' not in name
+
+
+def test_cache_name_separates_revision_imputer_and_binarization():
+    from ogbench.data.utils.split_utils import build_omics_cache_relative_name
+
+    def name(**overrides):
+        keys = {**_CACHE_KEYS, **overrides}
+        return build_omics_cache_relative_name(
+            'motrpac', 0.4, 'wgcna', 'variance', 0.5, 0.7, **keys
+        )
+
+    base = name()
+    assert name(revision='ffffffffffffffff') != base
+    assert name(imputation_method='median') != base
+    assert name(wgcna_binarization='fixed_threshold') != base
+
+
+def test_cache_name_requires_revision():
+    from ogbench.data.utils.split_utils import build_omics_cache_relative_name
+
+    with pytest.raises(ValueError, match='revision'):
+        build_omics_cache_relative_name(
+            'motrpac', 0.4, 'wgcna', 'variance', 0.5, 0.7, **{**_CACHE_KEYS, 'revision': ''}
+        )
 
 
 def test_group_kfold_keeps_groups_unmixed():
@@ -166,3 +194,30 @@ def test_fixed_rejects_groups():
     groups = np.arange(20) % 4
     with pytest.raises(ValueError, match='group-aware'):
         compute_omics_split_indices(labels, split_type='fixed', groups=groups)
+
+
+def test_resolve_split_groups_returns_feasible_batches():
+    groups = np.repeat(np.arange(10), 8)
+    labels = np.tile([0, 1], 40)
+    resolved = resolve_split_groups('batch', groups, labels, split_type='k-fold', k=5)
+    np.testing.assert_array_equal(resolved, groups)
+    assert resolve_split_groups(None, groups, labels, split_type='k-fold', k=5) is None
+
+
+def test_resolve_split_groups_rejects_fixed_split():
+    groups = np.repeat(np.arange(10), 8)
+    labels = np.tile([0, 1], 40)
+    with pytest.raises(ValueError, match='grouping=null'):
+        resolve_split_groups('batch', groups, labels, split_type='fixed', k=5)
+
+
+def test_resolve_split_groups_rejects_infeasible_grouping():
+    groups = np.array([0, 0, 1, 1, 0, 1])
+    labels = np.array([0, 1, 0, 1, 0, 1])
+    with pytest.raises(ValueError, match='not feasible'):
+        resolve_split_groups('batch', groups, labels, split_type='k-fold', k=5)
+
+
+def test_resolve_split_groups_requires_batch_labels():
+    with pytest.raises(FileNotFoundError):
+        resolve_split_groups('batch', None, np.zeros(4), split_type='k-fold', k=5)

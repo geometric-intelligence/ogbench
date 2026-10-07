@@ -575,6 +575,16 @@ def test_data_root_does_not_change_study_fingerprint(
     assert search_config.fingerprint == original
 
 
+def test_split_protocol_changes_study_fingerprint(
+    search_config: OptunaSearchConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = search_config.fingerprint
+
+    monkeypatch.setattr(optuna_search, 'SPLIT_PROTOCOL', 'omics-precomputed-fold-v1')
+
+    assert search_config.fingerprint != original
+
+
 def test_warmup_only_does_not_open_studies_or_train(
     search_config: OptunaSearchConfig,
     monkeypatch: pytest.MonkeyPatch,

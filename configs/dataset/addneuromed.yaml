@@ -1,7 +1,3 @@
-# UPDATED: adjacency_threshold changed from 0.05 to 0.05
-# Target connectivity: ~20% (actual: 0.61%)
-# Mean degree: 105.2
-
 loader:
   _target_: ogbench.data.loaders.graph.omics_datasets.OmicsDatasetLoader
   parameters:
@@ -9,13 +5,14 @@ loader:
     data_domain: graph
     data_name: addneuromed
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.1792
+    adjacency_threshold: 0.4 # STRING combined-score cutoff; WGCNA uses adjacency_target_connectivity
     adjacency_target_connectivity: 0.10
+    wgcna_binarization: target_connectivity
     adjacency_method: wgcna
     node_sample_ratio: 0.5
     method: variance
     imputation_method: mean
-    train_val_test_split:
+    train_val_test_split: # used only when split_type=fixed
       - 0.7
       - 0.15
       - 0.15
@@ -34,10 +31,7 @@ parameters:
   num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio},${dataset.parameters.full_num_nodes},${dataset.split_params.split_type},${dataset.split_params.k}}
   task: classification
   loss_type: cross_entropy
-  class_weights:
-    - 0.828
-    - 1.004
-    - 1.255
+  class_weights: balanced # computed from each fold's training labels at run time
   monitor_metric: f1_macro
   metrics:
     - accuracy

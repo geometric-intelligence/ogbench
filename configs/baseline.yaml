@@ -21,9 +21,8 @@ seed: 42
 # Filter which baselines to run: "standard", "gnn_features", or null (all)
 baseline_filter: null
 
-# For k-fold runs, evaluate every candidate on all folds and select one
-# hyperparameter configuration by mean validation score. Every fold is then
-# refit and evaluated with that same configuration, matching the GNN Optuna
-# trial protocol. Set to "per_fold" only to reproduce the historical behavior.
+# K-fold baselines score every candidate on all folds and keep one configuration
+# by mean validation score. Each fold is then refit with that configuration.
+# Any other value is rejected.
 baseline_hparam_selection: global_kfold_mean_validation
 baseline_hparam_cache_dir: ${paths.log_dir}/baseline/hparam_selection

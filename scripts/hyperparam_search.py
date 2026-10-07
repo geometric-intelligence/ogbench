@@ -26,6 +26,7 @@ from hydra import compose, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from hydra.utils import instantiate
 from joblib import Parallel, delayed
+from omegaconf import open_dict
 
 from ogbench.utils.config_resolvers import (
     register_all_resolvers,
@@ -33,6 +34,16 @@ from ogbench.utils.config_resolvers import (
 from ogbench.utils.hparam_search import run_training, to_override
 
 register_all_resolvers()
+
+
+def require_fixed_split_search(config: dict[str, Any]) -> None:
+    """This script scores one split per configuration; k-fold searches use optuna_search.py."""
+    split_type = (config.get('fixed') or {}).get('dataset.split_params.split_type')
+    if split_type != 'fixed':
+        raise ValueError(
+            "hyperparam_search.py needs 'dataset.split_params.split_type: fixed' under 'fixed', "
+            f'got {split_type!r}. Use scripts/optuna_search.py for k-fold.'
+        )
 
 
 @dataclass
@@ -108,6 +119,8 @@ class SearchConfig:
             elif isinstance(key, tuple) and len(key) == 3:
                 # Already a tuple (shouldn't happen with YAML but handle it)
                 per_dataset_ratio_method_grid[key] = value
+
+        require_fixed_split_search(config)
 
         if 'wgcna_target_connectivity' in config:
             target_connectivity_raw = config.get('wgcna_target_connectivity')
@@ -190,6 +203,9 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
             overrides=overrides,
             return_hydra_config=True,
         )
+        # Parameter counting has no training split, and loss weights hold no parameters.
+        with open_dict(cfg):
+            cfg.dataset.parameters.class_weights = None
 
         model = instantiate(
             cfg.model, evaluator=cfg.evaluator, optimizer=cfg.optimizer, loss=cfg.loss

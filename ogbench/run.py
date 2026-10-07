@@ -27,6 +27,7 @@ from ogbench.utils import (
 )
 from ogbench.utils.config_resolvers import (
     register_all_resolvers,
+    resolve_class_weights_from_dataset,
     sync_num_nodes_from_dataset,
 )
 from ogbench.utils.hparam_search import (
@@ -149,6 +150,10 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         )
     elif actual_nodes is not None:
         log.info(f'Graph num_nodes={actual_nodes} matches config')
+
+    class_weights = resolve_class_weights_from_dataset(cfg, dataset_train)
+    if class_weights is not None:
+        log.info(f'Class weights from training split: {class_weights}')
 
     # Inject optional learnable node identity before the feature encoder.
     gene_identity_bank = setup_gene_identity(cfg, dataset)

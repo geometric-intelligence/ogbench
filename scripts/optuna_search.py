@@ -38,6 +38,7 @@ from joblib import Parallel, delayed, parallel_backend
 from omegaconf import OmegaConf
 from optuna.trial import TrialState
 
+from ogbench.data.utils.split_utils import SPLIT_PROTOCOL
 from ogbench.utils.config_resolvers import register_all_resolvers
 from ogbench.utils.hparam_search import (
     GpuDevice,
@@ -323,6 +324,7 @@ class OptunaSearchConfig:
             key: value for key, value in self.fixed.items() if key != 'paths.root_dir'
         }
         payload = {
+            'split_protocol': SPLIT_PROTOCOL,
             'datasets': self.datasets,
             'models': self.models,
             'folds': self.folds,
@@ -803,7 +805,7 @@ def _fold_overrides(
             'dataset.split_params.split_type': 'k-fold',
             'dataset.split_params.k': config.k,
             'dataset.split_params.data_seed': fold,
-            'test': False,
+            'test': True,
             'logger.wandb.tags': tags,
             'logger.wandb.group': cell.study_name,
             'logger.wandb.name': run_name,

@@ -133,7 +133,8 @@ def find_checkpoint(
     study_dir = search_output_dir / 'runs' / study_name
     if not study_dir.is_dir():
         return None
-    for attempt in range(1, 8):
+    # Latest attempt first: an earlier attempt that crashed can leave a checkpoint behind.
+    for attempt in range(7, 0, -1):
         run_dir = (
             study_dir / f'{study_name}_trial{int(trial_number):04d}_fold{fold}_attempt{attempt}'
         )

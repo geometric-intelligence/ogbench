@@ -52,6 +52,9 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
         # We need to store this information to be able to reproduce the splits afterwards
         if hasattr(dataset, 'split_idx'):
             self.split_idx = dataset.split_idx
+        # Omics caches are already reordered train|val|test for one fold; the split
+        # loader must use split_idx as is instead of drawing a new split.
+        self.uses_precomputed_split = bool(getattr(dataset, 'uses_precomputed_split', False))
 
     @property
     def processed_dir(self) -> str:

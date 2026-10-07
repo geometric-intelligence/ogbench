@@ -11,7 +11,7 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 - **4 curated omics datasets** on Hugging Face Hub with automatic download
 - **9 GNN architectures** — GCN, GATv2, GATv4, GIN, GraphSAGE, ChebNet, SAGN, GPS, MLP
 - **2 graph construction methods** — WGCNA co-expression and STRING protein-protein interaction
-- **GNN-features baselines** — sklearn classifiers (SVM, Elastic Net) on learned GNN embeddings
+- **GNN-features baselines** — sklearn classifiers (SVM, Elastic Net) on the exact feature matrix the GNN pipeline builds for each fold
 - **Hydra configs** for reproducible, composable experiments
 - **PyTorch Lightning** training with WandB logging and multi-GPU support
 - **Interactive leaderboard** webapp with dataset explorer
@@ -78,8 +78,8 @@ python -m ogbench dataset=brca model=gcn dataset.split_params.split_type=k-fold 
 
 Graphs are constructed from omics feature matrices. Two adjacency methods are supported:
 
-- **WGCNA** (default) — weighted gene co-expression network analysis with soft thresholding
-- **STRING PPI** — protein-protein interaction edges from the STRING database
+- **WGCNA** (default) — weighted gene co-expression network analysis with soft thresholding. The graph keeps the strongest training-fold edges until `adjacency_target_connectivity` (0.10) of possible gene pairs are connected.
+- **STRING PPI** — protein-protein interaction edges from the STRING database, kept when the normalized combined score exceeds `adjacency_threshold` (0.4, shared by all datasets)
 
 Node (feature) selection methods: `variance`, `correlation`, `distance_correlation`, `random`. The `node_sample_ratio` parameter controls the fraction of features retained.
 
@@ -164,14 +164,14 @@ existing feature dimension.
 
 ## Baselines — GNN-Features Pipeline
 
-OGBench supports a hybrid baseline approach: train a GNN to learn node embeddings, then use those embeddings as features for sklearn classifiers. This isolates the value of the graph structure from the classifier head.
+GNN-features baselines train sklearn classifiers on the same input the GNNs see: the imputed, train-fold-selected gene matrix that `HFOmicsDataset` caches as `selected_data.parquet`, with the same split from `split_info.json`. No graph or learned embedding is used, so comparing them with the GNNs isolates the value of the graph structure and message passing.
 
 Two GNN-features baselines are configured per dataset:
 
-- **`svm_gnn_features`** — LinearSVC with calibration on GNN-learned embeddings
-- **`elastic_net_gnn_features`** — Logistic regression with elastic net penalty on GNN-learned embeddings
+- **`svm_gnn_features`** — LinearSVC with calibration on the GNN pipeline's selected features
+- **`elastic_net_gnn_features`** — Logistic regression with elastic net penalty on the GNN pipeline's selected features
 
-Both skip the manual feature selection step (no `SelectKBest`) since the GNN already performs representation learning.
+The cache must exist first, so run the GNN pipeline (or its cache warmup) for the same fold before these baselines.
 
 ```bash
 # Run baselines on a specific dataset

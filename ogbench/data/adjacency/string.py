@@ -65,7 +65,8 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
     - map_df has columns 'node_id' and 'string_id'
     - 'string_id' may be pipe-delimited for multi-protein complex aptamers
     - 'string_id' can be any format STRING accepts (UniProt, Entrez, gene symbol, etc.)
-    - Medium confidence threshold: combined score >= 400 (out of 1000)
+    - All bulk interactions are kept; the confidence cutoff is applied upstream, where
+      edges with normalized score > ``adjacency_threshold`` (0.4 = combined score 400) are kept
     - Returns continuous scores normalized to [0, 1] — binarization handled upstream
     - Nodes with no STRING mapping or no interactions become isolated nodes
     - Results are cached to avoid repeated API calls across folds/runs
@@ -106,7 +107,7 @@ class STRINGAdjacencyBuilder(AbstractAdjacencyBuilder):
         Returns:
             Symmetric adjacency matrix of shape (n_nodes, n_nodes).
             Values are STRING combined scores normalized to [0, 1].
-            Zero means no interaction above threshold.
+            Zero means no STRING interaction.
         """
         if map_df is None:
             raise ValueError('map_df is required for STRING adjacency builder')

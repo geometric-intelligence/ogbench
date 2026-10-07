@@ -1,4 +1,10 @@
 #!/bin/bash
+# shellcheck disable=SC2317
+
+# Retired: it sweeps data_seed (the k-fold test fold) as a hyperparameter and scores each
+# run on one fold. Use scripts/optuna_search.py, which averages validation over all folds.
+echo "pruned_grid_search.sh is retired; use scripts/optuna_search.py for k-fold hyperparameter search." >&2
+exit 1
 
 python -m ogbench \
     dataset=covidaki \

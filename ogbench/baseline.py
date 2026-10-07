@@ -47,6 +47,7 @@ from ogbench.data.corrections import (
 from ogbench.data.utils.split_utils import (
     build_omics_cache_relative_name,
     compute_omics_split_indices,
+    resolve_split_groups,
 )
 
 rootutils.setup_root(__file__, indicator='.project-root', pythonpath=True)
@@ -61,6 +62,8 @@ logging.basicConfig(
     level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+HF_REPO_ID = 'geometric-intelligence/ogbench'
 
 
 @dataclass
@@ -184,32 +187,18 @@ def compute_classification_metrics(
 
 
 def load_metadata(data_name: str, cfg: DictConfig) -> dict[str, Any] | None:
-    """Load metadata from HuggingFace or local files.
+    """Load metadata from the pinned HuggingFace revision.
 
     :param data_name: Name of the dataset
     :param cfg: Configuration containing revision info
     :return: Metadata dictionary or None if not found
     """
-    # Check for local metadata first
-    local_metadata_file = osp.join('temp_data', data_name, f'{data_name}_metadata.json')
-
-    if osp.exists(local_metadata_file):
-        logger.info('Loading metadata from local file...')
-        with open(local_metadata_file) as f:
-            return json.load(f)
-
-    # Download from HuggingFace
     try:
         logger.info('Downloading metadata from HuggingFace...')
-        hf_repo_id = 'geometric-intelligence/ogbench'
-        revision = cfg.dataset.loader.parameters.get(
-            'revision', '056dfdc4f434fd35355ffbe5f7b63910d785a97a'
-        )
-
         metadata_file = hf_hub_download(  # nosec
-            repo_id=hf_repo_id,
+            repo_id=HF_REPO_ID,
             repo_type='dataset',
-            revision=revision,
+            revision=cfg.dataset.loader.parameters.revision,
             filename=f'{data_name}_metadata.json',
         )
 
@@ -246,19 +235,12 @@ def _resolve_corrections(cfg: DictConfig) -> list[str]:
     return [str(item) for item in list(raw)]
 
 
-def _load_optional_sidecar(
-    cfg: DictConfig, data_name: str, suffix: str, local_dir: str
-) -> pd.DataFrame | None:
-    local_path = osp.join(local_dir, data_name, f'{data_name}_{suffix}.parquet')
-    if osp.exists(local_path):
-        return pd.read_parquet(local_path)
+def _load_optional_sidecar(cfg: DictConfig, data_name: str, suffix: str) -> pd.DataFrame | None:
     try:
         path = hf_hub_download(  # nosec
-            repo_id='geometric-intelligence/ogbench',
+            repo_id=HF_REPO_ID,
             repo_type='dataset',
-            revision=cfg.dataset.loader.parameters.get(
-                'revision', '056dfdc4f434fd35355ffbe5f7b63910d785a97a'
-            ),
+            revision=cfg.dataset.loader.parameters.revision,
             filename=f'{data_name}_{suffix}.parquet',
         )
         return pd.read_parquet(path)
@@ -269,14 +251,14 @@ def _load_optional_sidecar(
 def _batch_labels_from_sidecars(
     cfg: DictConfig, data_name: str, n_samples: int
 ) -> np.ndarray | None:
-    batches_df = _load_optional_sidecar(cfg, data_name, 'batches', 'temp_data')
+    batches_df = _load_optional_sidecar(cfg, data_name, 'batches')
     if batches_df is not None:
         column = 'batch' if 'batch' in batches_df.columns else batches_df.columns[0]
         values = batches_df[column].to_numpy()
         if len(values) != n_samples:
             raise ValueError('batches sidecar length does not match samples')
         return values
-    meta = _load_optional_sidecar(cfg, data_name, 'sample_meta', 'temp_data')
+    meta = _load_optional_sidecar(cfg, data_name, 'sample_meta')
     if meta is None or 'batch' not in meta.columns:
         return None
     if len(meta) != n_samples:
@@ -298,7 +280,7 @@ def _get_hf_omics_raw_dir(cfg: DictConfig) -> str:
     name = build_omics_cache_relative_name(
         data_name=params.data_name,
         adjacency_threshold=params.adjacency_threshold,
-        adjacency_method=params.get('adjacency_method', 'string'),
+        adjacency_method=params.adjacency_method,
         method=params.method,
         node_sample_ratio=params.node_sample_ratio,
         train_split=params.train_val_test_split[0],
@@ -308,6 +290,9 @@ def _get_hf_omics_raw_dir(cfg: DictConfig) -> str:
         corrections=list(params.get('corrections') or []),
         grouping=_resolve_grouping(cfg),
         adjacency_target_connectivity=params.get('adjacency_target_connectivity'),
+        revision=params.revision,
+        imputation_method=params.imputation_method,
+        wgcna_binarization=params.wgcna_binarization,
     )
     return osp.join(params.data_dir, name, 'raw')
 
@@ -630,6 +615,19 @@ def _select_global_kfold_hparams(
         return selected
 
 
+def _resolve_baseline_hparam_selection(cfg: DictConfig, split_type: str) -> str:
+    """K-fold runs select one configuration by mean validation score across folds."""
+    if split_type != 'k-fold':
+        return 'single_train_validation_split'
+    requested = cfg.get('baseline_hparam_selection')
+    if requested not in (None, 'global_kfold_mean_validation'):
+        raise ValueError(
+            'k-fold baselines require baseline_hparam_selection=global_kfold_mean_validation, '
+            f'got {requested!r}'
+        )
+    return 'global_kfold_mean_validation'
+
+
 def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
     """Load and prepare data for baseline evaluation.
 
@@ -647,37 +645,22 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
             class_names = target_stats['class_names']
             logger.info(f'Found class names: {class_names}')
 
-    # Check for local temp_data first
-    local_data_dir = 'temp_data'
-    local_data_file = osp.join(local_data_dir, data_name, f'{data_name}_data.parquet')
-    target_filename = f'{data_name}_targets.parquet'
-    local_targets_file = osp.join(local_data_dir, data_name, target_filename)
-
-    if osp.exists(local_data_file) and osp.exists(local_targets_file):
-        logger.info('Loading from local temp_data...')
-        data_file = local_data_file
-        targets_file = local_targets_file
-    else:
-        # Download from HuggingFace
-        logger.info('Downloading from HuggingFace...')
-
-        hf_repo_id = 'geometric-intelligence/ogbench'
-        revision = cfg.dataset.loader.parameters.get(
-            'revision', '056dfdc4f434fd35355ffbe5f7b63910d785a97a'
-        )
-
-        data_file = hf_hub_download(  # nosec
-            repo_id=hf_repo_id,
-            repo_type='dataset',
-            revision=revision,
-            filename=f'{data_name}_data.parquet',
-        )
-        targets_file = hf_hub_download(  # nosec
-            repo_id=hf_repo_id,
-            repo_type='dataset',
-            revision=revision,
-            filename=target_filename,
-        )
+    # Always the pinned Hub revision, like HFOmicsDataset: local processor output in
+    # temp_data/ may predate the train-only correction refactor.
+    revision = cfg.dataset.loader.parameters.revision
+    logger.info('Downloading %s from HuggingFace revision %s...', data_name, revision)
+    data_file = hf_hub_download(  # nosec
+        repo_id=HF_REPO_ID,
+        repo_type='dataset',
+        revision=revision,
+        filename=f'{data_name}_data.parquet',
+    )
+    targets_file = hf_hub_download(  # nosec
+        repo_id=HF_REPO_ID,
+        repo_type='dataset',
+        revision=revision,
+        filename=f'{data_name}_targets.parquet',
+    )
 
     # Load data
     data = pd.read_parquet(data_file)
@@ -692,17 +675,10 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
 
     split_type, k, fold = _resolve_omics_split_settings(cfg)
     grouping = _resolve_grouping(cfg)
-    groups = None
-    if grouping == 'batch':
-        groups = _batch_labels_from_sidecars(cfg, data_name, len(targets))
-        if groups is None:
-            raise FileNotFoundError('grouping=batch requires batch labels sidecar')
-        if split_type != 'k-fold':
-            logger.warning(
-                f'grouping={grouping} only applies to split_type=k-fold; '
-                f'ignoring it for split_type={split_type}'
-            )
-            groups = None
+    batches = (
+        _batch_labels_from_sidecars(cfg, data_name, len(targets)) if grouping == 'batch' else None
+    )
+    groups = resolve_split_groups(grouping, batches, targets, split_type=split_type, k=k)
 
     train_val_test_split = list(
         OmegaConf.to_container(cfg.dataset.loader.parameters.train_val_test_split, resolve=True)
@@ -734,7 +710,7 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
         if name == 'median_center':
             continue
         if name == 'covariate_adjust':
-            cov = _load_optional_sidecar(cfg, data_name, 'covariates', 'temp_data')
+            cov = _load_optional_sidecar(cfg, data_name, 'covariates')
             if cov is None:
                 raise FileNotFoundError(f'{data_name}_covariates.parquet is required')
             adjuster = CovariateAdjuster()
@@ -758,7 +734,7 @@ def load_and_prepare_data(cfg: DictConfig) -> DatasetContainer:
             val_data = corrector.transform(val_data, batches[split_arrays['valid']])
             test_data = corrector.transform(test_data, batches[split_arrays['test']])
         elif name == 'promoter_min_beta':
-            probe_map = _load_optional_sidecar(cfg, data_name, 'probe_map', 'temp_data')
+            probe_map = _load_optional_sidecar(cfg, data_name, 'probe_map')
             if probe_map is None:
                 raise FileNotFoundError(f'{data_name}_probe_map.parquet is required')
             selector = PromoterMinBetaSelector()
@@ -1478,15 +1454,8 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         params = cfg.dataset.loader.parameters
         data_name = params.data_name
         split_type, k, fold = _resolve_omics_split_settings(cfg)
-        hparam_selection = str(cfg.get('baseline_hparam_selection', 'per_fold'))
-        use_global_kfold_selection = (
-            split_type == 'k-fold' and hparam_selection == 'global_kfold_mean_validation'
-        )
-        effective_hparam_selection = (
-            'global_kfold_mean_validation'
-            if use_global_kfold_selection
-            else 'single_train_validation_split'
-        )
+        effective_hparam_selection = _resolve_baseline_hparam_selection(cfg, split_type)
+        use_global_kfold_selection = effective_hparam_selection == 'global_kfold_mean_validation'
 
         nsr = params.node_sample_ratio
         method = params.method
@@ -1566,8 +1535,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
                     allow_val_change=True,
                 )
             else:
-                # Historical behavior for fixed splits and explicitly requested
-                # per-fold tuning: fit candidates on train and score one validation set.
+                # Fixed splits have one train/validation cut, so the grid is scored there.
                 train_indices = np.arange(len(dataset.y_train))
                 val_indices = np.arange(len(dataset.y_train), len(dataset.y_combined))
                 logger.info(
@@ -1585,7 +1553,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
                     refit=False,
                     error_score='raise',
                 )
-                logger.info('Training with per-fold grid search...')
+                logger.info('Training with the single train/validation split...')
                 search.fit(dataset.X_combined, dataset.y_combined)
                 best_params = dict(search.best_params_)
                 best_score = float(search.best_score_)

@@ -12,6 +12,31 @@ def _candidate(params, score):
     return baseline._param_key(params), (params, score)
 
 
+def test_kfold_rejects_per_fold_selection():
+    cfg = OmegaConf.create({'baseline_hparam_selection': 'per_fold'})
+
+    with pytest.raises(ValueError, match='global_kfold_mean_validation'):
+        baseline._resolve_baseline_hparam_selection(cfg, 'k-fold')
+
+
+def test_kfold_defaults_to_global_selection_when_unset():
+    cfg = OmegaConf.create({})
+
+    assert (
+        baseline._resolve_baseline_hparam_selection(cfg, 'k-fold')
+        == 'global_kfold_mean_validation'
+    )
+
+
+def test_fixed_split_uses_single_validation_split_with_default_config():
+    cfg = OmegaConf.create({'baseline_hparam_selection': 'global_kfold_mean_validation'})
+
+    assert (
+        baseline._resolve_baseline_hparam_selection(cfg, 'fixed')
+        == 'single_train_validation_split'
+    )
+
+
 def test_choose_global_hparams_uses_mean_not_fold_winners():
     weak = {'model__c': 1}
     stable = {'model__c': 2}

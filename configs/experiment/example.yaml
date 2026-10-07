@@ -29,5 +29,5 @@ model:
   compile: false
 
 dataset:
-  split_type: k-fold
-  k: 10
+  split_params:
+    split_type: fixed

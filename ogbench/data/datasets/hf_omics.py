@@ -30,6 +30,7 @@ from ogbench.data.utils import MeanStdNormalizer
 from ogbench.data.utils.split_utils import (
     build_omics_cache_relative_name,
     compute_omics_split_indices,
+    resolve_split_groups,
 )
 
 
@@ -173,6 +174,9 @@ class HFOmicsDataset(InMemoryDataset):
             corrections=self.corrections,
             grouping=self.grouping,
             adjacency_target_connectivity=self.adjacency_target_connectivity,
+            revision=self.revision,
+            imputation_method=imputation_method,
+            wgcna_binarization=self.wgcna_binarization,
         )
 
         super().__init__(root)
@@ -382,21 +386,14 @@ class HFOmicsDataset(InMemoryDataset):
         covariates_df = self._download_optional_parquet(f'{self.data_name}_covariates.parquet')
         probe_map_df = self._download_optional_parquet(f'{self.data_name}_probe_map.parquet')
         batches = self._load_batch_labels()
-        groups = None
-        if self.grouping == 'batch':
-            if batches is None:
-                raise FileNotFoundError(
-                    f'grouping=batch requires {self.data_name}_batches.parquet or '
-                    f'{self.data_name}_sample_meta.parquet with a batch column'
-                )
-            if self.split_type == 'k-fold':
-                groups = batches
-            else:
-                logger.warning(
-                    'grouping=%s only applies to split_type=k-fold; ignoring it for split_type=%s',
-                    self.grouping,
-                    self.split_type,
-                )
+        if self.grouping == 'batch' and batches is None:
+            raise FileNotFoundError(
+                f'grouping=batch requires {self.data_name}_batches.parquet or '
+                f'{self.data_name}_sample_meta.parquet with a batch column'
+            )
+        groups = resolve_split_groups(
+            self.grouping, batches, targets, split_type=self.split_type, k=self.k
+        )
 
         # IMPORTANT: Split data BEFORE any feature engineering to avoid data leakage.
         # Indices refer to the original sample order; we then reorder to train|val|test.
@@ -568,14 +565,21 @@ class HFOmicsDataset(InMemoryDataset):
             with open(os.path.join(self.raw_dir, 'split_info.json'), 'w') as f:
                 json.dump(split_info, f, indent=4)
 
-        # Log statistics
-        node_degrees = np.sum(adj_matrix, axis=1)
-        logger.info('Node degrees statistics (from training data):')
+        # Degrees count neighbours only; the binary matrices carry self-loops on the diagonal.
+        off_diagonal = np.asarray(adj_matrix) != 0
+        np.fill_diagonal(off_diagonal, False)
+        node_degrees = off_diagonal.sum(axis=1)
+        n_nodes = len(node_degrees)
+        n_edges = int(np.triu(off_diagonal, k=1).sum())
+        n_possible = n_nodes * (n_nodes - 1) // 2
+        logger.info('Node degrees statistics (from training data, self-loops excluded):')
         logger.info(f'Mean degree: {np.mean(node_degrees):.2f}')
         logger.info(f'Median degree: {np.median(node_degrees):.2f}')
         logger.info(f'Min degree: {np.min(node_degrees):.2f}')
         logger.info(f'Max degree: {np.max(node_degrees):.2f}')
-        logger.info(f'Total edges: {np.sum(node_degrees) / 2:.0f}')
+        logger.info(f'Total edges: {n_edges}')
+        if n_possible:
+            logger.info(f'Connectivity: {n_edges / n_possible:.4f}')
 
     def select_nodes(
         self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = 'variance'

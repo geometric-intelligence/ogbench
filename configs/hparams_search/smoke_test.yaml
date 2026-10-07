@@ -11,6 +11,7 @@ seeds: [42]
 
 fixed:
   logger.wandb.project: ogbench_smoke_test
+  dataset.split_params.split_type: fixed # one split per run; k-fold searches use optuna_search.py
 
 shared_grid:
   dataset.loader.parameters.node_sample_ratio:
