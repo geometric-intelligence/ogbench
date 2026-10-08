@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import inspect
 import json
 import os
@@ -36,6 +37,10 @@ SUPERVISOR_SCRIPT = REPO_ROOT / 'scripts' / 'campaign' / 'server_supervisor.sh'
 FOLD_CACHE_MARKER = 'split_k-fold'
 EXPORTED_TABLES = ('trials.csv', 'best_trials.csv', 'fold_attempts.csv', 'failures.csv')
 EVENTS_CHUNK_BYTES = 8 << 20
+ENV_DIRS = ('WANDB_DIR', 'WANDB_CACHE_DIR', 'WANDB_DATA_DIR', 'HF_HOME', 'TMPDIR')
+# Parquets per dataset on the Hub: the loaders fail without the first, the rest are sidecars.
+HF_REQUIRED_PARTS = ('data', 'targets', 'map')
+HF_OPTIONAL_PARTS = ('covariates', 'probe_map', 'batches', 'sample_meta')
 
 
 def manifest_path(run_root: Path) -> Path:
@@ -468,6 +473,160 @@ def cmd_fold_stats(payload: dict[str, Any]) -> dict[str, Any]:
     return {'studies': stats}
 
 
+def _make_env_dirs(env: dict[str, str]) -> None:
+    for key in ENV_DIRS:
+        if key in env:
+            Path(env[key]).mkdir(parents=True, exist_ok=True)
+
+
+def installed_packages() -> list[str]:
+    """``name==version`` of every installed distribution except ogbench (an editable install)."""
+    from importlib import metadata
+
+    versions = {}
+    for distribution in metadata.distributions():
+        name = (distribution.metadata['Name'] or '').lower().replace('_', '-')
+        if name and name != 'ogbench':
+            versions[name] = distribution.version
+    return sorted(f'{name}=={version}' for name, version in versions.items())
+
+
+def _check_gpus() -> dict[str, Any]:
+    import torch
+
+    devices = []
+    for index in range(torch.cuda.device_count()):
+        torch.ones(8, device=f'cuda:{index}').sum().item()
+        devices.append(torch.cuda.get_device_name(index))
+    return {'torch': torch.__version__, 'cuda': torch.version.cuda, 'devices': devices}
+
+
+def _check_wandb(entity: str) -> dict[str, Any]:
+    import wandb
+
+    api = wandb.Api(timeout=60)
+    next(iter(api.projects(entity, per_page=1)), None)
+    return {'user': api.viewer.username, 'entity': entity}
+
+
+def _check_hf(datasets: Sequence[str], revision: str) -> dict[str, Any]:
+    """Download every parquet the loaders read at ``revision`` into this server's HF cache."""
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.utils import EntryNotFoundError
+
+    from ogbench.data.datasets import HFOmicsDataset
+
+    repo_id = inspect.signature(HFOmicsDataset.__init__).parameters['hf_repo_id'].default
+    files: dict[str, dict[str, float]] = {}
+    for dataset in datasets:
+        files[dataset] = {}
+        for part in (*HF_REQUIRED_PARTS, *HF_OPTIONAL_PARTS):
+            try:
+                path = hf_hub_download(  # nosec B615
+                    repo_id=repo_id,
+                    repo_type='dataset',
+                    revision=revision,
+                    filename=f'{dataset}_{part}.parquet',
+                )
+            except EntryNotFoundError:
+                if part in HF_REQUIRED_PARTS:
+                    raise
+                continue
+            files[dataset][part] = round(Path(path).stat().st_size / 2**20, 2)
+    return {'repo_id': repo_id, 'revision': revision, 'mib': files}
+
+
+def _check_grouping(datasets: Sequence[str], revision: str, k: int) -> dict[str, str]:
+    """Group-aware k-fold feasibility for every dataset whose config groups by batch."""
+    import pandas as pd
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.utils import EntryNotFoundError
+    from omegaconf import OmegaConf
+
+    from ogbench.data.datasets import HFOmicsDataset
+    from ogbench.data.datasets.hf_omics import _infer_batch_column
+    from ogbench.data.utils.split_utils import group_kfold_is_feasible
+
+    repo_id = inspect.signature(HFOmicsDataset.__init__).parameters['hf_repo_id'].default
+
+    def read(filename: str) -> pd.DataFrame | None:
+        try:
+            return pd.read_parquet(
+                hf_hub_download(  # nosec B615
+                    repo_id=repo_id, repo_type='dataset', revision=revision, filename=filename
+                )
+            )
+        except EntryNotFoundError:
+            return None
+
+    results = {}
+    for dataset in datasets:
+        config = OmegaConf.load(REPO_ROOT / 'configs' / 'dataset' / f'{dataset}.yaml')
+        if config.split_params.get('grouping') != 'batch':
+            continue
+        labels = read(f'{dataset}_targets.parquet')['target'].to_numpy()
+        batches = read(f'{dataset}_batches.parquet')
+        if batches is not None:
+            column = 'batch' if 'batch' in batches.columns else batches.columns[0]
+        else:
+            batches = read(f'{dataset}_sample_meta.parquet')
+            column = None if batches is None else _infer_batch_column(batches)
+        if column is None:
+            results[dataset] = 'no batch labels'
+            continue
+        feasible, reason = group_kfold_is_feasible(batches[column].to_numpy(), labels, k)
+        results[dataset] = f'{"feasible" if feasible else "NOT feasible"}: {reason}'
+    return results
+
+
+def _existing_parent(path: Path) -> Path:
+    while not path.exists() and path != path.parent:
+        path = path.parent
+    return path
+
+
+def cmd_preflight(payload: dict[str, Any]) -> dict[str, Any]:
+    """Check this server can run the campaign: packages, GPUs, W&B, HF data, grouping, disk."""
+    env = {key: str(value) for key, value in payload.get('env', {}).items()}
+    # HF_HOME and the W&B directories must be set before huggingface_hub and wandb are imported.
+    os.environ.update(env)
+    _make_env_dirs(env)
+    from omegaconf import OmegaConf
+
+    campaign = OmegaConf.load(REPO_ROOT / payload['configs'][0])
+    datasets = list(campaign.datasets)
+    revision = str(OmegaConf.load(REPO_ROOT / 'configs' / 'hf' / 'default.yaml').revision)
+    packages = installed_packages()
+    checks: dict[str, Callable[[], Any]] = {
+        'gpus': _check_gpus,
+        'wandb': lambda: _check_wandb(str(campaign.fixed['logger.wandb.entity'])),
+        'hf': lambda: _check_hf(datasets, revision),
+        'grouping': lambda: _check_grouping(datasets, revision, int(campaign.k)),
+    }
+    reply: dict[str, Any] = {
+        'host': socket.gethostname(),
+        'python': sys.executable,
+        'packages': packages,
+        'packages_sha256': hashlib.sha256('\n'.join(packages).encode()).hexdigest()[:16],
+        'nvidia_smi': gpu_status(),
+        'disk_free_gib': {
+            path: _free_gib(_existing_parent(Path(path)))
+            for path in (
+                payload['data_root'],
+                payload['run_root'],
+                str(Path.home()),
+                *env.values(),
+            )
+        },
+    }
+    for name, check in checks.items():
+        try:
+            reply[name] = check()
+        except Exception as error:
+            reply[name] = {'error': f'{type(error).__name__}: {error}'}
+    return reply
+
+
 def cmd_start(payload: dict[str, Any]) -> dict[str, Any]:
     """Start the server supervisor detached in its own session, unless it already runs."""
     run_root = Path(payload['run_root'])
@@ -492,9 +651,7 @@ def cmd_start(payload: dict[str, Any]) -> dict[str, Any]:
         'OOM_MIN_FREE_GPU_MIB': str(payload['oom_min_free_gpu_mib']),
         'PYTHONUNBUFFERED': '1',
     }
-    for key in ('WANDB_DIR', 'WANDB_CACHE_DIR', 'WANDB_DATA_DIR', 'HF_HOME', 'TMPDIR'):
-        if key in env:
-            Path(env[key]).mkdir(parents=True, exist_ok=True)
+    _make_env_dirs(env)
     with (run_root / 'supervisor.log').open('a') as log:
         process = subprocess.Popen(  # nosec B603 B607
             ['bash', str(SUPERVISOR_SCRIPT)],
@@ -526,6 +683,7 @@ COMMANDS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     'gc': cmd_gc,
     'export': cmd_export,
     'fold-stats': cmd_fold_stats,
+    'preflight': cmd_preflight,
     'start': cmd_start,
     'stop': cmd_stop,
 }

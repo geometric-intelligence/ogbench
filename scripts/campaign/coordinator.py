@@ -1357,6 +1357,30 @@ def plan_summary(settings: Settings) -> str:
     return '\n'.join(lines)
 
 
+def preflight(settings: Settings, names: Sequence[str]) -> dict[str, Any]:
+    """Run every server's preflight; packages are reported as differences from the first one."""
+    replies = {}
+    for name in names:
+        server = settings.servers[name]
+        payload = {
+            'run_root': server.run_root,
+            'data_root': server.data_root,
+            'configs': [settings.main_config, settings.followup_config],
+            'env': server.env,
+        }
+        try:
+            replies[name] = ShellAgent(server, timeout=3600).call('preflight', payload)
+        except AgentError as error:
+            replies[name] = {'error': str(error)}
+    reference = next((reply['packages'] for reply in replies.values() if 'packages' in reply), [])
+    for reply in replies.values():
+        packages = reply.pop('packages', None)
+        if packages is not None:
+            reply['packages_missing'] = sorted(set(reference) - set(packages))
+            reply['packages_extra'] = sorted(set(packages) - set(reference))
+    return replies
+
+
 def simulate_campaign(settings: Settings, root: Path) -> dict[str, Any]:
     """Run the coordinator against simulated servers and report when each one finishes."""
     from scripts.campaign.simulate import SimulatedCluster
@@ -1403,8 +1427,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     run.add_argument('--once', action='store_true', help='Run a single cycle')
     run.add_argument('--no-feed', action='store_true', help='Do not append new main studies')
     commands.add_parser('status', help='Poll every server and write the reports')
-    for name in ('start', 'stop'):
-        sub = commands.add_parser(name, help=f'{name.title()} server supervisors')
+    for name, description in (
+        ('start', 'Start server supervisors'),
+        ('stop', 'Stop server supervisors'),
+        ('preflight', 'Check packages, GPUs, W&B, HF data, grouping and disk on each server'),
+    ):
+        sub = commands.add_parser(name, help=description)
         sub.add_argument('--servers', nargs='+')
     commands.add_parser('collect', help='Export, copy and merge every server result')
     table = commands.add_parser('cost-table', help='Build the fold-seconds table from ledgers')
@@ -1425,6 +1453,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(plan_summary(settings))
         if args.simulate:
             print(json.dumps(simulate_campaign(settings, args.simulate), indent=1))
+        return 0
+    if args.command == 'preflight':
+        print(json.dumps(preflight(settings, args.servers or list(settings.servers)), indent=1))
         return 0
     coordinator = build(settings)
     if args.command in ('start', 'stop'):

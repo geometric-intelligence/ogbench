@@ -34,6 +34,7 @@ from scripts.campaign.coordinator import (
     ShellAgent,
     build_cost_table,
     plan_homes,
+    preflight,
 )
 from scripts.campaign.simulate import SimulatedCluster
 from scripts.optuna_search import (
@@ -389,6 +390,32 @@ def test_shell_agent_runs_locally_or_over_ssh() -> None:
     assert remote[:2] == ['ssh', '-o'] and 'frank' in remote
     assert remote[-1].startswith("cd '/r e/po' && PYTHONPATH='/r e/po' ")
     assert remote[-1].endswith('-m scripts.campaign.remote_agent gc')
+
+
+def test_preflight_reports_packages_as_differences_from_the_first_server(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    packages = {
+        'big': ['optuna==2.10.1', 'torch==2.8.0'],
+        'small1': ['optuna==2.10.1', 'torch==2.8.0'],
+        'small2': ['extra==1.0', 'optuna==2.10.1', 'torch==2.7.1'],
+    }
+
+    def call(self: ShellAgent, command: str, payload: dict) -> dict:
+        assert command == 'preflight' and payload['env'] == self.server.env
+        return {'packages': packages[self.server.name]}
+
+    monkeypatch.setattr(ShellAgent, 'call', call)
+    replies = preflight(_settings(tmp_path), ['big', 'small1', 'small2'])
+    assert replies['small1'] == {'packages_missing': [], 'packages_extra': []}
+    assert replies['small2'] == {
+        'packages_missing': ['torch==2.8.0'],
+        'packages_extra': ['extra==1.0', 'torch==2.7.1'],
+    }
+    installed = remote_agent.installed_packages()
+    assert installed == sorted(installed)
+    assert any(package.startswith('optuna==') for package in installed)
+    assert not any(package.startswith('ogbench==') for package in installed)
 
 
 # --------------------------------------------------------------------------- agent
