@@ -9,6 +9,7 @@ optimized against one another.
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import itertools
 import json
@@ -18,11 +19,14 @@ import os
 import random
 import re
 import shlex
+import socket
 import sqlite3
 import statistics
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from concurrent.futures import FIRST_COMPLETED, BrokenExecutor, Executor, Future, wait
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +39,7 @@ from hydra import compose, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from hydra.utils import instantiate
 from joblib import Parallel, delayed, parallel_backend
+from joblib.externals.loky import ProcessPoolExecutor as LokyProcessPoolExecutor
 from omegaconf import OmegaConf
 from optuna.trial import TrialState
 
@@ -42,6 +47,7 @@ from ogbench.data.utils.split_utils import SPLIT_PROTOCOL
 from ogbench.utils.config_resolvers import register_all_resolvers
 from ogbench.utils.hparam_search import (
     OOM_ERROR_PREFIX,
+    THREAD_ENV_VARS,
     GpuDevice,
     acquire_gpu,
     enforce_single_thread_process,
@@ -228,6 +234,7 @@ class OptunaSearchConfig:
     tags: list[str]
     time_budget: int | None = None
     timeout_grace: int = 900
+    candidates_required: bool = False
 
     @property
     def hard_timeout(self) -> int:
@@ -368,6 +375,7 @@ class OptunaSearchConfig:
                 None if training.get('time_budget') is None else int(training['time_budget'])
             ),
             timeout_grace=int(training.get('timeout_grace', 900)),
+            candidates_required=bool(optuna_config.get('candidates_required', False)),
         )
         if config.time_budget is not None and config.time_budget < 1:
             raise ValueError('training.time_budget must be positive')
@@ -1683,6 +1691,8 @@ def run_search(
         raise ValueError('No ablation cells selected after applying filters and shards')
     if candidates is not None:
         _validate_candidates(config, cells, candidates)
+    elif config.candidates_required and not export_only:
+        raise ValueError(f'{config.source_path.name} runs only fixed candidates; pass one')
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
     if dry_run:
@@ -1838,6 +1848,461 @@ def _validate_candidates(
             raise ValueError(f'Candidate hash mismatch for {cell.study_name}')
 
 
+END_SENTINEL = '#END'
+FOLLOW_WARM_TTL_SECONDS = 6 * 3600
+FOLLOW_MAX_CRASHES = 3
+
+
+def read_follow_manifest(path: str | Path) -> tuple[list[str], bool]:
+    """Read an append-only manifest: unique study names in order, and whether ``#END`` was reached.
+
+    Only newline-terminated lines count, so a line that is still being appended is never read
+    half-written. Repeated names and anything after ``#END`` are ignored.
+    """
+    manifest = Path(path)
+    if not manifest.exists():
+        return [], False
+    names: list[str] = []
+    seen: set[str] = set()
+    for raw in manifest.read_text().split('\n')[:-1]:
+        line = raw.strip()
+        if line == END_SENTINEL:
+            return names, True
+        if line and not line.startswith('#') and line not in seen:
+            seen.add(line)
+            names.append(line)
+    return names, False
+
+
+class _CandidateSource:
+    """Fixed candidates, re-read when the file changes (the coordinator replaces it atomically)."""
+
+    def __init__(self, path: str | Path | None) -> None:
+        self.path = None if path is None else Path(path)
+        self._stamp: tuple[int, int] | None = None
+        self._candidates: dict[str, dict[str, Any]] = {}
+
+    def get(self, study_name: str) -> dict[str, Any] | None:
+        if self.path is None:
+            return None
+        if study_name not in self._candidates and self.path.exists():
+            stat = self.path.stat()
+            stamp = (stat.st_mtime_ns, stat.st_size)
+            if stamp != self._stamp:
+                raw = json.loads(self.path.read_text() or '{}')
+                if not isinstance(raw, dict):
+                    raise ValueError(
+                        f'Candidate file must map study names to candidates: {self.path}'
+                    )
+                self._candidates = raw
+                self._stamp = stamp
+        return self._candidates.get(study_name)
+
+
+def _follow_study(
+    config: OptunaSearchConfig,
+    cell: OuterCell,
+    ledger_path: Path,
+    gpu_queue: Any | None,
+    retry_failed: bool,
+    candidate: dict[str, Any] | None,
+    policy: ExecutionPolicy,
+) -> dict[str, int]:
+    rows = _run_study(config, cell, ledger_path, gpu_queue, retry_failed, candidate, policy)
+    states = collections.Counter(row['state'] for row in rows)
+    return {
+        'trials': len(rows),
+        'complete': states.get('COMPLETE', 0),
+        'failed': states.get('FAIL', 0),
+    }
+
+
+def _follow_warmup(loader_configs: list[Any], training_seed: int) -> int:
+    for index, loader_config in enumerate(loader_configs, start=1):
+        _warmup_cache(
+            loader_config, index=index, total=len(loader_configs), training_seed=training_seed
+        )
+    return len(loader_configs)
+
+
+def _process_executor(workers: int) -> Executor:
+    return LokyProcessPoolExecutor(
+        max_workers=workers,
+        env=dict.fromkeys((*THREAD_ENV_VARS, 'OGBENCH_NUM_THREADS'), '1'),
+        initializer=enforce_single_thread_process,
+    )
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).isoformat(timespec='seconds')
+
+
+@dataclass
+class _FollowStudy:
+    name: str
+    config: OptunaSearchConfig
+    cell: OuterCell
+    ledger_path: Path
+    caches: dict[str, Any] | None = None
+    candidate: dict[str, Any] | None = None
+    crashes: int = 0
+
+
+class FollowLauncher:
+    """Run the studies appended to a manifest, in order, until it ends with ``#END``.
+
+    Several configs may share one launcher (and so one GPU slot pool) as long as their study
+    names differ. Before a study starts, every fold cache it needs is built or loaded in a
+    separate CPU pool, and no cache is ever warmed by two processes at once. Progress is
+    written to ``<manifest>.state.json`` and appended to ``<manifest>.events.jsonl``.
+    """
+
+    def __init__(
+        self,
+        configs: Sequence[OptunaSearchConfig],
+        manifest_path: str | Path,
+        *,
+        candidates_path: str | Path | None = None,
+        devices: Sequence[GpuDevice] = (),
+        jobs_per_gpu: int = 1,
+        workers: int | None = None,
+        warmup_jobs: int = 2,
+        retry_failed: bool = False,
+        skip_warmup: bool = False,
+        policy: ExecutionPolicy = DEFAULT_POLICY,
+        poll_seconds: float = 30.0,
+        executor_factory: Callable[[int], Executor] = _process_executor,
+        warm_ttl: float = FOLLOW_WARM_TTL_SECONDS,
+        requeue_delay: float | None = None,
+    ) -> None:
+        if warmup_jobs < 1:
+            raise ValueError('warmup_jobs must be positive')
+        self.configs = list(configs)
+        self.manifest_path = Path(manifest_path).resolve()
+        self.state_path = self.manifest_path.with_name(self.manifest_path.name + '.state.json')
+        self.events_path = self.manifest_path.with_name(self.manifest_path.name + '.events.jsonl')
+        self.cells = self._index(self.configs)
+        self.candidates = _CandidateSource(candidates_path)
+        self.devices = list(devices)
+        self.jobs_per_gpu = jobs_per_gpu
+        self.workers = workers or (len(self.devices) * jobs_per_gpu if self.devices else 1)
+        self.warmup_jobs = warmup_jobs
+        self.retry_failed = retry_failed
+        self.policy = policy
+        self.poll_seconds = poll_seconds
+        self.executor_factory = executor_factory
+        self.warm_ttl = warm_ttl
+        self.requeue_delay = (
+            max(config.grace_period + config.heartbeat_interval for config in self.configs)
+            if requeue_delay is None
+            else requeue_delay
+        )
+
+        self.known: set[str] = set()
+        self.pending: collections.deque[_FollowStudy] = collections.deque()
+        self.warming: dict[Future, tuple[_FollowStudy, list[str]]] = {}
+        self.ready: collections.deque[_FollowStudy] = collections.deque()
+        self.running: dict[Future, tuple[_FollowStudy, float]] = {}
+        self.busy_caches: set[str] = set()
+        self.warmed: dict[str, float] = {}
+        self.not_before: dict[str, float] = {}
+        self.completed: set[str] = set()
+        self.failed: dict[str, str] = {}
+        self.end_seen = False
+        self.started_at = _utc_now()
+
+        for config in self.configs:
+            config.output_dir.mkdir(parents=True, exist_ok=True)
+            RunLedger(config.output_dir / 'run_ledger.sqlite3')
+            _storage(config)
+            _enable_sqlite_wal(config.storage)
+        self._manager = None
+        self.gpu_queue = None
+        if self.devices:
+            self._manager = multiprocessing.Manager()
+            self.gpu_queue = self._manager.Queue()
+            populate_gpu_queue(self.gpu_queue, self.devices, jobs_per_gpu)
+        self.train_pool = executor_factory(self.workers)
+        self.warm_pool = None if skip_warmup else executor_factory(warmup_jobs)
+
+    @staticmethod
+    def _index(
+        configs: Sequence[OptunaSearchConfig],
+    ) -> dict[str, tuple[OptunaSearchConfig, OuterCell, Path]]:
+        index: dict[str, tuple[OptunaSearchConfig, OuterCell, Path]] = {}
+        for config in configs:
+            ledger_path = config.output_dir / 'run_ledger.sqlite3'
+            for cell in build_outer_cells(config):
+                if cell.study_name in index:
+                    raise ValueError(f'Study {cell.study_name} is defined by more than one config')
+                index[cell.study_name] = (config, cell, ledger_path)
+        return index
+
+    def run(self) -> dict[str, Any]:
+        self._event('launcher_started', workers=self.workers, pid=os.getpid())
+        try:
+            while True:
+                self._refresh_manifest()
+                self._prepare()
+                self._start()
+                self._write_state()
+                if self.end_seen and not (
+                    self.pending or self.warming or self.ready or self.running
+                ):
+                    break
+                futures = [*self.running, *self.warming]
+                if futures:
+                    done, _ = wait(futures, timeout=self.poll_seconds, return_when=FIRST_COMPLETED)
+                    self._collect(done)
+                else:
+                    time.sleep(self.poll_seconds)
+        finally:
+            self.train_pool.shutdown(wait=False)
+            if self.warm_pool is not None:
+                self.warm_pool.shutdown(wait=False)
+        self._export()
+        self._write_state(finished=True)
+        self._event('launcher_finished', completed=len(self.completed), failed=len(self.failed))
+        return {'completed': sorted(self.completed), 'failed': dict(self.failed)}
+
+    def _event(self, event: str, study: str | None = None, **fields: Any) -> None:
+        record = {'time': _utc_now(), 'event': event, **fields}
+        if study is not None:
+            record['study'] = study
+        with self.events_path.open('a') as handle:
+            handle.write(json.dumps(record, sort_keys=True) + '\n')
+        details = ' '.join(f'{key}={value}' for key, value in fields.items())
+        print(f'[follow] {event} {study or ""} {details}'.rstrip(), flush=True)
+
+    def _fail(self, study: _FollowStudy | str, error: str) -> None:
+        name = study if isinstance(study, str) else study.name
+        self.failed[name] = error
+        self._event('failed', name, error=error)
+
+    def _refresh_manifest(self) -> None:
+        names, self.end_seen = read_follow_manifest(self.manifest_path)
+        for name in names:
+            if name in self.known:
+                continue
+            self.known.add(name)
+            entry = self.cells.get(name)
+            if entry is None:
+                self._fail(name, 'Study is not defined by any --config')
+                continue
+            self.pending.append(_FollowStudy(name, *entry))
+
+    def _resolve(self, study: _FollowStudy) -> None:
+        """Load the study's candidate and cache configs; raise ValueError if it cannot run."""
+        candidate = self.candidates.get(study.name)
+        if candidate is None and study.config.candidates_required:
+            raise ValueError(f'No fixed candidate for {study.name} in {self.candidates.path}')
+        if candidate is not None:
+            _validate_candidates(study.config, [study.cell], {study.name: candidate})
+        study.candidate = candidate
+        if self.warm_pool is not None and study.caches is None:
+            study.caches = {
+                _stable_hash(OmegaConf.to_container(loader), length=32): loader
+                for loader in _cache_configs(study.config, [study.cell])
+            }
+
+    def _prepare(self) -> None:
+        """Warm caches for the next studies in manifest order, one prepared study per worker."""
+        now = time.time()
+        prepared = len(self.ready) + len(self.warming)
+        waiting: collections.deque[_FollowStudy] = collections.deque()
+        while self.pending:
+            study = self.pending.popleft()
+            if prepared >= self.workers or self.not_before.get(study.name, 0.0) > now:
+                waiting.append(study)
+                continue
+            try:
+                self._resolve(study)
+            except Exception as error:
+                self._fail(study, f'{type(error).__name__}: {error}')
+                continue
+            stale = [
+                signature
+                for signature in study.caches or {}
+                if now - self.warmed.get(signature, -math.inf) > self.warm_ttl
+            ]
+            if not stale:
+                self.ready.append(study)
+                prepared += 1
+            elif self.busy_caches.isdisjoint(stale) and len(self.warming) < self.warmup_jobs:
+                future = self.warm_pool.submit(
+                    _follow_warmup,
+                    [study.caches[signature] for signature in stale],
+                    study.config.training_seed,
+                )
+                self.warming[future] = (study, stale)
+                self.busy_caches.update(stale)
+                prepared += 1
+                self._event('warming', study.name, caches=len(stale))
+            else:
+                waiting.append(study)
+        self.pending = waiting
+
+    def _start(self) -> None:
+        while len(self.running) < self.workers and self.ready:
+            study = self.ready.popleft()
+            future = self.train_pool.submit(
+                _follow_study,
+                study.config,
+                study.cell,
+                study.ledger_path,
+                self.gpu_queue,
+                self.retry_failed,
+                study.candidate,
+                self.policy,
+            )
+            self.running[future] = (study, time.time())
+            self._event('started', study.name)
+
+    def _collect(self, done: set[Future]) -> None:
+        broken_train = broken_warm = False
+        for future in done:
+            if future in self.warming:
+                study, signatures = self.warming.pop(future)
+                self.busy_caches.difference_update(signatures)
+                try:
+                    future.result()
+                except BrokenExecutor:
+                    broken_warm = True
+                    self._requeue(study)
+                except Exception as error:
+                    self._fail(study, f'Cache warmup failed: {type(error).__name__}: {error}')
+                else:
+                    self.warmed.update(dict.fromkeys(signatures, time.time()))
+                    self.ready.append(study)
+            elif future in self.running:
+                study, started = self.running.pop(future)
+                try:
+                    summary = future.result()
+                except BrokenExecutor:
+                    broken_train = True
+                    self._requeue(study)
+                except Exception as error:
+                    self._fail(study, f'{type(error).__name__}: {error}')
+                else:
+                    self.completed.add(study.name)
+                    self._event(
+                        'completed', study.name, seconds=round(time.time() - started), **summary
+                    )
+        if broken_train:
+            # A dead loky worker takes the whole pool down with every study it was running.
+            for study, _ in self.running.values():
+                self._requeue(study)
+            self.running.clear()
+            self.train_pool.shutdown(wait=False)
+            self.train_pool = self.executor_factory(self.workers)
+            if self.gpu_queue is not None:
+                while not self.gpu_queue.empty():
+                    self.gpu_queue.get_nowait()
+                populate_gpu_queue(self.gpu_queue, self.devices, self.jobs_per_gpu)
+        if broken_warm:
+            for study, signatures in self.warming.values():
+                self.busy_caches.difference_update(signatures)
+                self._requeue(study)
+            self.warming.clear()
+            self.warm_pool.shutdown(wait=False)
+            self.warm_pool = self.executor_factory(self.warmup_jobs)
+
+    def _requeue(self, study: _FollowStudy) -> None:
+        """Retry an interrupted study once its Optuna heartbeats have gone stale."""
+        study.crashes += 1
+        if study.crashes >= FOLLOW_MAX_CRASHES:
+            self._fail(study, f'Worker crashed {study.crashes} times while running this study')
+            return
+        self.not_before[study.name] = time.time() + self.requeue_delay
+        self.pending.appendleft(study)
+        self._event('requeued', study.name, crashes=study.crashes)
+
+    def _write_state(self, *, finished: bool = False) -> None:
+        state = {
+            'pid': os.getpid(),
+            'host': socket.gethostname(),
+            'started_at': self.started_at,
+            'updated_at': _utc_now(),
+            'finished': finished,
+            'manifest': str(self.manifest_path),
+            'workers': self.workers,
+            'end_seen': self.end_seen,
+            'known': len(self.known),
+            'pending': [study.name for study in self.pending],
+            'warming': [study.name for study, _ in self.warming.values()],
+            'ready': [study.name for study in self.ready],
+            'running': {
+                study.name: datetime.fromtimestamp(started, UTC).isoformat(timespec='seconds')
+                for study, started in self.running.values()
+            },
+            'completed': len(self.completed),
+            'failed': self.failed,
+        }
+        temporary = self.state_path.with_suffix(f'.tmp-{os.getpid()}')
+        temporary.write_text(json.dumps(state, indent=1, sort_keys=True))
+        os.replace(temporary, self.state_path)
+
+    def _export(self) -> None:
+        for config in self.configs:
+            cells = [
+                self.cells[name][1]
+                for name in sorted(self.known)
+                if name in self.cells and self.cells[name][0] is config
+            ]
+            if cells:
+                _export_existing(config, cells, self.jobs_per_gpu)
+
+
+def run_follow(
+    configs: Sequence[OptunaSearchConfig],
+    manifest_path: str | Path,
+    *,
+    candidates_path: str | Path | None = None,
+    requested_gpus: Sequence[int] | None = None,
+    jobs_per_gpu: int = 1,
+    n_jobs: int | None = None,
+    warmup_jobs: int | None = None,
+    retry_failed: bool = False,
+    skip_warmup: bool = False,
+    policy: ExecutionPolicy = DEFAULT_POLICY,
+    poll_seconds: float = 30.0,
+) -> dict[str, Any]:
+    """Run studies from an append-only manifest until it ends with ``#END``."""
+    enforce_single_thread_process()
+    available = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    devices = visible_gpu_devices(requested_gpus, device_count=available)
+    if requested_gpus and not devices:
+        raise ValueError('GPU IDs were requested but CUDA is unavailable')
+    slots = len(devices) * jobs_per_gpu if devices else 1
+    workers = slots if n_jobs is None else min(n_jobs, slots)
+    if workers < 1:
+        raise ValueError('n_jobs must be positive')
+    print('=' * 72)
+    print('OPTUNA FOLLOW MODE')
+    print(f'Manifest: {Path(manifest_path).resolve()}')
+    print(f'Configs: {[config.source_path.name for config in configs]}')
+    print(f'GPU devices: {[device.logical_id for device in devices] or ["CPU"]}')
+    print(f'Jobs/GPU: {jobs_per_gpu} | parallel workers: {workers} | CPU threads/job: 1')
+    print(f'Cache warmup: {"off" if skip_warmup else f"{warmup_jobs or 2} workers"}')
+    for config in configs:
+        print(f'Storage ({config.source_path.stem}): {config.storage}')
+    print('=' * 72, flush=True)
+    launcher = FollowLauncher(
+        configs,
+        manifest_path,
+        candidates_path=candidates_path,
+        devices=devices,
+        jobs_per_gpu=jobs_per_gpu,
+        workers=workers,
+        warmup_jobs=warmup_jobs or 2,
+        retry_failed=retry_failed,
+        skip_warmup=skip_warmup,
+        policy=policy,
+        poll_seconds=poll_seconds,
+    )
+    return launcher.run()
+
+
 def _apply_runtime_overrides(
     config: OptunaSearchConfig,
     *,
@@ -1856,7 +2321,25 @@ def _apply_runtime_overrides(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', required=True, help='Optuna search YAML')
+    parser.add_argument(
+        '--config',
+        required=True,
+        nargs='+',
+        help='Optuna search YAML (several only with --follow-manifest)',
+    )
+    parser.add_argument(
+        '--follow-manifest',
+        help=(
+            'Run studies appended to this manifest, in order, until a line reads #END. '
+            'With several configs, --output-dir is a base directory with one folder per config'
+        ),
+    )
+    parser.add_argument(
+        '--follow-poll-seconds',
+        type=float,
+        default=30.0,
+        help='How often follow mode re-reads its manifest while workers are busy',
+    )
     parser.add_argument('--models', nargs='+', help='Only run these configured models')
     parser.add_argument('--datasets', nargs='+', help='Only run these configured datasets')
     parser.add_argument('--studies', nargs='+', help='Only run exact deterministic study names')
@@ -1941,8 +2424,59 @@ def main() -> None:
     args = parser.parse_args()
     if args.oom_retries < 0:
         parser.error('--oom-retries cannot be negative')
+    policy = ExecutionPolicy(
+        min_free_gpu_mib=args.min_free_gpu_mib,
+        oom_retries=args.oom_retries,
+        oom_min_free_gpu_mib=args.oom_min_free_gpu_mib,
+    )
 
-    config = OptunaSearchConfig.from_yaml(args.config)
+    if args.follow_manifest:
+        static_only = {
+            '--models': args.models,
+            '--datasets': args.datasets,
+            '--studies': args.studies,
+            '--studies-file': args.studies_file,
+            '--shard-indices': args.shard_indices,
+            '--num-shards': args.num_shards != 1,
+            '--warmup-only': args.warmup_only,
+            '--dry-run': args.dry_run,
+            '--export-only': args.export_only,
+        }
+        used = [flag for flag, value in static_only.items() if value]
+        if used:
+            parser.error(f'--follow-manifest takes its studies from the manifest; drop {used}')
+        if len(args.config) > 1 and args.storage:
+            parser.error('--storage is ambiguous with several configs; use --output-dir')
+        configs = []
+        for path in args.config:
+            config = OptunaSearchConfig.from_yaml(path)
+            output_dir = args.output_dir
+            storage = args.storage
+            if output_dir and len(args.config) > 1:
+                output_dir = str(Path(output_dir) / config.source_path.stem)
+                storage = f'sqlite:///{Path(output_dir).resolve() / "studies.db"}'
+            _apply_runtime_overrides(
+                config, output_dir=output_dir, storage=storage, root_dir=args.root_dir
+            )
+            configs.append(config)
+        run_follow(
+            configs,
+            args.follow_manifest,
+            candidates_path=args.candidates_file,
+            requested_gpus=args.gpus,
+            jobs_per_gpu=args.jobs_per_gpu,
+            n_jobs=args.n_jobs,
+            warmup_jobs=args.warmup_jobs,
+            retry_failed=args.retry_failed,
+            skip_warmup=args.skip_warmup,
+            policy=policy,
+            poll_seconds=args.follow_poll_seconds,
+        )
+        return
+
+    if len(args.config) > 1:
+        parser.error('Several --config files need --follow-manifest')
+    config = OptunaSearchConfig.from_yaml(args.config[0])
     _apply_runtime_overrides(
         config,
         output_dir=args.output_dir,
@@ -1971,11 +2505,7 @@ def main() -> None:
         dry_run=args.dry_run,
         export_only=args.export_only,
         candidates=load_candidates(args.candidates_file) if args.candidates_file else None,
-        policy=ExecutionPolicy(
-            min_free_gpu_mib=args.min_free_gpu_mib,
-            oom_retries=args.oom_retries,
-            oom_min_free_gpu_mib=args.oom_min_free_gpu_mib,
-        ),
+        policy=policy,
     )
 
 
