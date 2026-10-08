@@ -453,6 +453,24 @@ def test_smoke_runs_next_to_the_campaign_with_every_server_on_all_studies() -> N
     assert all(study.startswith('octsmoke_') for study in studies)
 
 
+def test_memory_probe_uses_the_largest_choice_of_every_model_axis() -> None:
+    from scripts.campaign import calibrate
+
+    config = OptunaSearchConfig.from_yaml(REPO_ROOT / MAIN_CONFIG)
+    gatv2 = calibrate.largest_parameters(config, 'gatv2')
+    gatv4 = calibrate.largest_parameters(config, 'gatv4')
+    mlp = calibrate.largest_parameters(config, 'mlp')
+
+    assert gatv2['model.backbone.heads'] == 8
+    assert gatv2['model.feature_encoder.out_channels'] == 128
+    assert gatv2['model.backbone.num_layers'] == 4
+    assert gatv4['model.backbone.hidden_channels'] == [64, 128]
+    assert gatv4['model.backbone.heads'] == [8, 8]
+    assert gatv4['model.backbone.use_layer_norm'] is True
+    assert mlp['model.backbone.norm'] == 'batch'
+    assert gatv2['model.backbone.dropout'] == 0.0
+
+
 def test_preflight_reports_packages_as_differences_from_the_first_server(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

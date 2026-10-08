@@ -11,6 +11,7 @@ across servers; the throughput run replays one fold at several jobs per GPU::
     python -m scripts.campaign.calibrate smoke report
     python -m scripts.campaign.calibrate throughput --server parka --study S --gpus 0 1 3 \
         --copies 1 2 3 --budget 600
+    python -m scripts.campaign.calibrate memory --server frank --models gatv2 gin --gpus 0 1
 """
 
 from __future__ import annotations
@@ -57,14 +58,98 @@ def smoke_studies() -> list[str]:
     return [cell.study_name for cell in build_outer_cells(main)]
 
 
-def call(server: Server, command: str, timeout: float = 1800.0, **extra: Any) -> dict[str, Any]:
+def call(
+    server: Server,
+    command: str,
+    timeout: float = 1800.0,
+    configs: Sequence[str] = SMOKE_CONFIGS,
+    **extra: Any,
+) -> dict[str, Any]:
     payload = {
         'run_root': server.run_root,
         'data_root': server.data_root,
-        'configs': list(SMOKE_CONFIGS),
+        'configs': list(configs),
         **extra,
     }
     return ShellAgent(server, timeout=timeout).call(command, payload)
+
+
+def _size(value: Any) -> float:
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, list):
+        return sum(_size(item) for item in value)
+    return -1.0 if value is None else 0.0
+
+
+def largest_parameters(config: OptunaSearchConfig, model: str) -> dict[str, Any]:
+    """The model's most memory-hungry configuration: the largest choice of every model axis."""
+    parameters: dict[str, Any] = {
+        'optimizer.parameters.lr': 0.001,
+        'optimizer.parameters.weight_decay': 0.0,
+        'model.backbone.dropout': 0.0,
+    }
+    for name, space in config.per_model_search_space.get(model, {}).items():
+        parameters[name] = max(space.choices, key=_size)
+    return parameters
+
+
+def memory_probe(
+    server: Server,
+    settings: Settings,
+    models: Sequence[str],
+    gpus: Sequence[int],
+    dataset: str,
+    adjacency: str,
+    ratio: float,
+    budget: float,
+) -> dict[str, Any]:
+    """Train each model's largest configuration alone on one GPU and report its peak memory."""
+    configs = (settings.main_config, settings.followup_config)
+    main = OptunaSearchConfig.from_yaml(REPO_ROOT / settings.main_config)
+    tag = f'{utc_now().replace(":", "")}_memory'
+
+    def probe(pair: tuple[str, int]) -> dict[str, Any]:
+        model, gpu = pair
+        cells = [
+            cell
+            for cell in build_outer_cells(main)
+            if (cell.model, cell.dataset) == (model, dataset)
+            and cell.values['dataset.loader.parameters.adjacency_method'] == adjacency
+            and cell.values['dataset.loader.parameters.node_sample_ratio'] == ratio
+            and cell.values['dataset.loader.parameters.method'] == 'variance'
+        ]
+        cell = max(cells, key=lambda cell: cell.values['experiment'] == 'omics_readout')
+        parameters = largest_parameters(main, model)
+        reply = call(
+            server,
+            'replay',
+            timeout=budget + 3600,
+            configs=configs,
+            study=cell.study_name,
+            params=parameters,
+            fold=0,
+            gpu=gpu,
+            copies=1,
+            budget=budget,
+            tag=f'{tag}/{model}',
+            env=server.env,
+        )
+        copy = reply['copies'][0]
+        return {
+            'study': cell.study_name,
+            'params': parameters,
+            'success': copy['success'],
+            'peak_mib': round(copy['metrics'].get('gpu/peak_memory_allocated_mib', 0)),
+            'epochs': copy['metrics'].get('train/epochs_completed'),
+            'error': copy['error'][-300:],
+        }
+
+    with ThreadPoolExecutor(len(models)) as pool:
+        results = pool.map(probe, zip(models, gpus, strict=True))
+    return dict(zip(models, results, strict=True))
 
 
 def on_servers(servers: Sequence[Server], function: Any) -> dict[str, Any]:
@@ -289,9 +374,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     rate.add_argument('--gpus', type=int, nargs='+', required=True)
     rate.add_argument('--copies', type=int, nargs='+', required=True)
     rate.add_argument('--budget', type=float, default=600.0)
+    memory = commands.add_parser('memory', help='Peak memory of the largest model configurations')
+    memory.add_argument('--server', required=True)
+    memory.add_argument('--models', nargs='+', required=True)
+    memory.add_argument('--gpus', type=int, nargs='+', required=True)
+    memory.add_argument('--dataset', default='addneuromed')
+    memory.add_argument('--adjacency', default='wgcna')
+    memory.add_argument('--ratio', type=float, default=0.3)
+    memory.add_argument('--budget', type=float, default=180.0)
     args = parser.parse_args(argv)
 
     settings = Settings.from_yaml(args.settings)
+    if args.command == 'memory':
+        server = smoke_server(settings.servers[args.server])
+        result = memory_probe(
+            server,
+            settings,
+            args.models,
+            args.gpus,
+            args.dataset,
+            args.adjacency,
+            args.ratio,
+            args.budget,
+        )
+        print(json.dumps(result, indent=1))
+        return 0
     if args.command == 'throughput':
         if len(args.gpus) != len(args.copies):
             parser.error('--gpus and --copies need the same length')
