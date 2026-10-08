@@ -8,6 +8,7 @@
 set -uo pipefail
 
 # Each axis can be narrowed from the environment to split the sweep across processes.
+# Extra arguments are passed to Hydra as overrides (paths, W&B project, ...).
 DATASETS="${DATASETS:-parkinsons,addneuromed,motrpac,brca,tuberculosis,smoking}"
 FOLDS="${FOLDS:-0,1,2,3,4}"
 NODE_RATIOS="${NODE_RATIOS:-1.0,0.8,0.5,0.3}"
@@ -29,7 +30,8 @@ if "${PYTHON}" ogbench/baseline.py --multirun \
     "dataset.loader.parameters.node_sample_ratio=${NODE_RATIOS}" \
     "dataset.loader.parameters.method=${METHODS}" \
     seed=42 \
-    baseline_filter=standard; then
+    baseline_filter=standard \
+    "$@"; then
     echo "  -> Success: standard baselines"
 else
     echo "  -> Failed: standard baselines"
