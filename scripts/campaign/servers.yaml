@@ -35,7 +35,7 @@ servers:
     run_root: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka
     gpus: [0, 1, 2, 3, 4, 5, 6, 7]
     # A replayed gps fold trained 34 epochs in 600 s alone on an A100 but 21 with 2 or 3 jobs
-    # per GPU and 33 with 4, so co-located jobs add no throughput.
+    # per GPU and 33 with 4; single ratio-0.3 gatv4 jobs hold 34-57 GB and draw 70-83% of 300 W.
     jobs_per_gpu: 1
     warmup_jobs: 4
     # GPU 2 also hosts a 15 GB TopoBench job; the free-memory gate keeps folds off a full GPU.
@@ -61,14 +61,16 @@ servers:
     data_root: /scratch/gbg141/ogbench
     run_root: /scratch/gbg141/ogbench/search_results/oct_kfold/frank
     gpus: [0, 1, 2, 3, 4, 5, 6, 7]
-    # The same replay on an A30 trained 32 epochs alone and 27 in total with 2 or 3 jobs per GPU.
-    jobs_per_gpu: 1
+    # With one job per GPU, ratio-0.5 folds drew ~95 of 165 W and took ~0.43x the September
+    # table, about as long as September's folds at 2 jobs/GPU (0.55x). The replay that favoured
+    # one job used the densest ratio-0.3 graph, which the A30s rarely run.
+    jobs_per_gpu: 2
     warmup_jobs: 4
     min_free_gpu_mib: 8000
     oom_retries: 2
     oom_min_free_gpu_mib: 20000
-    # One A30 job per GPU runs at 32/34 of one A100 job.
-    fold_time_factor: 0.32
+    # A30 folds at 2 jobs/GPU took ~0.55x Parka's time at 3-4 jobs/GPU in September.
+    fold_time_factor: 0.55
     # Only 102 GB free on /scratch.
     cache_budget_gib: 60
     home:
@@ -96,12 +98,12 @@ servers:
     data_root: /scratch/gbg141/ogbench
     run_root: /scratch/gbg141/ogbench/search_results/oct_kfold/hall
     gpus: [0, 1, 2, 3, 4, 5, 6, 7]
-    jobs_per_gpu: 1
+    jobs_per_gpu: 2
     warmup_jobs: 4
     min_free_gpu_mib: 8000
     oom_retries: 2
     oom_min_free_gpu_mib: 20000
-    fold_time_factor: 0.32
+    fold_time_factor: 0.55
     # 416 GB free on /scratch.
     cache_budget_gib: 250
     home:
