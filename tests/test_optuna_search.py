@@ -20,6 +20,7 @@ from scripts.optuna_search import (
     ADJACENCY_METHOD,
     ADJACENCY_TARGET_CONNECTIVITY,
     ADJACENCY_THRESHOLD,
+    NODE_SAMPLE_RATIO,
     ExecutionPolicy,
     OptunaSearchConfig,
     RunLedger,
@@ -42,6 +43,8 @@ CONFIG_PATH = Path('configs/hparams_search/optuna_smoke_test.yaml')
 SEP24_CONFIG_PATH = Path('configs/hparams_search/sep24_ofat_optuna.yaml')
 SEP24_FACTORIAL_CONFIG_PATH = Path('configs/hparams_search/sep24_factorial_optuna.yaml')
 RATIO03_CONFIG_PATH = Path('configs/hparams_search/sep24_ratio03_transfer.yaml')
+OCT_FACTORIAL_CONFIG_PATH = Path('configs/hparams_search/oct_kfold_factorial.yaml')
+OCT_GENE_IDENTITY_CONFIG_PATH = Path('configs/hparams_search/oct_kfold_gene_identity.yaml')
 MULTI_DATASET_OPTUNA_CONFIG_PATH = Path('configs/hparams_search/multi_dataset_optuna_search.yaml')
 
 
@@ -576,6 +579,49 @@ def test_sep24_ofat_builds_426_single_axis_cells() -> None:
         model_baseline = {**baseline, **config.per_model_ablation_baseline.get(cell.model, {})}
         changed_axes = [key for key in config.ablations if cell.values[key] != model_baseline[key]]
         assert len(changed_axes) <= 1
+
+
+def test_oct_kfold_factorial_adds_ratio_03_and_a_time_budget() -> None:
+    config = OptunaSearchConfig.from_yaml(OCT_FACTORIAL_CONFIG_PATH)
+
+    cells = build_outer_cells(config)
+
+    assert len(cells) == 3264
+    assert config.ablations[NODE_SAMPLE_RATIO] == [1.0, 0.8, 0.5, 0.3]
+    assert (config.n_trials, config.n_startup_trials) == (7, 3)
+    assert (config.time_budget, config.hard_timeout) == (3600, 4500)
+    assert config.candidates_required is False
+    assert config.fixed['logger.wandb.project'] == 'ogbench_oct_kfold_factorial'
+    assert all(cell.study_name.startswith('octkfoldtc10_') for cell in cells)
+
+
+def test_oct_gene_identity_follow_up_mirrors_main_cells_without_sagn() -> None:
+    main = OptunaSearchConfig.from_yaml(OCT_FACTORIAL_CONFIG_PATH)
+    followup = OptunaSearchConfig.from_yaml(OCT_GENE_IDENTITY_CONFIG_PATH)
+
+    main_cells = {
+        (cell.model, cell.dataset, tuple(sorted(cell.values.items())))
+        for cell in build_outer_cells(main)
+        if cell.model != 'sagn'
+    }
+    followup_cells = {
+        (cell.model, cell.dataset, tuple(sorted(cell.values.items())))
+        for cell in build_outer_cells(followup)
+    }
+
+    assert len(followup_cells) == 3264 - 384
+    assert followup_cells == main_cells
+    assert followup.fixed['gene_identity'] == 'learnable'
+    assert followup.candidates_required is True
+    assert (followup.n_trials, followup.time_budget) == (1, 3600)
+    assert followup.search_space == main.search_space
+    assert followup.per_model_search_space == {
+        model: space for model, space in main.per_model_search_space.items() if model != 'sagn'
+    }
+    assert followup.fingerprint != main.fingerprint
+    assert {cell.study_name for cell in build_outer_cells(followup)}.isdisjoint(
+        cell.study_name for cell in build_outer_cells(main)
+    )
 
 
 def test_sep24_factorial_builds_all_2448_cells_with_seven_trials() -> None:

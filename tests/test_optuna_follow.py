@@ -164,6 +164,23 @@ def test_single_worker_starts_studies_in_manifest_order(
     assert recorder.warmed == []
 
 
+def test_restarted_launcher_skips_studies_completed_by_an_earlier_launcher(
+    tmp_path: Path, recorder: _Recorder
+) -> None:
+    config = _config(tmp_path)
+    names = [cell.study_name for cell in build_outer_cells(config)]
+    manifest = tmp_path / 'manifest.txt'
+    manifest.write_text('\n'.join([*names[:2], '#END']) + '\n')
+    _launcher([config], manifest, workers=1, skip_warmup=True).run()
+    assert recorder.studies == names[:2]
+
+    manifest.write_text('\n'.join([*names, '#END']) + '\n')
+    result = _launcher([config], manifest, workers=1, skip_warmup=True).run()
+
+    assert recorder.studies == names
+    assert sorted(result['completed']) == sorted(names)
+
+
 def test_unknown_studies_and_missing_candidates_fail_without_stopping(
     tmp_path: Path, recorder: _Recorder
 ) -> None:

@@ -22,6 +22,7 @@ import shlex
 import socket
 import sqlite3
 import statistics
+import sys
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import FIRST_COMPLETED, BrokenExecutor, Executor, Future, wait
@@ -43,9 +44,12 @@ from joblib.externals.loky import ProcessPoolExecutor as LokyProcessPoolExecutor
 from omegaconf import OmegaConf
 from optuna.trial import TrialState
 
-from ogbench.data.utils.split_utils import SPLIT_PROTOCOL
-from ogbench.utils.config_resolvers import register_all_resolvers
-from ogbench.utils.hparam_search import (
+# As a script, sys.path[0] is scripts/; an editable install of another checkout must not win.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from ogbench.data.utils.split_utils import SPLIT_PROTOCOL  # noqa: E402
+from ogbench.utils.config_resolvers import register_all_resolvers  # noqa: E402
+from ogbench.utils.hparam_search import (  # noqa: E402
     OOM_ERROR_PREFIX,
     THREAD_ENV_VARS,
     GpuDevice,
@@ -1691,7 +1695,7 @@ def run_search(
         raise ValueError('No ablation cells selected after applying filters and shards')
     if candidates is not None:
         _validate_candidates(config, cells, candidates)
-    elif config.candidates_required and not export_only:
+    elif config.candidates_required and not (export_only or dry_run):
         raise ValueError(f'{config.source_path.name} runs only fixed candidates; pass one')
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -2010,6 +2014,7 @@ class FollowLauncher:
         self.failed: dict[str, str] = {}
         self.end_seen = False
         self.started_at = _utc_now()
+        self.finished_earlier = self._previously_completed()
 
         for config in self.configs:
             config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -2079,12 +2084,32 @@ class FollowLauncher:
         self.failed[name] = error
         self._event('failed', name, error=error)
 
+    def _previously_completed(self) -> set[str]:
+        """Studies a previous launcher on this manifest already ran to completion.
+
+        Restarting must not reopen them: their caches may already have been cleaned up.
+        """
+        if not self.events_path.exists():
+            return set()
+        finished = set()
+        for line in self.events_path.read_text().splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get('event') == 'completed' and event.get('study'):
+                finished.add(event['study'])
+        return finished
+
     def _refresh_manifest(self) -> None:
         names, self.end_seen = read_follow_manifest(self.manifest_path)
         for name in names:
             if name in self.known:
                 continue
             self.known.add(name)
+            if name in self.finished_earlier:
+                self.completed.add(name)
+                continue
             entry = self.cells.get(name)
             if entry is None:
                 self._fail(name, 'Study is not defined by any --config')
@@ -2319,6 +2344,32 @@ def _apply_runtime_overrides(
         config.fixed['paths.root_dir'] = str(Path(root_dir).resolve())
 
 
+def load_follow_configs(
+    paths: Sequence[str | Path],
+    *,
+    output_dir: str | Path | None = None,
+    storage: str | None = None,
+    root_dir: str | Path | None = None,
+) -> list[OptunaSearchConfig]:
+    """Load follow-mode configs; with several, each one owns ``<output_dir>/<config stem>``."""
+    configs = []
+    for path in paths:
+        config = OptunaSearchConfig.from_yaml(path)
+        config_output = None if output_dir is None else str(output_dir)
+        config_storage = storage
+        if output_dir and len(paths) > 1:
+            config_output = str(Path(output_dir) / config.source_path.stem)
+            config_storage = f'sqlite:///{Path(config_output).resolve() / "studies.db"}'
+        _apply_runtime_overrides(
+            config,
+            output_dir=config_output,
+            storage=config_storage,
+            root_dir=None if root_dir is None else str(root_dir),
+        )
+        configs.append(config)
+    return configs
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -2447,18 +2498,12 @@ def main() -> None:
             parser.error(f'--follow-manifest takes its studies from the manifest; drop {used}')
         if len(args.config) > 1 and args.storage:
             parser.error('--storage is ambiguous with several configs; use --output-dir')
-        configs = []
-        for path in args.config:
-            config = OptunaSearchConfig.from_yaml(path)
-            output_dir = args.output_dir
-            storage = args.storage
-            if output_dir and len(args.config) > 1:
-                output_dir = str(Path(output_dir) / config.source_path.stem)
-                storage = f'sqlite:///{Path(output_dir).resolve() / "studies.db"}'
-            _apply_runtime_overrides(
-                config, output_dir=output_dir, storage=storage, root_dir=args.root_dir
-            )
-            configs.append(config)
+        configs = load_follow_configs(
+            args.config,
+            output_dir=args.output_dir,
+            storage=args.storage,
+            root_dir=args.root_dir,
+        )
         run_follow(
             configs,
             args.follow_manifest,

@@ -17,6 +17,7 @@ import torch
 OBJECTIVE_PAYLOAD_PREFIX = 'OGBENCH_OBJECTIVE='
 METRICS_PAYLOAD_PREFIX = 'OGBENCH_METRICS='
 DEADLINE_ENV_VAR = 'OGBENCH_DEADLINE'
+CHECKOUT_ROOT = Path(__file__).resolve().parents[2]
 OOM_ERROR_PREFIX = 'OOM: '
 OOM_MARKERS = (
     'CUDA out of memory',
@@ -187,6 +188,10 @@ def run_training(
     cmd = [sys.executable, '-m', 'ogbench.run', *effective_overrides]
 
     env = single_thread_environment()
+    # Train with this checkout even if an editable install of another one is on the path.
+    env['PYTHONPATH'] = os.pathsep.join(
+        [str(CHECKOUT_ROOT), *filter(None, [env.get('PYTHONPATH')])]
+    )
     if time_budget is not None:
         env[DEADLINE_ENV_VAR] = f'{time.time() + time_budget:.3f}'
     else:

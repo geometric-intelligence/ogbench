@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
 import subprocess  # nosec B404
 import sys
 import time
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -93,6 +95,23 @@ def test_run_training_exports_deadline_only_with_time_budget(
 
     run_training([], timeout=1200)
     assert DEADLINE_ENV_VAR not in run.call_args.kwargs['env']
+
+
+def test_run_training_puts_the_launcher_checkout_first_on_pythonpath(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(args=[], returncode=0, stdout='', stderr='')
+    run = Mock(return_value=completed)
+    monkeypatch.setattr(subprocess, 'run', run)
+    monkeypatch.setenv('PYTHONPATH', '/elsewhere')
+
+    run_training([])
+
+    checkout = Path(__file__).resolve().parents[2]
+    assert run.call_args.kwargs['env']['PYTHONPATH'].split(os.pathsep) == [
+        str(checkout),
+        '/elsewhere',
+    ]
 
 
 def test_run_training_rejects_more_than_one_thread() -> None:
