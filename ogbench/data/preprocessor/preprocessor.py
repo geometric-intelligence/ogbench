@@ -1,7 +1,10 @@
 """Preprocessor for datasets."""
 
+import contextlib
+import fcntl
 import json
 import os
+from collections.abc import Iterator
 
 import torch
 import torch_geometric
@@ -15,6 +18,18 @@ from ogbench.data.utils import (
 )
 from ogbench.dataloader import DataloadDataset
 from ogbench.transforms.data_transform import DataTransform
+
+
+@contextlib.contextmanager
+def exclusive_directory(directory: str) -> Iterator[None]:
+    """Hold an exclusive lock on ``directory`` across processes."""
+    os.makedirs(directory, exist_ok=True)
+    with open(os.path.join(directory, '.lock'), 'w') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 class PreProcessor(torch_geometric.data.InMemoryDataset):
@@ -37,9 +52,11 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
         if transforms_config is not None:
             self.transforms_applied = True
             pre_transform = self.instantiate_pre_transform(data_dir, transforms_config)
-            super().__init__(self.processed_data_dir, None, pre_transform, **kwargs)
-            self.save_transform_parameters()
-            self.load(self.processed_paths[0])
+            # Concurrent trials share this cache; one builds it while the others wait to read it.
+            with exclusive_directory(self.processed_data_dir):
+                super().__init__(self.processed_data_dir, None, pre_transform, **kwargs)
+                self.save_transform_parameters()
+                self.load(self.processed_paths[0])
             self.data_list = [self.get(idx) for idx in range(len(self))]
         else:
             self.transforms_applied = False
@@ -169,7 +186,10 @@ class PreProcessor(torch_geometric.data.InMemoryDataset):
         self._data_list = None  # Reset cache.
 
         assert isinstance(self._data, torch_geometric.data.Data)
-        self.save(self.data_list, self.processed_paths[0])
+        # A process killed mid-write must not leave a truncated cache that later runs would load.
+        partial = f'{self.processed_paths[0]}.partial'
+        self.save(self.data_list, partial)
+        os.replace(partial, self.processed_paths[0])
 
     def load(self, path: str) -> None:
         r"""Load the dataset from the file path `path`.

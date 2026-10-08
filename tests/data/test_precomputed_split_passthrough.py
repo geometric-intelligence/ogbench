@@ -1,5 +1,9 @@
 """The GNN split loader must keep the precomputed omics fold instead of re-splitting it."""
 
+import fcntl
+import threading
+from pathlib import Path
+
 import numpy as np
 import torch
 from omegaconf import OmegaConf
@@ -81,3 +85,26 @@ def test_preprocessor_keeps_precomputed_fold_under_kfold(tmp_path):
     assert _ids(val) == list(range(N_TRAIN, N_TRAIN + N_VAL))
     assert _ids(test) == list(range(N_TRAIN + N_VAL, N_TRAIN + N_VAL + N_TEST))
     assert not (tmp_path / 'legacy_splits').exists()
+
+
+def test_pre_transformed_cache_is_read_only_after_its_builder_finishes(tmp_path):
+    root = str(tmp_path / 'ds')
+    transforms = OmegaConf.create({'identity': {'transform_name': 'Identity'}})
+    built = PreProcessor(_omics_dataset(root), root, transforms)
+    cache = Path(built.processed_data_dir)
+    assert (cache / 'data.pt').exists()
+    assert not list(cache.glob('*.partial'))
+
+    loaded: list[PreProcessor] = []
+    with open(cache / '.lock', 'w') as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        reader = threading.Thread(
+            target=lambda: loaded.append(PreProcessor(_omics_dataset(root), root, transforms))
+        )
+        reader.start()
+        reader.join(timeout=2)
+        assert reader.is_alive()
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    reader.join(timeout=60)
+
+    assert len(loaded[0]) == N_TRAIN + N_VAL + N_TEST
