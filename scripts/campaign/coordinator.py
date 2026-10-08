@@ -1357,6 +1357,20 @@ def plan_summary(settings: Settings) -> str:
     return '\n'.join(lines)
 
 
+def supervisor_settings(server: Server) -> dict[str, Any]:
+    """The ``remote_agent start`` payload fields that configure a server's launcher."""
+    return {
+        'python': server.python,
+        'gpus': list(server.gpus),
+        'jobs_per_gpu': server.jobs_per_gpu,
+        'warmup_jobs': server.warmup_jobs,
+        'min_free_gpu_mib': server.min_free_gpu_mib,
+        'oom_retries': server.oom_retries,
+        'oom_min_free_gpu_mib': server.oom_min_free_gpu_mib,
+        'env': server.env,
+    }
+
+
 def preflight(settings: Settings, names: Sequence[str]) -> dict[str, Any]:
     """Run every server's preflight; packages are reported as differences from the first one."""
     replies = {}
@@ -1460,19 +1474,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     coordinator = build(settings)
     if args.command in ('start', 'stop'):
         for name in args.servers or list(settings.servers):
-            server = settings.servers[name]
-            extra = {}
-            if args.command == 'start':
-                extra = {
-                    'python': server.python,
-                    'gpus': list(server.gpus),
-                    'jobs_per_gpu': server.jobs_per_gpu,
-                    'warmup_jobs': server.warmup_jobs,
-                    'min_free_gpu_mib': server.min_free_gpu_mib,
-                    'oom_retries': server.oom_retries,
-                    'oom_min_free_gpu_mib': server.oom_min_free_gpu_mib,
-                    'env': server.env,
-                }
+            extra = supervisor_settings(settings.servers[name]) if args.command == 'start' else {}
             print(name, coordinator._call(name, args.command, **extra), flush=True)
         return 0
     if args.command == 'status':

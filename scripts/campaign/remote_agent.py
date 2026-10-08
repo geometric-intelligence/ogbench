@@ -157,7 +157,7 @@ def cmd_status(payload: dict[str, Any]) -> dict[str, Any]:
         isinstance(state, dict)
         and not state.get('finished')
         and state.get('host') == socket.gethostname()
-        and _process_matches(state.get('pid'), 'optuna_search')
+        and _process_matches(state.get('pid'), 'scripts/optuna_search.py')
     )
     supervisor_pid = _read_pid(run_root / SUPERVISOR_PID)
     return {
@@ -473,6 +473,134 @@ def cmd_fold_stats(payload: dict[str, Any]) -> dict[str, Any]:
     return {'studies': stats}
 
 
+def _digest(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value).encode()).hexdigest()[:16]
+
+
+def fold_fingerprint(path: Path) -> dict[str, Any]:
+    """Hashes of what one fold cache trains and tests on: sample split, gene set and graph."""
+    import numpy as np
+    import pyarrow.parquet as pq
+
+    raw = path / 'raw'
+    split = json.loads((raw / 'split_info.json').read_text())
+    genes = [
+        name
+        for name in pq.read_schema(raw / 'selected_data.parquet').names
+        if not name.startswith('__')
+    ]
+    adjacency = np.load(raw / 'adj_matrix.npy', mmap_mode='r')
+    edges, nonzero = hashlib.sha256(), 0
+    for start in range(0, adjacency.shape[0], 1024):
+        block = np.asarray(adjacency[start : start + 1024]) != 0
+        nonzero += int(block.sum())
+        edges.update(np.packbits(block).tobytes())
+    return {
+        'train': _digest(split['train_indices']),
+        'valid': _digest(split['valid_indices']),
+        'test': _digest(split['test_indices']),
+        'n_test': len(split['test_indices']),
+        'genes': _digest(genes),
+        'n_genes': len(genes),
+        'edges': edges.hexdigest()[:16],
+        'nonzero': nonzero,
+    }
+
+
+def cmd_fingerprint(payload: dict[str, Any]) -> dict[str, Any]:
+    """Fingerprint every fold cache of the given main studies that exists on this server."""
+    from omegaconf import OmegaConf
+
+    from scripts.optuna_search import _cache_configs, build_outer_cells
+
+    main = _load_campaign_configs(payload)[0]
+    cells = {cell.study_name: cell for cell in build_outer_cells(main)}
+    data_root = Path(payload['data_root'])
+    fingerprints: dict[str, Any] = {}
+    for loader in _cache_configs(main, [cells[name] for name in payload['studies']]):
+        path = fold_cache_dir(OmegaConf.to_container(loader.parameters, resolve=True))
+        key = str(path.relative_to(data_root)) if path.is_relative_to(data_root) else str(path)
+        fingerprints[key] = fold_fingerprint(path) if (path / 'raw').exists() else None
+    return {'fingerprints': fingerprints}
+
+
+def cmd_ledger_rows(payload: dict[str, Any]) -> dict[str, Any]:
+    """Every fold attempt in this server's run ledgers, with its test and run metrics."""
+    import sqlite3
+
+    rows = []
+    for config in _load_campaign_configs(payload):
+        ledger = config.output_dir / 'run_ledger.sqlite3'
+        if not ledger.exists():
+            continue
+        with sqlite3.connect(f'file:{ledger}?mode=ro', uri=True, timeout=60) as connection:
+            connection.row_factory = sqlite3.Row
+            for row in connection.execute(
+                'SELECT study_name, params_json, fold, trial_number, attempt, status, metric, '
+                'elapsed_time, error, metrics_json, time_budget_hit, epochs_completed, '
+                'peak_memory_mib, created_at FROM fold_attempts WHERE created_at >= ?',
+                (payload.get('since', ''),),
+            ):
+                record = dict(row)
+                record['params'] = json.loads(record.pop('params_json'))
+                record['metrics'] = json.loads(record.pop('metrics_json') or '{}')
+                record['error'] = (record['error'] or '')[-300:]
+                rows.append(record)
+    return {'rows': rows}
+
+
+def cmd_replay(payload: dict[str, Any]) -> dict[str, Any]:
+    """Train one fold of a main study ``copies`` times at once on one GPU, without W&B.
+
+    Used to calibrate jobs per GPU: every copy gets its own output directory and the same time
+    budget, so epochs completed per copy measure the GPU's throughput at that occupancy.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from ogbench.utils.hparam_search import run_training
+    from scripts.optuna_search import _fold_overrides, _trial_hyperparameters, build_outer_cells
+
+    env = {key: str(value) for key, value in payload.get('env', {}).items()}
+    os.environ.update(env)
+    _make_env_dirs(env)
+    main = _load_campaign_configs(payload)[0]
+    cell = {cell.study_name: cell for cell in build_outer_cells(main)}[payload['study']]
+    hyperparameters = _trial_hyperparameters(cell, payload['params'])
+    fold = int(payload['fold'])
+    budget = float(payload['budget'])
+    root = Path(payload['run_root']) / 'replay' / payload['tag']
+    replaced = ('hydra.run.dir=', 'logger.wandb.offline=')
+
+    def run(copy: int) -> dict[str, Any]:
+        overrides = [
+            override
+            for override in _fold_overrides(
+                main, cell, hyperparameters, int(payload.get('trial_number', 0)), fold, 1
+            )
+            if not override.startswith(replaced)
+        ]
+        overrides += [f'hydra.run.dir={root / f"copy{copy}"}', 'logger.wandb.offline=true']
+        started = time.time()
+        success, error, metrics = run_training(
+            overrides,
+            timeout=int(budget + main.timeout_grace),
+            gpu_id=payload['gpu'],
+            log_path=root / f'copy{copy}.log',
+            time_budget=budget,
+        )
+        return {
+            'copy': copy,
+            'success': success,
+            'error': (error or '')[-500:],
+            'seconds': round(time.time() - started, 1),
+            'metrics': metrics or {},
+        }
+
+    with ThreadPoolExecutor(int(payload['copies'])) as pool:
+        copies = list(pool.map(run, range(int(payload['copies']))))
+    return {'gpu': payload['gpu'], 'copies': copies}
+
+
 def _make_env_dirs(env: dict[str, str]) -> None:
     for key in ENV_DIRS:
         if key in env:
@@ -683,6 +811,9 @@ COMMANDS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     'gc': cmd_gc,
     'export': cmd_export,
     'fold-stats': cmd_fold_stats,
+    'fingerprint': cmd_fingerprint,
+    'ledger-rows': cmd_ledger_rows,
+    'replay': cmd_replay,
     'preflight': cmd_preflight,
     'start': cmd_start,
     'stop': cmd_stop,

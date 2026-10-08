@@ -45,6 +45,10 @@ SEP24_FACTORIAL_CONFIG_PATH = Path('configs/hparams_search/sep24_factorial_optun
 RATIO03_CONFIG_PATH = Path('configs/hparams_search/sep24_ratio03_transfer.yaml')
 OCT_FACTORIAL_CONFIG_PATH = Path('configs/hparams_search/oct_kfold_factorial.yaml')
 OCT_GENE_IDENTITY_CONFIG_PATH = Path('configs/hparams_search/oct_kfold_gene_identity.yaml')
+OCT_SMOKE_CONFIG_PATH = Path('configs/hparams_search/oct_kfold_smoke.yaml')
+OCT_SMOKE_GENE_IDENTITY_CONFIG_PATH = Path(
+    'configs/hparams_search/oct_kfold_smoke_gene_identity.yaml'
+)
 MULTI_DATASET_OPTUNA_CONFIG_PATH = Path('configs/hparams_search/multi_dataset_optuna_search.yaml')
 
 
@@ -133,6 +137,20 @@ def test_config_rejects_incomplete_fold_rotation(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match='every fold exactly once'):
         OptunaSearchConfig.from_yaml(path)
+
+
+def test_fold_subset_allows_distinct_folds_only_when_requested(tmp_path: Path) -> None:
+    raw = CONFIG_PATH.read_text()
+    path = tmp_path / 'subset.yaml'
+    path.write_text(raw.replace('folds: [0, 1, 2, 3, 4]', 'folds: [0, 3]\nfold_subset: true'))
+    assert OptunaSearchConfig.from_yaml(path).folds == [0, 3]
+
+    for folds in ('[]', '[0, 0]', '[5]'):
+        path.write_text(
+            raw.replace('folds: [0, 1, 2, 3, 4]', f'folds: {folds}\nfold_subset: true')
+        )
+        with pytest.raises(ValueError, match='distinct folds'):
+            OptunaSearchConfig.from_yaml(path)
 
 
 def test_runtime_paths_are_independent_of_launch_directory(
@@ -593,6 +611,26 @@ def test_oct_kfold_factorial_adds_ratio_03_and_a_time_budget() -> None:
     assert config.candidates_required is False
     assert config.fixed['logger.wandb.project'] == 'ogbench_oct_kfold_factorial'
     assert all(cell.study_name.startswith('octkfoldtc10_') for cell in cells)
+
+
+def test_oct_smoke_configs_pair_every_non_sagn_cell_on_fold_zero() -> None:
+    main = OptunaSearchConfig.from_yaml(OCT_SMOKE_CONFIG_PATH)
+    followup = OptunaSearchConfig.from_yaml(OCT_SMOKE_GENE_IDENTITY_CONFIG_PATH)
+
+    main_cells = build_outer_cells(main)
+    followup_keys = {
+        (cell.model, cell.dataset, tuple(sorted(cell.values.items())))
+        for cell in build_outer_cells(followup)
+    }
+
+    assert len(main_cells) == 20
+    assert main.folds == followup.folds == [0]
+    assert (main.time_budget, main.hard_timeout) == (300, 1200)
+    assert followup_keys == {
+        (cell.model, cell.dataset, tuple(sorted(cell.values.items())))
+        for cell in main_cells
+        if cell.model != 'sagn'
+    }
 
 
 def test_oct_gene_identity_follow_up_mirrors_main_cells_without_sagn() -> None:

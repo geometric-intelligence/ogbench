@@ -261,7 +261,11 @@ class OptunaSearchConfig:
 
         folds = [int(fold) for fold in raw.get('folds', range(5))]
         k = int(raw.get('k', 5))
-        if sorted(set(folds)) != list(range(k)):
+        if raw.get('fold_subset', False):
+            # Calibration runs only: a study then scores the listed folds, not the full CV.
+            if not folds or len(set(folds)) != len(folds) or not set(folds) <= set(range(k)):
+                raise ValueError(f'folds must be distinct folds from 0 to k-1: k={k}')
+        elif sorted(set(folds)) != list(range(k)):
             raise ValueError(f'folds must contain every fold exactly once from 0 to k-1: k={k}')
 
         ablations = raw.get('ablations', {})

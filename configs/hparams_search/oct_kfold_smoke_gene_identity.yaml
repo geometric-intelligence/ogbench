@@ -1,0 +1,117 @@
+# Calibration smoke run of the gene_identity follow-up (see oct_kfold_smoke.yaml): each smoke
+# cell's configuration rerun once with a learnable per-node identity embedding. SAGN is
+# excluded as in oct_kfold_gene_identity.yaml. The search space must match the smoke config.
+
+datasets:
+  - tuberculosis
+  - addneuromed
+
+models:
+  - gcn
+  - gatv4
+  - mlp
+  - gps
+
+training_seed: 42
+k: 5
+folds: [0]
+fold_subset: true
+
+fixed:
+  gene_identity: learnable
+  logger.wandb.project: ogbench_oct_kfold_smoke
+  logger.wandb.entity: bioshape-lab
+  paths.root_dir: /scratch/lcornelis/ogbench
+
+ablations:
+  experiment:
+    - no_readout
+  dataset.loader.parameters.adjacency_method:
+    - wgcna
+    - string
+  dataset.loader.parameters.node_sample_ratio:
+    - 0.3
+  dataset.loader.parameters.method:
+    - variance
+
+ablation_design:
+  mode: full_factorial
+
+search_space:
+  optimizer.parameters.lr:
+    type: float
+    low: 0.00001
+    high: 0.01
+    log: true
+  optimizer.parameters.weight_decay:
+    type: categorical
+    choices: [0.0, 0.000001, 0.00001, 0.0001]
+  model.backbone.dropout:
+    type: float
+    low: 0.0
+    high: 0.5
+    step: 0.1
+
+per_model_search_space:
+  gcn:
+    model.feature_encoder.out_channels: [16, 32, 64, 128]
+    model.backbone.num_layers: [2, 3, 4]
+
+  gatv4:
+    model.backbone.hidden_channels:
+      type: categorical
+      choices:
+        - [16, 32]
+        - [32, 64]
+        - [64, 128]
+    model.backbone.heads:
+      type: categorical
+      choices:
+        - [4, 4]
+        - [8, 8]
+    model.backbone.use_layer_norm: [true, false]
+
+  mlp:
+    model.backbone.hidden_channels:
+      type: categorical
+      choices:
+        - [16, 32, 8]
+        - [32, 64, 16]
+        - [64, 128, 32]
+    model.backbone.norm: [null, batch]
+
+  gps:
+    model.feature_encoder.out_channels: [16, 32, 64, 128]
+    model.backbone.num_layers: [2, 3, 4]
+    model.encodings:
+      type: categorical
+      choices:
+        - [LapPE]
+        - [RWSE]
+
+wgcna_target_connectivity: 0.10
+string_adjacency_threshold: 0.4
+
+objective:
+  metric: best_val/f1_macro
+  direction: maximize
+
+optuna:
+  n_trials: 1
+  sampler_seed: 1234
+  n_startup_trials: 1
+  candidates_required: true
+  study_name_prefix: octsmokegeneid
+  storage: sqlite:///./search_results/oct_kfold_smoke_gene_identity/studies.db
+  heartbeat_interval: 60
+  grace_period: 300
+  max_retries: 1
+
+tags:
+  - oct_kfold_smoke
+
+training:
+  time_budget: 300
+  timeout_grace: 900
+  timeout: 1200
+  output_dir: ./search_results/oct_kfold_smoke_gene_identity

@@ -392,6 +392,67 @@ def test_shell_agent_runs_locally_or_over_ssh() -> None:
     assert remote[-1].endswith('-m scripts.campaign.remote_agent gc')
 
 
+def test_fold_fingerprint_hashes_split_genes_and_graph(tmp_path: Path) -> None:
+    raw = tmp_path / 'cache' / 'raw'
+    raw.mkdir(parents=True)
+    split = {'train_indices': [0, 1, 2], 'valid_indices': [3], 'test_indices': [4, 5]}
+    (raw / 'split_info.json').write_text(json.dumps(split))
+    pd.DataFrame(np.ones((6, 3)), columns=['g1', 'g2', 'g3']).to_parquet(
+        raw / 'selected_data.parquet'
+    )
+    adjacency = np.zeros((3, 3))
+    adjacency[0, 1] = adjacency[1, 0] = 0.7
+    np.save(raw / 'adj_matrix.npy', adjacency)
+
+    first = remote_agent.fold_fingerprint(tmp_path / 'cache')
+    assert (first['n_genes'], first['nonzero'], first['n_test']) == (3, 2, 2)
+
+    adjacency[1, 2] = adjacency[2, 1] = 0.2
+    np.save(raw / 'adj_matrix.npy', adjacency)
+    second = remote_agent.fold_fingerprint(tmp_path / 'cache')
+    assert second['edges'] != first['edges'] and second['nonzero'] == 4
+    assert {key: second[key] for key in ('train', 'valid', 'test', 'genes')} == {
+        key: first[key] for key in ('train', 'valid', 'test', 'genes')
+    }
+
+
+def test_ledger_rows_return_parameters_and_metrics(tmp_path: Path) -> None:
+    run_root = tmp_path / 'run'
+    payload = {
+        'run_root': str(run_root),
+        'data_root': str(tmp_path),
+        'configs': [MAIN_CONFIG, FOLLOWUP_CONFIG],
+    }
+    main = remote_agent._load_campaign_configs(payload)[0]
+    RunLedger(main.output_dir / 'run_ledger.sqlite3')
+    with sqlite3.connect(main.output_dir / 'run_ledger.sqlite3') as connection:
+        connection.execute(
+            'INSERT INTO fold_attempts (study_name, param_hash, params_json, fold, '
+            'training_seed, attempt, status, metric, elapsed_time, trial_number, metrics_json, '
+            'time_budget_hit, epochs_completed, peak_memory_mib) '
+            "VALUES ('s', 'h', '{\"lr\": 0.1}', 0, 42, 1, 'success', 0.5, 12.0, 0, "
+            '\'{"test/f1_macro": 0.4}\', 1, 7, 900)'
+        )
+
+    rows = remote_agent.cmd_ledger_rows(payload)['rows']
+
+    assert len(rows) == 1
+    assert rows[0]['params'] == {'lr': 0.1}
+    assert rows[0]['metrics'] == {'test/f1_macro': 0.4}
+    assert (rows[0]['time_budget_hit'], rows[0]['epochs_completed']) == (1, 7)
+
+
+def test_smoke_runs_next_to_the_campaign_with_every_server_on_all_studies() -> None:
+    from scripts.campaign import calibrate
+
+    server = _servers()['small1']
+    server = Server(**{**server.__dict__, 'run_root': '/x/search_results/oct_kfold/small1'})
+    assert calibrate.smoke_server(server).run_root == '/x/search_results/oct_kfold_smoke/small1'
+    studies = calibrate.smoke_studies()
+    assert len(studies) == len(set(studies)) == 20
+    assert all(study.startswith('octsmoke_') for study in studies)
+
+
 def test_preflight_reports_packages_as_differences_from_the_first_server(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
