@@ -305,20 +305,21 @@ def _select_gnn_nodes(
     """Return the node columns the GNN pipeline would select for this split.
 
     Mirrors ``HFOmicsDataset.download``: the node budget is derived from the
-    training split size, and the selector sees training samples only. The
-    global RNG is reseeded first so ``method=random`` matches the GNN cache.
+    training split size, and the selector sees training samples only. ``method=random``
+    uses the same ``selection_seed`` as the GNN cache.
     """
-    from ogbench.data.selectors import get_selector
+    from ogbench.data.selectors import get_selector, selection_seed
 
-    node_sample_ratio = cfg.dataset.loader.parameters.node_sample_ratio
+    params = cfg.dataset.loader.parameters
+    node_sample_ratio = params.node_sample_ratio
     n_features = train_data.shape[1]
     if node_sample_ratio == 'full':
         n_nodes = n_features
     else:
         n_nodes = min(int(len(train_targets) / float(node_sample_ratio)), n_features)
 
-    np.random.seed(cfg.seed)
-    selector = get_selector(cfg.dataset.loader.parameters.method)
+    seed = selection_seed(params.data_name, params.k, params.fold, node_sample_ratio)
+    selector = get_selector(params.method, seed=seed)
     indices = selector.select(train_data.values, train_targets, n_nodes)
     return [train_data.columns[i] for i in indices]
 

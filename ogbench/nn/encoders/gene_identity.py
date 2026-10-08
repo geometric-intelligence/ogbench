@@ -14,6 +14,10 @@ from ogbench.nn.encoders.base import AbstractFeatureEncoder
 
 logger = logging.getLogger(__name__)
 
+# These models read features precomputed before training (SAGN: k-hop aggregates in ``xs``),
+# so identity injected into ``data.x`` would never reach them.
+MODELS_WITHOUT_RUNTIME_NODE_FEATURES = frozenset({'sagn'})
+
 
 def is_gene_identity_enabled(gene_cfg: DictConfig | dict | None) -> bool:
     """Return whether learnable node identity is enabled."""
@@ -158,6 +162,12 @@ def setup_gene_identity(
     mode = str(gene_cfg.get('mode')).lower()
     if mode != 'learnable':
         raise ValueError(f"Unsupported gene_identity.mode={mode!r}; expected 'learnable'")
+    model_name = OmegaConf.select(cfg, 'model.model_name')
+    if model_name in MODELS_WITHOUT_RUNTIME_NODE_FEATURES:
+        raise ValueError(
+            f'gene_identity is not supported for model {model_name!r}: it consumes '
+            'precomputed node features, so the identity embedding would be ignored'
+        )
 
     num_nodes = _dataset_num_nodes(dataset)
     configured_nodes = OmegaConf.select(cfg, 'dataset.parameters.num_nodes')

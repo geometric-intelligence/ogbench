@@ -7,10 +7,12 @@
 
 set -uo pipefail
 
-DATASETS="parkinsons,addneuromed,motrpac,brca,tuberculosis,smoking"
-FOLDS="0,1,2,3,4"
-NODE_RATIOS="1.0,0.8,0.5"
-METHODS="variance,random,correlation,distance_correlation"
+# Each axis can be narrowed from the environment to split the sweep across processes.
+DATASETS="${DATASETS:-parkinsons,addneuromed,motrpac,brca,tuberculosis,smoking}"
+FOLDS="${FOLDS:-0,1,2,3,4}"
+NODE_RATIOS="${NODE_RATIOS:-1.0,0.8,0.5,0.3}"
+METHODS="${METHODS:-variance,random,correlation,distance_correlation}"
+PYTHON="${PYTHON:-python}"
 
 echo "========================================="
 echo "Standard baselines (SVM, Elastic Net)"
@@ -19,7 +21,7 @@ echo "ratios=${NODE_RATIOS} methods=${METHODS}"
 echo "hparam_selection=global_kfold_mean_validation"
 echo "========================================="
 
-if python ogbench/baseline.py --multirun \
+if "${PYTHON}" ogbench/baseline.py --multirun \
     "dataset=${DATASETS}" \
     dataset.split_params.split_type=k-fold \
     dataset.split_params.k=5 \

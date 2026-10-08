@@ -25,7 +25,7 @@ from ogbench.data.adjacency import (
     get_adjacency_builder,
     require_adjacency_binarization_params,
 )
-from ogbench.data.selectors import get_selector
+from ogbench.data.selectors import get_selector, selection_seed
 from ogbench.data.utils import MeanStdNormalizer
 from ogbench.data.utils.split_utils import (
     build_omics_cache_relative_name,
@@ -585,7 +585,8 @@ class HFOmicsDataset(InMemoryDataset):
         self, data: np.ndarray, targets: np.ndarray, n_selected: int = 10, method: str = 'variance'
     ) -> np.ndarray:
         """Select nodes using a modular selector system."""
-        selector = get_selector(method)
+        seed = selection_seed(self.data_name, self.k, self.fold, self.node_sample_ratio)
+        selector = get_selector(method, seed=seed)
         return selector.select(data, targets, n_selected)
 
     def calculate_adjacency_matrix(
