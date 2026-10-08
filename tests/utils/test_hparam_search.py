@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 import queue
-import subprocess
+import subprocess  # nosec B404
 import sys
+import time
 from unittest.mock import Mock
 
 import pytest
 
 from ogbench.utils.hparam_search import (
+    DEADLINE_ENV_VAR,
     OBJECTIVE_PAYLOAD_PREFIX,
     THREAD_ENV_VARS,
     configure_torch_threads_from_env,
@@ -74,6 +76,23 @@ def test_run_training_enforces_thread_and_dataloader_limits(
     env = run.call_args.kwargs['env']
     assert env['CUDA_VISIBLE_DEVICES'] == 'GPU-token'
     assert all(env[name] == '1' for name in THREAD_ENV_VARS)
+
+
+def test_run_training_exports_deadline_only_with_time_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(args=[], returncode=0, stdout='', stderr='')
+    run = Mock(return_value=completed)
+    monkeypatch.setattr(subprocess, 'run', run)
+    monkeypatch.setattr(time, 'time', lambda: 1000.0)
+    monkeypatch.setenv(DEADLINE_ENV_VAR, 'inherited')
+
+    run_training([], timeout=1200, time_budget=300)
+    assert run.call_args.kwargs['env'][DEADLINE_ENV_VAR] == '1300.000'
+    assert run.call_args.kwargs['timeout'] == 1200
+
+    run_training([], timeout=1200)
+    assert DEADLINE_ENV_VAR not in run.call_args.kwargs['env']
 
 
 def test_run_training_rejects_more_than_one_thread() -> None:

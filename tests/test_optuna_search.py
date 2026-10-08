@@ -214,6 +214,154 @@ def test_objective_aggregates_folds_and_reuses_completed_fold_records(
     assert study.trials[1].user_attrs['reused_folds'] == [0, 1, 2, 3, 4]
 
 
+def test_objective_persists_test_metrics_for_fresh_and_reused_folds(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cell = build_outer_cells(search_config)[0]
+    ledger_path = search_config.output_dir / 'ledger.db'
+
+    def fake_training(overrides, **kwargs):
+        fold = _fold_of(overrides)
+        return (
+            True,
+            None,
+            {
+                'objective': 0.5,
+                'optimized_metric': 'best_val/f1_macro',
+                'best_val/f1_macro': 0.5,
+                'test/f1_macro': 0.4 + fold / 10,
+                'val/loss': 1.0,
+                'train/time_budget_hit': float(fold == 0),
+                'train/epochs_completed': 20.0,
+                'gpu/peak_memory_allocated_mib': 1024.0,
+            },
+        )
+
+    monkeypatch.setattr(optuna_search, 'run_training', fake_training)
+    study = optuna.create_study(direction='maximize', study_name=cell.study_name)
+
+    def objective(trial):
+        return _objective(
+            trial, config=search_config, cell=cell, ledger_path=ledger_path, gpu_queue=None
+        )
+
+    study.optimize(objective, n_trials=1)
+    study.enqueue_trial(study.trials[0].params)
+    study.optimize(objective, n_trials=1)
+
+    fresh, reused = study.trials
+    assert reused.user_attrs['reused_folds'] == [0, 1, 2, 3, 4]
+    assert reused.user_attrs['fold_metrics'] == fresh.user_attrs['fold_metrics']
+    assert fresh.user_attrs['fold_metrics']['2'] == {
+        'best_val/f1_macro': 0.5,
+        'gpu/peak_memory_allocated_mib': 1024.0,
+        'test/f1_macro': pytest.approx(0.6),
+        'train/epochs_completed': 20.0,
+        'train/time_budget_hit': 0.0,
+    }
+    summary = reused.user_attrs['test_summary']
+    assert summary['test/f1_macro_mean'] == pytest.approx(0.6)
+    assert summary['test/f1_macro_std'] == pytest.approx(0.1414213562)
+    assert summary['time_budget_hit_folds'] == 1.0
+
+    rows = optuna_search._trial_rows(study, cell)
+    assert rows[1]['test/f1_macro_mean'] == pytest.approx(0.6)
+    assert json.loads(rows[1]['fold_metrics'])['0']['train/time_budget_hit'] == 1.0
+
+    attempts = RunLedger(ledger_path).all_attempts()
+    assert len(attempts) == 5
+    by_fold = {row['fold']: row for row in attempts}
+    assert by_fold[0]['time_budget_hit'] == 1
+    assert by_fold[1]['time_budget_hit'] == 0
+    assert by_fold[3]['epochs_completed'] == 20.0
+    assert by_fold[3]['peak_memory_mib'] == 1024.0
+    assert json.loads(by_fold[3]['metrics_json'])['test/f1_macro'] == pytest.approx(0.7)
+
+
+def test_ledger_migrates_databases_without_metric_columns(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / 'old_ledger.db'
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE fold_attempts (
+                study_name TEXT NOT NULL, param_hash TEXT NOT NULL, params_json TEXT NOT NULL,
+                fold INTEGER NOT NULL, training_seed INTEGER NOT NULL, attempt INTEGER NOT NULL,
+                status TEXT NOT NULL, metric REAL, elapsed_time REAL NOT NULL, error TEXT,
+                log_path TEXT, trial_number INTEGER NOT NULL, gpu_logical_id INTEGER,
+                gpu_visibility_token TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (study_name, param_hash, fold, training_seed, attempt)
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO fold_attempts VALUES ('s', 'h', '{}', 0, 42, 1, 'success', 0.5, 1.0, "
+            "NULL, 'log', 0, NULL, NULL, CURRENT_TIMESTAMP)"
+        )
+
+    ledger = RunLedger(path)
+    RunLedger(path)
+
+    assert ledger.successful_metric('s', 'h', 0, 42) == 0.5
+    assert ledger.successful_metrics('s', 'h', 0, 42) == {}
+    row = ledger.all_attempts()[0]
+    assert set(RunLedger.EXTRA_COLUMNS) <= set(row)
+    assert row['metrics_json'] is None
+
+
+def test_time_budget_sets_hard_timeout_deadline_and_fingerprint(
+    search_config: OptunaSearchConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unbudgeted_fingerprint = search_config.fingerprint
+    assert search_config.time_budget is None
+    assert search_config.hard_timeout == search_config.timeout
+
+    budgeted = replace(search_config, time_budget=300, timeout_grace=600)
+    assert budgeted.hard_timeout == 900
+    assert budgeted.fingerprint != unbudgeted_fingerprint
+
+    seen: list[dict] = []
+
+    def fake_training(overrides, **kwargs):
+        seen.append(kwargs)
+        return True, None, {'objective': 0.5}
+
+    monkeypatch.setattr(optuna_search, 'run_training', fake_training)
+    cell = build_outer_cells(budgeted)[0]
+    study = optuna.create_study(direction='maximize', study_name=cell.study_name)
+    study.optimize(
+        lambda trial: _objective(
+            trial,
+            config=budgeted,
+            cell=cell,
+            ledger_path=budgeted.output_dir / 'ledger.db',
+            gpu_queue=None,
+        ),
+        n_trials=1,
+    )
+
+    assert {(kwargs['timeout'], kwargs['time_budget']) for kwargs in seen} == {(900, 300)}
+
+
+def test_time_budget_config_is_parsed_and_validated(tmp_path: Path) -> None:
+    raw = CONFIG_PATH.read_text()
+    section = '\ntraining:\n'
+    assert raw.count(section) == 1
+    path = tmp_path / 'budget.yaml'
+    path.write_text(raw.replace(section, f'{section}  time_budget: 600\n  timeout_grace: 120\n'))
+
+    config = OptunaSearchConfig.from_yaml(path)
+    assert (config.time_budget, config.timeout_grace, config.hard_timeout) == (600, 120, 720)
+
+    path.write_text(raw.replace(section, f'{section}  time_budget: 0\n'))
+    with pytest.raises(ValueError, match='time_budget must be positive'):
+        OptunaSearchConfig.from_yaml(path)
+
+
 def test_failed_trial_retry_only_reruns_failed_and_missing_folds(
     search_config: OptunaSearchConfig,
     monkeypatch: pytest.MonkeyPatch,

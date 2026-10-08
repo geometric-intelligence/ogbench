@@ -226,6 +226,19 @@ class OptunaSearchConfig:
     timeout: int
     output_dir: Path
     tags: list[str]
+    time_budget: int | None = None
+    timeout_grace: int = 900
+
+    @property
+    def hard_timeout(self) -> int:
+        """Seconds after which a fold subprocess is killed.
+
+        With a time budget, training stops gracefully at the budget and the grace period
+        covers the test pass; the plain ``timeout`` applies only without a budget.
+        """
+        if self.time_budget is None:
+            return self.timeout
+        return self.time_budget + self.timeout_grace
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> OptunaSearchConfig:
@@ -351,7 +364,15 @@ class OptunaSearchConfig:
             timeout=int(training.get('timeout', 3600)),
             output_dir=output_dir,
             tags=list(raw.get('tags', [])),
+            time_budget=(
+                None if training.get('time_budget') is None else int(training['time_budget'])
+            ),
+            timeout_grace=int(training.get('timeout_grace', 900)),
         )
+        if config.time_budget is not None and config.time_budget < 1:
+            raise ValueError('training.time_budget must be positive')
+        if config.timeout_grace < 0:
+            raise ValueError('training.timeout_grace cannot be negative')
         if config.n_trials < 1:
             raise ValueError('optuna.n_trials must be positive')
         if config.heartbeat_interval < 1 or config.grace_period < 1:
@@ -397,11 +418,22 @@ class OptunaSearchConfig:
             'sampler_seed': self.sampler_seed,
             'n_startup_trials': self.n_startup_trials,
         }
+        # A budget truncates training, so it changes what an objective value means.
+        if self.time_budget is not None:
+            payload['time_budget'] = self.time_budget
         return _stable_hash(payload)
 
 
 class RunLedger:
     """Durable append-only records for every fold attempt."""
+
+    # Added after the first campaigns; older ledgers are migrated in place.
+    EXTRA_COLUMNS = {
+        'metrics_json': 'TEXT',
+        'time_budget_hit': 'INTEGER',
+        'epochs_completed': 'REAL',
+        'peak_memory_mib': 'REAL',
+    }
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -440,6 +472,12 @@ class RunLedger:
                 )
                 """
             )
+            existing = {
+                row['name'] for row in connection.execute('PRAGMA table_info(fold_attempts)')
+            }
+            for column, sql_type in self.EXTRA_COLUMNS.items():
+                if column not in existing:
+                    connection.execute(f'ALTER TABLE fold_attempts ADD COLUMN {column} {sql_type}')
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=60)
@@ -473,6 +511,24 @@ class RunLedger:
             ).fetchone()
         return None if row is None else float(row['metric'])
 
+    def successful_metrics(
+        self, study_name: str, param_hash: str, fold: int, training_seed: int
+    ) -> dict[str, float]:
+        """Return every metric of the latest successful attempt, or ``{}``."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT metrics_json FROM fold_attempts
+                WHERE study_name=? AND param_hash=? AND fold=? AND training_seed=?
+                  AND status='success'
+                ORDER BY attempt DESC LIMIT 1
+                """,
+                (study_name, param_hash, fold, training_seed),
+            ).fetchone()
+        if row is None or not row['metrics_json']:
+            return {}
+        return dict(json.loads(row['metrics_json']))
+
     def record(
         self,
         *,
@@ -489,15 +545,24 @@ class RunLedger:
         log_path: Path,
         trial_number: int,
         gpu: GpuDevice | None,
+        metrics: dict[str, Any] | None = None,
     ) -> None:
+        metrics = metrics or {}
+
+        def optional_float(key: str) -> float | None:
+            value = metrics.get(key)
+            return None if value is None else float(value)
+
+        budget_hit = optional_float('train/time_budget_hit')
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO fold_attempts (
                     study_name, param_hash, params_json, fold, training_seed,
                     attempt, status, metric, elapsed_time, error, log_path,
-                    trial_number, gpu_logical_id, gpu_visibility_token
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    trial_number, gpu_logical_id, gpu_visibility_token,
+                    metrics_json, time_budget_hit, epochs_completed, peak_memory_mib
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     study_name,
@@ -514,6 +579,10 @@ class RunLedger:
                     trial_number,
                     None if gpu is None else gpu.logical_id,
                     None if gpu is None else gpu.visibility_token,
+                    json.dumps(metrics, sort_keys=True) if metrics else None,
+                    None if budget_hit is None else int(budget_hit),
+                    optional_float('train/epochs_completed'),
+                    optional_float('gpu/peak_memory_allocated_mib'),
                 ),
             )
 
@@ -1146,6 +1215,7 @@ def _objective(
         )
 
     fold_scores: dict[str, float] = {}
+    fold_metrics: dict[str, dict[str, float]] = {}
     reused_folds: list[int] = []
     max_attempts = config.max_retries + 1
     for fold in config.folds:
@@ -1154,6 +1224,9 @@ def _objective(
         )
         if cached_metric is not None:
             fold_scores[str(fold)] = cached_metric
+            fold_metrics[str(fold)] = _reported_metrics(
+                ledger.successful_metrics(cell.study_name, param_hash, fold, config.training_seed)
+            )
             reused_folds.append(fold)
             continue
 
@@ -1186,10 +1259,11 @@ def _objective(
                 )
                 success, error, metrics = run_training(
                     overrides,
-                    timeout=config.timeout,
+                    timeout=config.hard_timeout,
                     gpu_id=None if gpu is None else gpu.visibility_token,
                     n_threads=1,
                     log_path=log_path,
+                    time_budget=config.time_budget,
                 )
             finally:
                 if gpu_queue is not None:
@@ -1222,6 +1296,7 @@ def _objective(
                 log_path=log_path,
                 trial_number=trial.number,
                 gpu=gpu,
+                metrics=metrics if success else None,
             )
             if success:
                 break
@@ -1233,6 +1308,7 @@ def _objective(
             trial.set_user_attr('failure', error or 'unknown training failure')
             raise FoldExecutionError(f'Fold {fold} failed: {error}')
         fold_scores[str(fold)] = float(metric)
+        fold_metrics[str(fold)] = _reported_metrics(metrics)
 
     values = list(fold_scores.values())
     mean_score = statistics.fmean(values)
@@ -1241,7 +1317,50 @@ def _objective(
     trial.set_user_attr('reused_folds', reused_folds)
     trial.set_user_attr('fold_mean', mean_score)
     trial.set_user_attr('fold_std', std_score)
+    trial.set_user_attr('fold_metrics', fold_metrics)
+    trial.set_user_attr('test_summary', _test_summary(fold_metrics, len(config.folds)))
     return mean_score
+
+
+REPORTED_METRIC_PREFIXES = ('test/', 'best_val/')
+REPORTED_RUN_METRICS = (
+    'train/time_budget_hit',
+    'train/epochs_completed',
+    'gpu/peak_memory_allocated_mib',
+)
+
+
+def _reported_metrics(metrics: dict[str, Any] | None) -> dict[str, float]:
+    """Keep the per-fold metrics worth exporting: test, best validation and run diagnostics."""
+    if not metrics:
+        return {}
+    return {
+        key: float(value)
+        for key, value in sorted(metrics.items())
+        if (key.startswith(REPORTED_METRIC_PREFIXES) or key in REPORTED_RUN_METRICS)
+        and isinstance(value, int | float)
+        and math.isfinite(float(value))
+    }
+
+
+def _test_summary(fold_metrics: dict[str, dict[str, float]], n_folds: int) -> dict[str, float]:
+    """Mean and population std of each test metric reported by every fold."""
+    if len(fold_metrics) != n_folds or not fold_metrics:
+        return {}
+    shared = set.intersection(*(set(metrics) for metrics in fold_metrics.values()))
+    summary: dict[str, float] = {}
+    for key in sorted(name for name in shared if name.startswith('test/')):
+        values = [metrics[key] for metrics in fold_metrics.values()]
+        summary[f'{key}_mean'] = statistics.fmean(values)
+        summary[f'{key}_std'] = statistics.pstdev(values)
+    budget_hits = [
+        metrics['train/time_budget_hit']
+        for metrics in fold_metrics.values()
+        if 'train/time_budget_hit' in metrics
+    ]
+    if budget_hits:
+        summary['time_budget_hit_folds'] = float(sum(budget_hits))
+    return summary
 
 
 def _trial_rows(study: optuna.Study, cell: OuterCell) -> list[dict[str, Any]]:
@@ -1262,6 +1381,8 @@ def _trial_rows(study: optuna.Study, cell: OuterCell) -> list[dict[str, Any]]:
             'failed_fold': trial.user_attrs.get('failed_fold'),
             'failure': trial.user_attrs.get('failure'),
             'retry_of': trial.user_attrs.get('retry_of'),
+            'fold_metrics': json.dumps(trial.user_attrs.get('fold_metrics', {}), sort_keys=True),
+            **trial.user_attrs.get('test_summary', {}),
         }
         if 'transfer_source' in trial.user_attrs:
             row['transfer_source'] = json.dumps(

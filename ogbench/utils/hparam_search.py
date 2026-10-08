@@ -16,6 +16,7 @@ import torch
 
 OBJECTIVE_PAYLOAD_PREFIX = 'OGBENCH_OBJECTIVE='
 METRICS_PAYLOAD_PREFIX = 'OGBENCH_METRICS='
+DEADLINE_ENV_VAR = 'OGBENCH_DEADLINE'
 OOM_ERROR_PREFIX = 'OOM: '
 OOM_MARKERS = (
     'CUDA out of memory',
@@ -173,14 +174,23 @@ def run_training(
     gpu_id: int | str | None = None,
     n_threads: int | None = 1,
     log_path: str | Path | None = None,
+    time_budget: float | None = None,
 ) -> tuple[bool, str | None, dict[str, Any] | None]:
-    """Run one training process with strict resource isolation."""
+    """Run one training process with strict resource isolation.
+
+    ``time_budget`` exports a wall-clock deadline that the ``TimeBudget`` callback uses to
+    stop training gracefully and still test; ``timeout`` stays the hard kill limit.
+    """
     effective_overrides = _force_zero_dataloader_workers(overrides)
     # Use the launcher's interpreter instead of relying on an activated shell
     # or an environment-specific console-script path.
     cmd = [sys.executable, '-m', 'ogbench.run', *effective_overrides]
 
     env = single_thread_environment()
+    if time_budget is not None:
+        env[DEADLINE_ENV_VAR] = f'{time.time() + time_budget:.3f}'
+    else:
+        env.pop(DEADLINE_ENV_VAR, None)
     if gpu_id is not None and torch.cuda.is_available():
         env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
     # One thread is an invariant for search jobs. Retain the argument for API
