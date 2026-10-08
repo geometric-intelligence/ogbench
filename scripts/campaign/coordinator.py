@@ -360,6 +360,8 @@ class Cell:
     followup: str | None = None
     main: str | None = None
     cache_gib: float = 0.0
+    fold_cap: float = math.inf
+    time_budget: float = math.inf
 
     @property
     def group(self) -> tuple[str, str, str, float]:
@@ -369,6 +371,20 @@ class Cell:
     def cost(self) -> float:
         """Reference slot-seconds for the whole study."""
         return self.fold_seconds * self.trials * self.folds
+
+    def fold_seconds_on(self, factor: float) -> float:
+        """One fold on a server ``factor`` times the reference speed.
+
+        Folds that used the whole time budget on the reference server train until the budget on
+        every server, so only shorter folds scale with the server's speed.
+        """
+        if self.fold_seconds >= self.time_budget:
+            return self.fold_cap
+        return min(self.fold_seconds * factor, self.fold_cap)
+
+    def seconds_on(self, factor: float) -> float:
+        """Slot-seconds for the whole study on a server ``factor`` times the reference speed."""
+        return self.fold_seconds_on(factor) * self.trials * self.folds
 
 
 def campaign_cells(
@@ -410,6 +426,8 @@ def campaign_cells(
             'method': values[SELECTION_METHOD],
             'ratio': ratio,
             'cache_gib': cache_gib,
+            'fold_cap': settings.fold_seconds_cap,
+            'time_budget': float(main.time_budget or math.inf),
         }
         target = follow_by_key.get(cell_key(outer))
         cells.append(
@@ -479,15 +497,10 @@ def plan_homes(cells: Sequence[Cell], servers: dict[str, Server]) -> dict[str, l
             by_dataset[cell.dataset].append(cell)
         datasets = sorted(by_dataset, key=lambda d: (-sum(c.cost for c in by_dataset[d]), d))
         for dataset in datasets:
-            target = min(
-                homes,
-                key=lambda name: (
-                    load[name] * servers[name].fold_time_factor / servers[name].slots,
-                    name,
-                ),
-            )
+            target = min(homes, key=lambda name: (load[name] / servers[name].slots, name))
             assigned[target].extend(by_dataset[dataset])
-            load[target] += sum(c.cost for c in by_dataset[dataset])
+            factor = servers[target].fold_time_factor
+            load[target] += sum(c.seconds_on(factor) for c in by_dataset[dataset])
 
     def movable_from(home: str) -> Callable[[Cell], bool]:
         others = [server for name, server in servers.items() if name != home]
@@ -949,7 +962,7 @@ class Coordinator:
             ]
             if not movable:
                 continue
-            costs = [self.cells[m].cost * server.fold_time_factor for m in movable]
+            costs = [self.cells[m].seconds_on(server.fold_time_factor) for m in movable]
             if max(max(costs), sum(costs) / server.slots) >= victim_left:
                 continue
             self._record(
@@ -1044,13 +1057,15 @@ class Coordinator:
             cell = self.cells.get(study) or self.followups.get(study)
             if cell is None or not event.get('seconds') or not event.get('trials'):
                 continue
-            predicted = cell.fold_seconds * server.fold_time_factor * cell.folds * event['trials']
+            fold = cell.fold_seconds_on(server.fold_time_factor)
+            predicted = fold * cell.folds * event['trials']
             ratios.append(float(event['seconds']) / predicted)
         return statistics.median(ratios) if len(ratios) >= 5 else 1.0
 
     def remaining_seconds(self, name: str) -> float:
         """Projected wall seconds until this server finishes its share, at full occupancy."""
         server = self.servers[name]
+        factor = server.fold_time_factor
         view = self.views[name]
         now = self.clock()
         running = view.running
@@ -1061,7 +1076,7 @@ class Coordinator:
             cell = self.cells.get(study) or self.followups.get(study)
             if cell is None:
                 continue
-            predicted = cell.cost * server.fold_time_factor
+            predicted = cell.seconds_on(factor)
             if study in running:
                 elapsed = now - datetime.fromisoformat(running[study]).timestamp()
                 total += max(predicted - elapsed, 0.1 * predicted)
@@ -1069,16 +1084,16 @@ class Coordinator:
                 total += predicted
         for study in self.queues[name]:
             if study not in self.assigned:
-                total += self.cells[study].cost * server.fold_time_factor
+                total += self.cells[study].seconds_on(factor)
         for study, owner in self.assigned.items():
             cell = self.cells.get(study)
             if owner == name and cell is not None and cell.followup:
                 if study not in self.followup_handled:
-                    total += self.followups[cell.followup].cost * server.fold_time_factor
+                    total += self.followups[cell.followup].seconds_on(factor)
         for study in self.queues[name]:
             cell = self.cells[study]
             if study not in self.assigned and cell.followup:
-                total += self.followups[cell.followup].cost * server.fold_time_factor
+                total += self.followups[cell.followup].seconds_on(factor)
         slots = int((view.state or {}).get('workers') or server.slots)
         return total * self.speed_correction(name) / max(slots, 1)
 
@@ -1338,13 +1353,17 @@ def plan_summary(settings: Settings) -> str:
     lines = [f'{len(cells)} main studies, {len(followups)} follow-ups']
     for name, queue in plan_homes(cells, settings.servers).items():
         server = settings.servers[name]
+        factor = server.fold_time_factor
         hours = (
             sum(
-                by_study[s].cost
-                + (followups[by_study[s].followup].cost if by_study[s].followup else 0.0)
+                by_study[s].seconds_on(factor)
+                + (
+                    followups[by_study[s].followup].seconds_on(factor)
+                    if by_study[s].followup
+                    else 0.0
+                )
                 for s in queue
             )
-            * server.fold_time_factor
             / server.slots
             / 3600
         )
@@ -1397,7 +1416,7 @@ def preflight(settings: Settings, names: Sequence[str]) -> dict[str, Any]:
 
 def simulate_campaign(settings: Settings, root: Path) -> dict[str, Any]:
     """Run the coordinator against simulated servers and report when each one finishes."""
-    from scripts.campaign.simulate import SimulatedCluster
+    from scripts.campaign.simulate import EPOCH, SimulatedCluster
 
     cells, followups = load_cells(settings)
     cluster = SimulatedCluster(settings.servers, {cell.study: cell for cell in cells}, followups)
@@ -1421,6 +1440,9 @@ def simulate_campaign(settings: Settings, root: Path) -> dict[str, Any]:
         finish[name] = {
             'studies': studies,
             'finish': last,
+            'days': None
+            if last is None
+            else round((datetime.fromisoformat(last).timestamp() - EPOCH) / 86400, 1),
             'peak_cache_gib': round(coordinator.peak_cache_gib[name], 1),
         }
     return {'servers': finish, 'moved_studies': dict(moves)}

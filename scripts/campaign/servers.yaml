@@ -34,19 +34,22 @@ servers:
     data_root: /scratch/lcornelis/ogbench
     run_root: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka
     gpus: [0, 1, 2, 3, 4, 5, 6, 7]
-    jobs_per_gpu: 3
+    # A replayed gps fold trained 34 epochs in 600 s alone on an A100 but 21 with 2 or 3 jobs
+    # per GPU and 33 with 4, so co-located jobs add no throughput.
+    jobs_per_gpu: 1
     warmup_jobs: 4
     # GPU 2 also hosts a 15 GB TopoBench job; the free-memory gate keeps folds off a full GPU.
     min_free_gpu_mib: 30000
     oom_retries: 3
     oom_min_free_gpu_mib: 60000
-    fold_time_factor: 1.0
+    # The cost table holds September folds at 3-4 jobs/GPU (7-8 epochs per 600 s per job).
+    fold_time_factor: 0.3
     # 765 GB free on /scratch next to 684 GB of September caches.
     cache_budget_gib: 450
     home:
       - { ratios: [0.3] }
     allowed:
-      - { ratios: [1.0, 0.8, 0.5], models: [gps, gatv4, gin] }
+      - { ratios: [1.0, 0.8, 0.5] }
     env:
       WANDB_DIR: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka/wandb
       TMPDIR: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka/tmp
@@ -58,23 +61,26 @@ servers:
     data_root: /scratch/gbg141/ogbench
     run_root: /scratch/gbg141/ogbench/search_results/oct_kfold/frank
     gpus: [0, 1, 2, 3, 4, 5, 6, 7]
-    jobs_per_gpu: 2
+    # The same replay on an A30 trained 32 epochs alone and 27 in total with 2 or 3 jobs per GPU.
+    jobs_per_gpu: 1
     warmup_jobs: 4
     min_free_gpu_mib: 8000
     oom_retries: 2
     oom_min_free_gpu_mib: 20000
-    # A30 folds at 2 jobs/GPU took ~0.55x Parka's time at 3-4 jobs/GPU in September.
-    fold_time_factor: 0.55
+    # One A30 job per GPU runs at 32/34 of one A100 job.
+    fold_time_factor: 0.32
     # Only 102 GB free on /scratch.
     cache_budget_gib: 60
     home:
       - { ratios: [1.0, 0.8, 0.5] }
+    # Largest search-space configs on the densest ratio-0.3 graph (AddNeuroMed WGCNA) peak at
+    # 16.7 GB (gatv2) or less on an A30; gatv4 needs 37 GB with 4 heads and OOMs at 80 GB with 8.
     allowed: &a30_ratio03
       - { ratios: [0.3], adjacency: [string] }
       - {
           ratios: [0.3],
           adjacency: [wgcna],
-          models: [mlp, sagn, gcn, chebnet, graph_sage, gatv2],
+          models: [mlp, sagn, gcn, chebnet, graph_sage, gatv2, gin, gps],
         }
     env: &frank_env
       WANDB_DIR: /scratch/gbg141/wandb
@@ -90,12 +96,12 @@ servers:
     data_root: /scratch/gbg141/ogbench
     run_root: /scratch/gbg141/ogbench/search_results/oct_kfold/hall
     gpus: [0, 1, 2, 3, 4, 5, 6, 7]
-    jobs_per_gpu: 2
+    jobs_per_gpu: 1
     warmup_jobs: 4
     min_free_gpu_mib: 8000
     oom_retries: 2
     oom_min_free_gpu_mib: 20000
-    fold_time_factor: 0.55
+    fold_time_factor: 0.32
     # 416 GB free on /scratch.
     cache_budget_gib: 250
     home:

@@ -98,7 +98,7 @@ class SimulatedCluster:
         while sim.pending and len(sim.running) < sim.server.slots:
             study = sim.pending.popleft()
             sim.running[study] = self.now
-            duration = self.cells[study].cost * sim.server.fold_time_factor
+            duration = self.cells[study].seconds_on(sim.server.fold_time_factor)
             heapq.heappush(self._finishing, (self.now + duration, next(self._order), name, study))
             sim.events.append({'event': 'started', 'study': study, 'time': _iso(self.now)})
 

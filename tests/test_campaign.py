@@ -242,6 +242,28 @@ def test_cost_table_counts_successes_and_timeouts_but_not_quick_failures(
 # --------------------------------------------------------------------------- placement
 
 
+def test_budget_bound_folds_take_the_whole_budget_on_every_server() -> None:
+    common = {
+        'model': 'gps',
+        'dataset': 'brca',
+        'experiment': 'no_readout',
+        'adjacency': 'wgcna',
+        'method': 'variance',
+        'ratio': 0.3,
+        'trials': 7,
+        'folds': 5,
+        'fold_cap': 3720.0,
+        'time_budget': 3600.0,
+    }
+    budget_bound = Cell(study='bound', fold_seconds=3600.8, **common)
+    short = Cell(study='short', fold_seconds=1000.0, **common)
+
+    assert budget_bound.seconds_on(0.55) == pytest.approx(3720.0 * 35)
+    assert budget_bound.seconds_on(2.0) == pytest.approx(3720.0 * 35)
+    assert short.seconds_on(0.55) == pytest.approx(550.0 * 35)
+    assert short.seconds_on(5.0) == pytest.approx(3720.0 * 35)
+
+
 def test_home_plan_splits_shared_homes_by_dataset_and_puts_exclusive_work_first() -> None:
     cells, _ = _cells()
     servers = _servers()
