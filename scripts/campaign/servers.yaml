@@ -1,0 +1,104 @@
+# October k-fold campaign: servers, placement and feeding (read by coordinator.py).
+campaign: oct_kfold
+main_config: configs/hparams_search/oct_kfold_factorial.yaml
+followup_config: configs/hparams_search/oct_kfold_gene_identity.yaml
+coordinator_root: /scratch/lcornelis/ogbench/search_results/oct_kfold/coordinator
+# Median Parka seconds per fold from the September ledgers (coordinator.py cost-table).
+cost_table: scripts/campaign/fold_seconds.csv
+# Largest September fold cache per (dataset, adjacency, ratio), in GiB.
+cache_table: scripts/campaign/cache_gib.csv
+
+feed:
+  # Append main studies when a server's unstarted backlog is below low_water x its slots,
+  # up to high_water x slots; the rest stays movable between servers.
+  low_water: 1.5
+  high_water: 2.0
+  poll_seconds: 300
+  report_seconds: 1800
+  cleanup: true
+
+cost:
+  # The 3600 s budget plus the test pass bounds every fold.
+  fold_seconds_cap: 3720
+  default_fold_seconds: 900
+  followup_cost_factor: 1.0
+  # Cache groups hold all 5 folds; estimates are padded by cache_safety.
+  cache_safety: 1.25
+  default_fold_cache_gib: 1.0
+
+servers:
+  parka:
+    host: local
+    repo: /home/gbg141/bgbench_relaunch_run
+    python: /home/gbg141/miniconda3/envs/bgbench/bin/python
+    data_root: /scratch/lcornelis/ogbench
+    run_root: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka
+    gpus: [0, 1, 2, 3, 4, 5, 6, 7]
+    jobs_per_gpu: 3
+    warmup_jobs: 4
+    # GPU 2 also hosts a 15 GB TopoBench job; the free-memory gate keeps folds off a full GPU.
+    min_free_gpu_mib: 30000
+    oom_retries: 3
+    oom_min_free_gpu_mib: 60000
+    fold_time_factor: 1.0
+    # 765 GB free on /scratch next to 684 GB of September caches.
+    cache_budget_gib: 450
+    home:
+      - { ratios: [0.3] }
+    allowed:
+      - { ratios: [1.0, 0.8, 0.5], models: [gps, gatv4, gin] }
+    env:
+      WANDB_DIR: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka/wandb
+      TMPDIR: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka/tmp
+
+  frank:
+    host: frank.ece.ucsb.edu
+    repo: /home/gbg141/bgbench_relaunch
+    python: /home/gbg141/miniconda3/envs/bgbench/bin/python
+    data_root: /scratch/gbg141/ogbench
+    run_root: /scratch/gbg141/ogbench/search_results/oct_kfold/frank
+    gpus: [0, 1, 2, 3, 4, 5, 6, 7]
+    jobs_per_gpu: 2
+    warmup_jobs: 4
+    min_free_gpu_mib: 8000
+    oom_retries: 2
+    oom_min_free_gpu_mib: 20000
+    # A30 folds at 2 jobs/GPU took ~0.55x Parka's time at 3-4 jobs/GPU in September.
+    fold_time_factor: 0.55
+    # Only 102 GB free on /scratch.
+    cache_budget_gib: 60
+    home:
+      - { ratios: [1.0, 0.8, 0.5] }
+    allowed: &a30_ratio03
+      - { ratios: [0.3], adjacency: [string] }
+      - {
+          ratios: [0.3],
+          adjacency: [wgcna],
+          models: [mlp, sagn, gcn, chebnet, graph_sage, gatv2],
+        }
+    env: &frank_env
+      WANDB_DIR: /scratch/gbg141/wandb
+      WANDB_CACHE_DIR: /scratch/gbg141/.cache/wandb
+      WANDB_DATA_DIR: /scratch/gbg141/.cache/wandb-data
+      HF_HOME: /scratch/gbg141/.cache/huggingface
+      TMPDIR: /scratch/gbg141/tmp
+
+  hall:
+    host: hall.ece.ucsb.edu
+    repo: /scratch/gbg141/bgbench_relaunch
+    python: /home/gbg141/miniconda3/envs/bgbench/bin/python
+    data_root: /scratch/gbg141/ogbench
+    run_root: /scratch/gbg141/ogbench/search_results/oct_kfold/hall
+    gpus: [0, 1, 2, 3, 4, 5, 6, 7]
+    jobs_per_gpu: 2
+    warmup_jobs: 4
+    min_free_gpu_mib: 8000
+    oom_retries: 2
+    oom_min_free_gpu_mib: 20000
+    fold_time_factor: 0.55
+    # 416 GB free on /scratch.
+    cache_budget_gib: 250
+    home:
+      - { ratios: [1.0, 0.8, 0.5] }
+    allowed: *a30_ratio03
+    env: *frank_env
