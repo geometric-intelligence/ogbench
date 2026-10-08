@@ -1488,6 +1488,7 @@ def run_baseline(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
 
         wandb.init(
             project=cfg.logger.wandb.project,
+            entity=cfg.logger.wandb.get('entity'),
             name=run_name,
             config=wandb_config,
             tags=cfg.get('tags', []) + ['baseline', baseline_name],
