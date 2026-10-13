@@ -23,6 +23,7 @@ from optuna.trial import TrialState
 
 from ogbench.data.loaders.graph import omics_datasets
 from ogbench.data.loaders.graph.omics_datasets import OmicsDatasetLoader
+from scripts.campaign import coordinator as coordinator_module
 from scripts.campaign import remote_agent
 from scripts.campaign.coordinator import (
     Cell,
@@ -385,6 +386,26 @@ def test_unreachable_server_gets_nothing_until_it_returns(tmp_path: Path) -> Non
     coordinator.run(sleep=cluster.advance)
     assert 'small2' in coordinator.assigned.values()
     assert set(_completions(cluster).values()) == {1}
+
+
+def test_speed_correction_follows_the_latest_finished_studies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coordinator, _ = _simulation(tmp_path)
+    cells = list(coordinator.cells.values())
+    completed = coordinator.views['big'].completed
+    for day, ratio, chunk in ((2, 2.0, cells[:10]), (1, 1.0, cells[10:])):
+        for index, cell in enumerate(chunk):
+            completed[cell.study] = {
+                'time': f'2026-01-0{day}T00:00:{index:02d}+00:00',
+                'seconds': ratio * cell.fold_seconds * cell.folds * cell.trials,
+                'trials': cell.trials,
+            }
+
+    monkeypatch.setattr(coordinator_module, 'SPEED_WINDOW', 10)
+    assert coordinator.speed_correction('big') == pytest.approx(2.0)
+    monkeypatch.setattr(coordinator_module, 'SPEED_WINDOW', len(cells))
+    assert coordinator.speed_correction('big') == pytest.approx(1.0)
 
 
 def test_main_study_without_complete_trials_gets_no_follow_up(tmp_path: Path) -> None:

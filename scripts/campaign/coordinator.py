@@ -61,6 +61,7 @@ COST_LEVELS = (
     ('model', 'ratio'),
     ('ratio',),
 )
+SPEED_WINDOW = 50
 
 
 def utc_now() -> str:
@@ -1050,16 +1051,24 @@ class Coordinator:
     # ---------------------------------------------------------------- projections
 
     def speed_correction(self, name: str) -> float:
-        """Observed / predicted wall time of finished studies on this server."""
+        """Observed / predicted wall time of the last studies this server finished.
+
+        Only the latest ``SPEED_WINDOW`` studies count, so a change of jobs per GPU shows within a
+        day instead of being outvoted by the server's whole history.
+        """
         server = self.servers[name]
         ratios = []
-        for study, event in self.views[name].completed.items():
+        finished = sorted(
+            self.views[name].completed.items(), key=lambda item: item[1].get('time', '')
+        )
+        for study, event in finished:
             cell = self.cells.get(study) or self.followups.get(study)
             if cell is None or not event.get('seconds') or not event.get('trials'):
                 continue
             fold = cell.fold_seconds_on(server.fold_time_factor)
             predicted = fold * cell.folds * event['trials']
             ratios.append(float(event['seconds']) / predicted)
+        ratios = ratios[-SPEED_WINDOW:]
         return statistics.median(ratios) if len(ratios) >= 5 else 1.0
 
     def remaining_seconds(self, name: str) -> float:

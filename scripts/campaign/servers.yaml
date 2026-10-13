@@ -34,16 +34,18 @@ servers:
     data_root: /scratch/lcornelis/ogbench
     run_root: /scratch/lcornelis/ogbench/search_results/oct_kfold/parka
     gpus: [0, 1, 2, 3, 4, 5, 6, 7]
-    # A replayed gps fold trained 34 epochs in 600 s alone on an A100 but 21 with 2 or 3 jobs
-    # per GPU and 33 with 4; single ratio-0.3 gatv4 jobs hold 34-57 GB and draw 70-83% of 300 W.
-    jobs_per_gpu: 1
+    # A replayed gps fold trained 34 epochs in 600 s alone on an A100 and 21 per job with 2 jobs
+    # per GPU (1.24x per GPU). With 1 job, GPUs running lighter models drew 150-210 of 300 W.
+    # Ratio-0.3 gatv4 folds peak at 22-37 GB, so two can meet on a GPU and retry after an OOM.
+    jobs_per_gpu: 2
     warmup_jobs: 4
     # GPU 2 also hosts a 15 GB TopoBench job; the free-memory gate keeps folds off a full GPU.
     min_free_gpu_mib: 30000
     oom_retries: 3
     oom_min_free_gpu_mib: 60000
-    # The cost table holds September folds at 3-4 jobs/GPU (7-8 epochs per 600 s per job).
-    fold_time_factor: 0.3
+    # The cost table holds September folds at 3-4 jobs/GPU (7-8 epochs per 600 s per job):
+    # 0.3 at 1 job/GPU, times 34/21 at 2.
+    fold_time_factor: 0.49
     # 765 GB free on /scratch next to 684 GB of September caches.
     cache_budget_gib: 450
     home:
