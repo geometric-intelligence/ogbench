@@ -124,6 +124,8 @@ class Server:
     home: tuple[Rule, ...]
     allowed: tuple[Rule, ...]
     env: dict[str, str] = field(default_factory=dict)
+    # Never contacted; studies it has not started may be stolen, the rest wait for its return.
+    paused: bool = False
 
     @property
     def slots(self) -> int:
@@ -760,7 +762,9 @@ class Coordinator:
 
     def reconcile(self) -> None:
         """Adopt studies found in server manifests but missing from the log (a lost reply)."""
-        for name in self.servers:
+        for name, server in self.servers.items():
+            if server.paused:
+                continue
             reply = self._call(name, 'manifest')
             if reply is None:
                 raise AgentError(f'Cannot read the {name} manifest; refusing to start blind')
@@ -784,8 +788,12 @@ class Coordinator:
                 self.ended.add(name)
 
     def poll(self) -> None:
-        for name in self.servers:
+        for name, server in self.servers.items():
             view = self.views[name]
+            if server.paused:
+                view.reachable = False
+                view.error = 'paused'
+                continue
             reply = self._call(name, 'status', events_offset=view.events_offset)
             if reply is None:
                 view.reachable = False
@@ -921,7 +929,7 @@ class Coordinator:
         """
         victims = sorted(
             (name for name in self.servers if name != thief and self.queues[name]),
-            key=lambda name: (-self.remaining_seconds(name), name),
+            key=lambda name: (-self._seconds_left(name), name),
         )
         for victim in victims:
             for allow_started in (False, True):
@@ -939,7 +947,7 @@ class Coordinator:
     ) -> bool:
         server = self.servers[thief]
         now = self.clock()
-        victim_left = self.remaining_seconds(victim)
+        victim_left = self._seconds_left(victim)
         seen: set[tuple[Any, ...]] = set()
         for study in reversed(self.queues[victim]):
             group = self.cells[study].group
@@ -1070,6 +1078,9 @@ class Coordinator:
             ratios.append(float(event['seconds']) / predicted)
         ratios = ratios[-SPEED_WINDOW:]
         return statistics.median(ratios) if len(ratios) >= 5 else 1.0
+
+    def _seconds_left(self, name: str) -> float:
+        return math.inf if self.servers[name].paused else self.remaining_seconds(name)
 
     def remaining_seconds(self, name: str) -> float:
         """Projected wall seconds until this server finishes its share, at full occupancy."""

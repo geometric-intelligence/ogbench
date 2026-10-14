@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections
+import dataclasses
 import io
 import json
 import os
@@ -386,6 +387,31 @@ def test_unreachable_server_gets_nothing_until_it_returns(tmp_path: Path) -> Non
     coordinator.run(sleep=cluster.advance)
     assert 'small2' in coordinator.assigned.values()
     assert set(_completions(cluster).values()) == {1}
+
+
+def test_paused_server_is_never_called_and_others_take_its_queue(tmp_path: Path) -> None:
+    servers = _servers()
+    servers['small2'] = dataclasses.replace(servers['small2'], paused=True)
+    cells, followups = _cells()
+    settings = _settings(tmp_path, servers)
+    cluster = SimulatedCluster(settings.servers, {cell.study: cell for cell in cells}, followups)
+    cluster.servers['small2'].down = True
+    coordinator = Coordinator(settings, cells, followups, cluster.agents(), clock=cluster.clock)
+    coordinator.reconcile()
+
+    others = [server for name, server in servers.items() if name != 'small2']
+    runnable = [cell.study for cell in cells if any(server.may_run(cell) for server in others)]
+    for _ in range(2000):
+        coordinator.cycle()
+        cluster.advance(settings.poll_seconds)
+        if all(coordinator.assigned.get(study) for study in runnable) and not any(
+            sim.running or sim.pending for sim in cluster.servers.values()
+        ):
+            break
+    assert 'small2' not in coordinator.assigned.values()
+    assert coordinator.views['small2'].error == 'paused'
+    finished = _completions(cluster)
+    assert all(finished[(coordinator.assigned[study], study)] == 1 for study in runnable)
 
 
 def test_speed_correction_follows_the_latest_finished_studies(
