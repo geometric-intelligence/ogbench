@@ -124,7 +124,7 @@ class Server:
     home: tuple[Rule, ...]
     allowed: tuple[Rule, ...]
     env: dict[str, str] = field(default_factory=dict)
-    # Never contacted; studies it has not started may be stolen, the rest wait for its return.
+    # Polled for results when reachable but never fed; others may steal studies it has not started.
     paused: bool = False
 
     @property
@@ -790,13 +790,11 @@ class Coordinator:
     def poll(self) -> None:
         for name, server in self.servers.items():
             view = self.views[name]
-            if server.paused:
-                view.reachable = False
-                view.error = 'paused'
-                continue
             reply = self._call(name, 'status', events_offset=view.events_offset)
             if reply is None:
                 view.reachable = False
+                if server.paused:
+                    view.error = 'paused'
                 continue
             if reply['events_reset']:
                 view.completed.clear()
@@ -809,8 +807,9 @@ class Coordinator:
                 elif event.get('event') == 'failed' and study and study not in view.completed:
                     view.failed[study] = event.get('error', '')
             view.events_offset = reply['events_offset']
-            view.reachable = True
-            view.error = None
+            # Feeding, follow-ups and cleanup only act on reachable servers.
+            view.reachable = not server.paused
+            view.error = 'paused' if server.paused else None
             view.last_seen = self.clock()
             view.state = reply['state']
             view.launcher_alive = reply['launcher_alive']
