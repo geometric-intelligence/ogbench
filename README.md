@@ -8,9 +8,11 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 
 ## Overview
 
-- **4 curated omics datasets** on Hugging Face Hub with automatic download
+- **6 curated omics datasets** on Hugging Face Hub with automatic download
 - **9 GNN architectures** — GCN, GATv2, GATv4, GIN, GraphSAGE, ChebNet, SAGN, GPS, MLP
 - **2 graph construction methods** — WGCNA co-expression and STRING protein-protein interaction
+- **Five-fold evaluation** with every preprocessing step fit on the training split only
+- **Optuna hyperparameter search** scored on the mean validation macro F1 across folds
 - **Sklearn baselines** — SVM and Elastic Net on the exact features and folds the GNN pipeline builds
 - **Hydra configs** for reproducible, composable experiments
 - **PyTorch Lightning** training with WandB logging and multi-GPU support
@@ -154,6 +156,7 @@ OGBench uses [Hydra](https://hydra.cc/) for configuration management. Key config
 - `configs/logger/` — logging backends (WandB, TensorBoard, CSV, MLflow, etc.)
 - `configs/experiment/` — experiment presets (e.g. `omics_readout`, `no_readout`)
 - `configs/transforms/` — data manipulations and topological liftings
+- `configs/hparams_search/` — Optuna search spaces and ablation grids
 
 Override any parameter from the command line:
 
@@ -164,6 +167,53 @@ python ogbench/run.py dataset=brca model=gin \
     seed=123 \
     dataset.split_params.data_seed=0,1,2,3,4 -m
 ```
+
+`callbacks.time_budget.budget_seconds=3600` stops training after one hour of wall-clock time and still tests the best checkpoint.
+
+### Hyperparameter search
+
+[`scripts/optuna_search.py`](scripts/optuna_search.py) runs resumable Optuna studies. Each outer
+ablation cell (dataset, model, experiment, graph method, node ratio, and selector) is a separate
+study. A trial samples one model configuration, evaluates that same configuration on all five
+validation folds, and optimizes the arithmetic mean of `best_val/f1_macro`. Test folds never take
+part in hyperparameter selection; each fold's test metrics are recorded alongside it.
+
+Start with the smoke config. `--dry-run` composes Hydra configs and instantiates models without
+training or creating a persistent study:
+
+```bash
+python scripts/optuna_search.py \
+    --config configs/hparams_search/optuna_smoke_test.yaml \
+    --dry-run
+```
+
+Studies and the fold-attempt ledger are written under `search_results/` by default.
+Machine-specific locations belong on the command line:
+
+```bash
+python scripts/optuna_search.py \
+    --config configs/hparams_search/kfold_factorial.yaml \
+    --models gcn gin \
+    --datasets motrpac brca \
+    --gpus 0 1 \
+    --jobs-per-gpu 1 \
+    --root-dir /path/to/ogbench-project \
+    --output-dir /path/to/search-results \
+    --storage sqlite:////path/to/search-results/studies.db
+```
+
+The launcher warms every selected fold-aware dataset cache before training. It constrains each
+subprocess to one CPU thread and sets each dataloader's worker count to zero so parallel jobs do
+not oversubscribe the host. STRING cache downloads and JSON artifacts are locked and installed
+atomically. `training.time_budget` stops each fold gracefully at the budget and tests its best
+checkpoint; the fold process is killed only after `time_budget + timeout_grace` seconds.
+
+Interrupted searches resume from the configured storage. Use `--retry-failed` to re-enqueue
+failed trials while reusing successful fold records. Large searches can be partitioned
+deterministically with `--num-shards` and `--shard-indices`, or filtered by exact study names with
+`--studies`. Use `--warmup-only` to build caches without opening studies. Each run exports
+`trials.csv`, `best_trials.csv` (the best trial per study, with fold-mean test metrics),
+`fold_attempts.csv`, and `failures.csv`.
 
 ### Learnable node identity
 
@@ -206,6 +256,33 @@ DATASETS=motrpac NODE_RATIOS=0.5 bash run_baselines.sh logger.wandb.project=my_b
 
 `scripts/verify_baseline_features.py --root-dir <root>` checks that the standard baselines select exactly the features stored in every cached GNN fold.
 
+## Reproducing the paper
+
+The GNN results come from one Optuna study per ablation cell: 6 datasets, 9 models, two experiments
+(MLP runs `no_readout` only), two graph methods, four node ratios, and four selectors, for 3,264
+studies of seven trials each. Every fold trains for at most one hour and is tested on its best
+checkpoint:
+
+```bash
+python scripts/optuna_search.py --config configs/hparams_search/kfold_factorial.yaml
+```
+
+The sklearn baselines use the same datasets, folds, node ratios, and selectors:
+
+```bash
+bash run_baselines.sh
+```
+
+The learnable node identity ablation reruns the best configuration of every non-SAGN study with
+the identity embedding. Each fold's exact Hydra overrides are saved in
+`runs/<study>/<run>/.hydra/overrides.yaml` under the search output directory; rerun all five folds
+of a study's best trial with them plus `gene_identity=learnable callbacks.time_budget.budget_seconds=3600`.
+
+The fold, gene selection, and graph of every run are fixed by the dataset cache, and training is
+seeded (`seed=42`). GPU message-passing kernels are not deterministic (`trainer.deterministic` is
+off), so reruns match closely but not bit for bit. Folds that reach the one-hour budget (counted
+in `best_trials.csv` as `time_budget_hit_folds`) also stop at an epoch that depends on GPU speed.
+
 ## Leaderboard & Dataset Explorer
 
 An interactive webapp provides a leaderboard comparing all models and a dataset explorer for visualizing graph statistics across parameter combinations. See [webapp/README.md](webapp/README.md) for setup and deployment details.
@@ -238,6 +315,7 @@ ogbench/
 ├── ogbench/                    # Main Python package
 │   ├── run.py                  # Training entry point
 │   ├── baseline.py             # Sklearn baseline experiments
+│   ├── callbacks/              # Lightning callbacks (time budget)
 │   ├── data/
 │   │   ├── loaders/            # Dataset loaders (omics, TU, Planetoid)
 │   │   ├── adjacency/          # Graph construction (WGCNA, STRING PPI)
@@ -255,7 +333,7 @@ ogbench/
 │   ├── loss/                   # Loss functions
 │   └── optimizer/              # Optimizer construction
 ├── configs/                    # Hydra YAML configs
-├── scripts/                    # Utilities (download, processors, export)
+├── scripts/                    # Utilities (download, processors, export, Optuna search)
 ├── tests/                      # Pytest suite
 ├── webapp/                     # Astro/React leaderboard & explorer
 ├── tutorials/                  # Notebooks and analysis scripts
