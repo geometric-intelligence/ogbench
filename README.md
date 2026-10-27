@@ -78,8 +78,8 @@ python -m ogbench dataset=brca model=gcn dataset.split_params.split_type=k-fold 
 
 Graphs are constructed from omics feature matrices. Two adjacency methods are supported:
 
-- **WGCNA** (default) — weighted gene co-expression network analysis with soft thresholding
-- **STRING PPI** — protein-protein interaction edges from the STRING database
+- **WGCNA** (default) — weighted gene co-expression network analysis with soft thresholding. The graph keeps the strongest training-split edges until `adjacency_target_connectivity` (0.10) of possible gene pairs are connected.
+- **STRING PPI** — protein-protein interaction edges from the STRING database, kept when the normalized combined score exceeds `adjacency_threshold` (0.4, shared by all datasets)
 
 Node (feature) selection methods: `variance`, `correlation`, `distance_correlation`, `random`. The `node_sample_ratio` parameter controls the fraction of features retained.
 
@@ -160,7 +160,8 @@ python -m ogbench dataset=brca model=gcn gene_identity=learnable
 The default `combine=concat` appends 32 identity channels and updates the
 configured encoder dimensions. Set `gene_identity.embed_dim=64` to change the
 embedding size, or use `gene_identity.combine=add` to project identity into the
-existing feature dimension.
+existing feature dimension. SAGN is not supported because it trains on node
+features aggregated before training, so the identity embedding would never reach it.
 
 ## Baselines — GNN-Features Pipeline
 
