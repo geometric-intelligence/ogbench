@@ -46,7 +46,10 @@ CORRECTIONS_BY_DATASET: dict[str, list[str]] = {
 
 GROUPING_BY_DATASET: dict[str, str] = {
     'parkinsons': 'batch',
+    'tuberculosis': 'batch',  # country of serum collection
 }
+
+HF_CONFIG = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'configs', 'hf', 'default.yaml')
 
 
 def load_dataset(
@@ -59,6 +62,8 @@ def load_dataset(
     cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
 ) -> Any:
     """Load the fold-0 k-fold graph for the given parameters."""
+    from omegaconf import OmegaConf
+
     from ogbench.data.adjacency import WGCNA_BINARIZATION_FIXED_THRESHOLD
     from ogbench.data.datasets.hf_omics import HFOmicsDataset
 
@@ -68,6 +73,7 @@ def load_dataset(
     dataset = HFOmicsDataset(
         root=cache_root,
         data_name=dataset_name,
+        revision=OmegaConf.load(HF_CONFIG).revision,
         method=method,
         adjacency_threshold=adj_thresh,
         # This explorer sweeps adj_thresh, so it opts out of density targeting.
