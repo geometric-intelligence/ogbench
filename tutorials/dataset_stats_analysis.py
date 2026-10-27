@@ -33,6 +33,8 @@ from joblib import Parallel, delayed
 K_FOLDS = 5
 FOLD = 0
 TRAINING_SEED = 42
+# Kept apart from the training cache because per-combination caches are deleted after use.
+CACHE_ROOT = osp.join(osp.dirname(osp.dirname(osp.abspath(__file__))), 'data', 'omics_stats')
 
 SPECIES_BY_DATASET = {
     'tuberculosis': 83332,  # M. tuberculosis (STRING adjacency)
@@ -59,7 +61,7 @@ def load_dataset(
     method: str = 'variance',
     adjacency_method: str = 'wgcna',
     string_data_dir: str | None = None,
-    cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
+    cache_root: str = CACHE_ROOT,
 ) -> Any:
     """Load the fold-0 k-fold graph for the given parameters."""
     from omegaconf import OmegaConf
@@ -321,7 +323,7 @@ def compute_stats_for_combinations(
     adjacency_methods: list[str],
     n_jobs: int = -1,
     string_data_dir: str | None = None,
-    cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
+    cache_root: str = CACHE_ROOT,
     keep_cache: bool = False,
 ) -> list[dict[str, Any]]:
     """Compute statistics for all combinations of parameters using parallel processing."""
@@ -549,7 +551,7 @@ def main():
     )
     parser.add_argument(
         '--cache-root',
-        default='/scratch/lcornelis/ogbench-1/run_data/omics',
+        default=CACHE_ROOT,
         help=(
             'Working cache root. Combination-specific files are deleted after their '
             'statistics are computed; the shared STRING cache is retained.'
