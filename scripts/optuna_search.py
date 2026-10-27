@@ -1024,17 +1024,17 @@ def _storage(config: OptunaSearchConfig) -> optuna.storages.RDBStorage:
 
 
 def _load_or_create_study(config: OptunaSearchConfig, cell: OuterCell) -> optuna.Study:
-    sampler = optuna.samplers.TPESampler(
-        seed=config.sampler_seed,
-        n_startup_trials=config.n_startup_trials,
-    )
     study = optuna.create_study(
         storage=_storage(config),
         study_name=cell.study_name,
-        sampler=sampler,
+        sampler=_sampler(config),
         direction=config.direction,
         load_if_exists=True,
     )
+    # A sampler seeded like the first one would replay the startup draws the study already used.
+    existing_trials = len(study.get_trials(deepcopy=False))
+    if existing_trials:
+        study.sampler = _sampler(config, seed_offset=existing_trials)
     existing_fingerprint = study.user_attrs.get('config_fingerprint')
     if existing_fingerprint and existing_fingerprint != config.fingerprint:
         raise ValueError(
@@ -1046,6 +1046,13 @@ def _load_or_create_study(config: OptunaSearchConfig, cell: OuterCell) -> optuna
     study.set_user_attr('folds', config.folds)
     study.set_user_attr('training_seed', config.training_seed)
     return study
+
+
+def _sampler(config: OptunaSearchConfig, seed_offset: int = 0) -> optuna.samplers.TPESampler:
+    return optuna.samplers.TPESampler(
+        seed=config.sampler_seed + seed_offset,
+        n_startup_trials=config.n_startup_trials,
+    )
 
 
 def _fail_stale_trials(study: optuna.Study) -> None:

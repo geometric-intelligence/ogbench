@@ -464,6 +464,31 @@ def test_study_resume_and_fingerprint_protection(
         _load_or_create_study(changed, cell)
 
 
+def test_reopened_study_does_not_replay_startup_samples(
+    search_config: OptunaSearchConfig,
+) -> None:
+    config = replace(search_config, n_startup_trials=3)
+    cell = build_outer_cells(config)[0]
+
+    def draw(study: optuna.Study) -> dict:
+        trial = study.ask()
+        sampled = optuna_search._sample_parameters(trial, config, cell.model)
+        study.tell(trial, 0.5)
+        return sampled
+
+    first = draw(_load_or_create_study(config, cell))
+    reopened = draw(_load_or_create_study(config, cell))
+    uninterrupted = optuna.create_study(
+        direction=config.direction,
+        sampler=optuna.samplers.TPESampler(
+            seed=config.sampler_seed, n_startup_trials=config.n_startup_trials
+        ),
+    )
+
+    assert first == draw(uninterrupted)
+    assert reopened != first
+
+
 def test_interrupted_trial_is_recorded_only_once(
     search_config: OptunaSearchConfig,
 ) -> None:
