@@ -2,9 +2,9 @@
 """Analyze dataset statistics across different parameters. Generates plots for all combinations of
 node_sample_ratio and sampling_method.
 
-Graphs are the fold-0 training graphs from 5-fold CV (same node selection, corrections, grouping,
-and split as the Optuna sweep). Website stats therefore describe one canonical fold, not an average
-over folds.
+Graphs are the fold-0 training graphs of the 5-fold rotation, built with the same node selection,
+train-only corrections, and grouping the training pipeline uses. Website stats therefore describe
+one canonical fold rather than an average over folds.
 
 Usage examples:
     python dataset_stats_analysis.py
@@ -26,8 +26,8 @@ from typing import Any
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from joblib import Parallel, delayed
 import pandas as pd
+from joblib import Parallel, delayed
 
 # Match configs/dataset/*.yaml so fold-0 caches align with the training pipeline.
 K_FOLDS = 5
@@ -46,7 +46,10 @@ CORRECTIONS_BY_DATASET: dict[str, list[str]] = {
 
 GROUPING_BY_DATASET: dict[str, str] = {
     'parkinsons': 'batch',
+    'tuberculosis': 'batch',  # country of serum collection
 }
+
+HF_CONFIG = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'configs', 'hf', 'default.yaml')
 
 
 def load_dataset(
@@ -59,6 +62,9 @@ def load_dataset(
     cache_root: str = '/scratch/lcornelis/ogbench-1/run_data/omics',
 ) -> Any:
     """Load the fold-0 k-fold graph for the given parameters."""
+    from omegaconf import OmegaConf
+
+    from ogbench.data.adjacency import WGCNA_BINARIZATION_FIXED_THRESHOLD
     from ogbench.data.datasets.hf_omics import HFOmicsDataset
 
     # Pass 'full' as string, not None, because HFOmicsDataset checks for 'full' string
@@ -67,11 +73,11 @@ def load_dataset(
     dataset = HFOmicsDataset(
         root=cache_root,
         data_name=dataset_name,
+        revision=OmegaConf.load(HF_CONFIG).revision,
         method=method,
         adjacency_threshold=adj_thresh,
-        wgcna_binarization=(
-            'fixed_threshold' if adjacency_method == 'wgcna' else 'target_connectivity'
-        ),
+        # This explorer sweeps adj_thresh, so it opts out of density targeting.
+        wgcna_binarization=WGCNA_BINARIZATION_FIXED_THRESHOLD,
         node_sample_ratio=ratio_value,
         train_val_test_split=[0.7, 0.15, 0.15],
         imputation_method='mean',
@@ -458,7 +464,7 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
                 ('homophily', 'Feature Homophily', 'crimson'),
             ]
 
-            for ax, (col, title, color) in zip(axes.flatten(), plot_configs):
+            for ax, (col, title, color) in zip(axes.flatten(), plot_configs, strict=True):
                 ax.plot(subset_df['adj_thresh'], subset_df[col], color=color)
                 ax.set_xlabel('Adjacency Threshold')
                 ax.set_ylabel(title)
