@@ -69,54 +69,49 @@ class OmicsDatasetLoader(AbstractLoader):
             reordered train|val|test dataset.
         """
         split_info_path = osp.join(dataset.raw_dir, 'split_info.json')
-        if osp.exists(split_info_path):
-            with open(split_info_path) as f:
-                split_info = json.load(f)
-            train_end = int(split_info['train_idx'])
-            val_end = int(split_info['val_idx'])
-            total = int(split_info.get('total_samples', len(dataset)))
-            if total != len(dataset):
-                logger.warning(
-                    'split_info total_samples=%s != len(dataset)=%s; using dataset length',
-                    total,
-                    len(dataset),
-                )
-                total = len(dataset)
-            assert 0 < train_end < val_end <= total, (
-                f'Invalid split cut points train_idx={train_end}, val_idx={val_end}, '
-                f'total={total}'
+        if not osp.exists(split_info_path):
+            raise FileNotFoundError(
+                f'split_info.json not found at {split_info_path}. The omics cache is '
+                'incomplete; delete it and rebuild instead of guessing split cut points.'
             )
-            split_idx = {
-                'train': np.arange(train_end),
-                'valid': np.arange(train_end, val_end),
-                'test': np.arange(val_end, total),
-            }
-            logger.info(
-                'Using split_info cut points: train=%s, valid=%s, test=%s',
-                len(split_idx['train']),
-                len(split_idx['valid']),
-                len(split_idx['test']),
-            )
-            return split_idx
+        with open(split_info_path) as f:
+            split_info = json.load(f)
 
-        dataset_length = len(dataset)
-        split_sizes = [int(x * dataset_length) for x in self.parameters['train_val_test_split']]
-        assert all(s > 0 for s in split_sizes), (
-            f'All split sizes must be > 0, got {split_sizes} for dataset_length={dataset_length} '
-            f'and splits={self.parameters["train_val_test_split"]}'
-        )
-        logger.warning(
-            'split_info.json not found at %s; falling back to proportion cuts',
-            split_info_path,
-        )
-        split_idx = {'train': np.arange(split_sizes[0])}
-        split_idx['valid'] = np.arange(
-            split_sizes[0],
-            split_sizes[0] + split_sizes[1],
-        )
-        split_idx['test'] = np.arange(
-            split_sizes[0] + split_sizes[1],
-            dataset_length,
+        expected = {
+            'split_type': self.parameters.get('split_type', 'fixed'),
+            'k': self.parameters.get('k', 5),
+            'fold': self.parameters.get('fold', 0),
+        }
+        for key, value in expected.items():
+            if key == 'split_type' or expected['split_type'] == 'k-fold':
+                if split_info.get(key) != value:
+                    raise ValueError(
+                        f'split_info.json {key}={split_info.get(key)!r} does not match the '
+                        f'requested {key}={value!r} ({split_info_path})'
+                    )
+
+        train_end = int(split_info['train_idx'])
+        val_end = int(split_info['val_idx'])
+        total = int(split_info['total_samples'])
+        if total != len(dataset):
+            raise ValueError(
+                f'split_info total_samples={total} != len(dataset)={len(dataset)} '
+                f'({split_info_path})'
+            )
+        if not 0 < train_end < val_end < total:
+            raise ValueError(
+                f'Invalid split cut points train_idx={train_end}, val_idx={val_end}, total={total}'
+            )
+        split_idx = {
+            'train': np.arange(train_end),
+            'valid': np.arange(train_end, val_end),
+            'test': np.arange(val_end, total),
+        }
+        logger.info(
+            'Using split_info cut points: train=%s, valid=%s, test=%s',
+            len(split_idx['train']),
+            len(split_idx['valid']),
+            len(split_idx['test']),
         )
         return split_idx
 

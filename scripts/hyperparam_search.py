@@ -28,6 +28,7 @@ from hydra import compose, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from hydra.utils import instantiate
 from joblib import Parallel, delayed
+from omegaconf import open_dict
 
 from ogbench.utils.config_resolvers import (
     register_all_resolvers,
@@ -188,6 +189,9 @@ def dry_run_config(overrides: list[str]) -> tuple[int | None, str | None]:
             overrides=overrides,
             return_hydra_config=True,
         )
+        # Parameter counting has no training split, and loss weights hold no parameters.
+        with open_dict(cfg):
+            cfg.dataset.parameters.class_weights = None
 
         model = instantiate(
             cfg.model, evaluator=cfg.evaluator, optimizer=cfg.optimizer, loss=cfg.loss

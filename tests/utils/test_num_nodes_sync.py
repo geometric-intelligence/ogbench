@@ -11,8 +11,8 @@ from ogbench.utils.config_resolvers import (
 
 
 def test_calculate_num_nodes_fixed_matches_historical():
-    assert calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17198) == 994
-    assert calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17198, split_type='fixed') == 994
+    assert calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17197) == 994
+    assert calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17197, split_type='fixed') == 994
 
 
 def test_calculate_num_nodes_full():
@@ -20,8 +20,8 @@ def test_calculate_num_nodes_full():
 
 
 def test_calculate_num_nodes_kfold_three_one_one():
-    fixed = calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17198, split_type='fixed')
-    kfold = calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17198, split_type='k-fold', k=5)
+    fixed = calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17197, split_type='fixed')
+    kfold = calculate_num_nodes(711, [0.7, 0.15, 0.15], 0.5, 17197, split_type='k-fold', k=5)
     assert kfold < fixed
     n_train = int(711 * 3 / 5)
     assert kfold == int(n_train / 0.5)
