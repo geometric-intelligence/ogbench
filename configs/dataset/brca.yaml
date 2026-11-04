@@ -5,7 +5,7 @@ loader:
     data_domain: graph
     data_name: brca
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.4 # STRING combined-score cutoff; WGCNA uses adjacency_target_connectivity
+    adjacency_threshold: 0.4
     adjacency_target_connectivity: 0.10
     wgcna_binarization: target_connectivity
     adjacency_method: wgcna
@@ -44,7 +44,7 @@ parameters:
 split_params:
   learning_setting: inductive
   data_split_dir: ${paths.data_dir}/${dataset.loader.parameters.data_name}/data_splits
-  data_seed: 0 # k-fold test-fold index; validation is the next fold
+  data_seed: 0
   split_type: k-fold
   k: 5
   grouping: null
