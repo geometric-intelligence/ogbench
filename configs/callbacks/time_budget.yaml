@@ -1,0 +1,8 @@
+# Graceful wall-clock stop: training ends, then the best checkpoint is still tested.
+# Inactive unless budget_seconds is set or the search launcher exports OGBENCH_DEADLINE
+# (ogbench.utils.hparam_search.DEADLINE_ENV_VAR).
+
+time_budget:
+  _target_: ogbench.callbacks.time_budget.TimeBudget
+  budget_seconds: null
+  deadline: ${oc.env:OGBENCH_DEADLINE,null}

@@ -9,6 +9,11 @@ from sklearn.utils import shuffle as sklearn_shuffle
 
 from ogbench.dataloader import DataloadDataset
 
+# Part of the Optuna study fingerprint: bump whenever a change alters which samples a
+# run trains, validates, or tests on, so studies from before the change cannot resume.
+# v2: GNN loaders keep the precomputed omics fold (before, k-fold runs were re-split).
+SPLIT_PROTOCOL = 'omics-precomputed-fold-v2'
+
 
 def compute_omics_split_indices(
     labels: np.ndarray,

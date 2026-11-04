@@ -10,6 +10,7 @@ from lightning import Callback, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
 
+from ogbench.callbacks.time_budget import TimeBudget
 from ogbench.data.preprocessor import PreProcessor
 from ogbench.dataloader import TBDataloader
 from ogbench.nn.encoders.gene_identity import (
@@ -29,6 +30,11 @@ from ogbench.utils.config_resolvers import (
     register_all_resolvers,
     resolve_class_weights_from_dataset,
     sync_num_nodes_from_dataset,
+)
+from ogbench.utils.hparam_search import (
+    configure_torch_threads_from_env,
+    metrics_payload,
+    objective_payload,
 )
 
 # PyTorch 2.6+ changed torch.load to default weights_only=True, which blocks
@@ -191,16 +197,21 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
         log.info('Logging hyperparameters!')
         log_hyperparameters(object_dict)
 
+    run_metrics: dict[str, float] = {}
     if cfg.get('train'):
         log.info('Starting training!')
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get('ckpt_path'))
+        run_metrics['train/epochs_completed'] = float(trainer.current_epoch)
+        time_budget = next((c for c in callbacks if isinstance(c, TimeBudget)), None)
+        if time_budget is not None and time_budget.active:
+            run_metrics['train/time_budget_hit'] = float(time_budget.hit)
         # Log the best model checkpoint path into wandb
         for logger_elem in logger:
             if isinstance(logger_elem, L.pytorch.loggers.wandb.WandbLogger) and hasattr(
                 logger_elem, 'experiment'
             ):
                 logger_elem.experiment.log(
-                    {'checkpoint': trainer.checkpoint_callback.best_model_path}
+                    {'checkpoint': trainer.checkpoint_callback.best_model_path, **run_metrics}
                 )
 
     # Materialize the validation metrics before an optional test loop mutates
@@ -229,9 +240,11 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
             trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
 
     test_metrics = dict(trainer.callback_metrics)
+    if torch.cuda.is_available():
+        run_metrics['gpu/peak_memory_allocated_mib'] = torch.cuda.max_memory_allocated() / 2**20
 
     # Merge train and test metrics
-    metric_dict = {**train_metrics, **test_metrics}
+    metric_dict = {**train_metrics, **test_metrics, **run_metrics}
 
     return metric_dict, object_dict
 
@@ -279,6 +292,9 @@ def main(cfg: DictConfig) -> float | None:
     float | None
         Optional[float] with optimized metric value.
     """
+    # Search launchers explicitly request one CPU thread per subprocess.
+    configure_torch_threads_from_env()
+
     # apply extra utilities
     # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)
     extras(cfg)
@@ -290,6 +306,10 @@ def main(cfg: DictConfig) -> float | None:
     metric_value = get_metric_value(
         metric_dict=metric_dict, metric_name=cfg.get('optimized_metric')
     )
+
+    if metric_value is not None:
+        print(objective_payload(str(cfg.optimized_metric), metric_value), flush=True)
+    print(metrics_payload(metric_dict), flush=True)
 
     # return optimized metric
     return metric_value
