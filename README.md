@@ -60,18 +60,32 @@ python scripts/download_datasets.py all
 
 ### Train / validation / test splits
 
-Omics datasets use `dataset.split_params.split_type` (default **`fixed`**):
+Omics datasets use `dataset.split_params.split_type` (default **`k-fold`**):
 
-- **`fixed`** — shuffle with seed 42, then cut 70 / 15 / 15. Graph caches keep the historical path.
-- **`k-fold`** — stratified 3/1/1 rotation over `k` folds (`k` defaults to 5 → about 60 / 20 / 20). `data_seed` is the **test fold**; validation is the next fold. Each sample is test once and validation once across folds `0 .. k-1`.
+- **`k-fold`** (default) — stratified 3/1/1 rotation over `k` folds (`k` defaults to 5 → about 60 / 20 / 20). `data_seed` is the **test fold**; validation is the next fold. Each sample is test once and validation once across folds `0 .. k-1`, and results are averaged over the folds.
+- **`fixed`** — shuffle with seed 42, then cut 70 / 15 / 15.
 
-Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test.
+Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test. Each run trains, validates, and tests on the fold stored in the dataset cache; a cache without `split_info.json`, or built for a different split, raises an error instead of being re-split.
 
-MoTrPAC covariate adjustment, AddNeuroMed ComBat, and smoking promoter-probe pick plus median-centering are also train-only. Hub matrices are uncorrected; sidecars are `motrpac_covariates.parquet`, `addneuromed_batches.parquet`, and `smoking_probe_map.parquet`. Defaults are `corrections=[covariate_adjust]` (MoTrPAC), `corrections=[combat]` (AddNeuroMed), and `corrections=[promoter_min_beta, median_center]` (smoking). Smoking Hub columns are TSS1500/TSS200 probes; after the split, each gene keeps the candidate probe with the lowest mean beta on **training** never-smokers, remaining NaNs are imputed with training column means, and each gene is median-centered on train. Parkinson GEO characteristics are in `parkinsons_sample_meta.parquet`, including the hybridization-date `batch` field. Parkinson defaults to `dataset.split_params.grouping=batch`, so `StratifiedGroupKFold` keeps every batch inside a single fold and no batch is split across train / val / test. Batch sizes are very uneven (70 down to 1), so grouped folds are not equal sized: for `k=5` the test fold ranges from 95 to 120 samples. `grouping` applies to `k-fold` only and is ignored for `fixed`. Grouped caches are stored separately (`..._group_batch`).
+`class_weights: balanced` computes balanced loss weights from each run's training labels (`null` leaves the loss unweighted). `method=random` draws genes with a seed derived from the dataset, fold, and `node_sample_ratio`, so reruns and the sklearn baselines select the same genes.
+
+MoTrPAC covariate adjustment, AddNeuroMed ComBat, and smoking promoter-probe pick plus median-centering are also train-only. Hub matrices are uncorrected; sidecars are `motrpac_covariates.parquet`, `addneuromed_batches.parquet`, and `smoking_probe_map.parquet`. Defaults are `corrections=[covariate_adjust]` (MoTrPAC), `corrections=[combat]` (AddNeuroMed), and `corrections=[promoter_min_beta, median_center]` (smoking). Smoking Hub columns are TSS1500/TSS200 probes; after the split, each gene keeps the candidate probe with the lowest mean beta on **training** never-smokers, remaining NaNs are imputed with training column means, and each gene is median-centered on train. Parkinson GEO characteristics are in `parkinsons_sample_meta.parquet`, including the hybridization-date `batch` field. Parkinson defaults to `dataset.split_params.grouping=batch`, so `StratifiedGroupKFold` keeps every batch inside a single fold and no batch is split across train / val / test. Batch sizes are very uneven (70 down to 1), so grouped folds are not equal sized: for `k=5` the test fold ranges from 95 to 120 samples. `grouping` applies to `k-fold` only; a `fixed` split with `grouping=batch` raises an error. Grouped caches are stored separately (`..._group_batch`).
 
 ```bash
-python -m ogbench dataset=brca model=gcn
-python -m ogbench dataset=brca model=gcn dataset.split_params.split_type=k-fold dataset.split_params.data_seed=0
+# One fold: test fold 0, validation fold 1
+python -m ogbench dataset=brca model=gcn dataset.split_params.data_seed=0
+
+# Full 5-fold rotation
+python -m ogbench dataset=brca model=gcn dataset.split_params.data_seed=0,1,2,3,4 -m
+```
+
+#### Fixed split
+
+The single 70 / 15 / 15 split is still available. Datasets that group folds by batch need `grouping=null` for it:
+
+```bash
+python -m ogbench dataset=motrpac model=gcn dataset.split_params.split_type=fixed
+python -m ogbench dataset=parkinsons model=gcn dataset.split_params.split_type=fixed dataset.split_params.grouping=null
 ```
 
 ## Graph Construction
@@ -85,31 +99,33 @@ Node (feature) selection methods: `variance`, `correlation`, `distance_correlati
 
 ```bash
 # Switch adjacency method
-python ogbench/run.py dataset=motrpac dataset.loader.parameters.adjacency_method=string
+python ogbench/run.py dataset=motrpac dataset.loader.parameters.adjacency_method=string dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Change node selection
-python ogbench/run.py dataset=motrpac dataset.loader.parameters.method=distance_correlation
+python ogbench/run.py dataset=motrpac dataset.loader.parameters.method=distance_correlation dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Adjust sampling ratio
-python ogbench/run.py dataset=motrpac dataset.loader.parameters.node_sample_ratio=0.3
+python ogbench/run.py dataset=motrpac dataset.loader.parameters.node_sample_ratio=0.3 dataset.split_params.data_seed=0,1,2,3,4 -m
 ```
 
 ## Usage
 
 ### Training a Model
 
+Each command trains on one fold (`data_seed`, default 0). The examples sweep all five folds as a Hydra multirun; average the test metrics across them.
+
 ```bash
 # Train GATv2 on MotrPac (default: WGCNA, variance selection, GPU)
-python ogbench/run.py dataset=motrpac model=gatv2
+python ogbench/run.py dataset=motrpac model=gatv2 dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Train GCN on Parkinson's with specific selection method
-python ogbench/run.py dataset=parkinsons model=gcn dataset.loader.parameters.method=correlation
+python ogbench/run.py dataset=parkinsons model=gcn dataset.loader.parameters.method=correlation dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Train GPS on BRCA with STRING adjacency
-python ogbench/run.py dataset=brca model=gps dataset.loader.parameters.adjacency_method=string
+python ogbench/run.py dataset=brca model=gps dataset.loader.parameters.adjacency_method=string dataset.split_params.data_seed=0,1,2,3,4 -m
 
-# Distributed training
-python ogbench/run.py dataset=addneuromed model=graph_sage trainer=ddp
+# Distributed training on one fold
+python ogbench/run.py dataset=addneuromed model=graph_sage trainer=ddp dataset.split_params.data_seed=0
 ```
 
 ### Available Models
@@ -144,7 +160,8 @@ Override any parameter from the command line:
 python ogbench/run.py dataset=brca model=gin \
     optimizer.parameters.lr=0.001 \
     trainer.max_epochs=200 \
-    seed=123
+    seed=123 \
+    dataset.split_params.data_seed=0,1,2,3,4 -m
 ```
 
 ### Learnable node identity
@@ -154,7 +171,7 @@ gene or marker each row represents. Append a trainable embedding for every node
 before the feature encoder and message-passing layers:
 
 ```bash
-python -m ogbench dataset=brca model=gcn gene_identity=learnable
+python -m ogbench dataset=brca model=gcn gene_identity=learnable dataset.split_params.data_seed=0,1,2,3,4 -m
 ```
 
 The default `combine=concat` appends 32 identity channels and updates the

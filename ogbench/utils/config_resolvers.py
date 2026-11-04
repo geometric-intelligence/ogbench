@@ -1,6 +1,5 @@
 """Configuration resolvers for the ogbench package."""
 
-import json
 import os
 
 import omegaconf
@@ -32,9 +31,6 @@ def register_all_resolvers() -> None:
     )
     OmegaConf.register_new_resolver(
         'parameter_multiplication', lambda x, y: int(int(x) * int(y)), replace=True
-    )
-    OmegaConf.register_new_resolver(
-        'get_target_normalizer_stats', get_target_normalizer_stats, replace=True
     )
 
 
@@ -187,6 +183,30 @@ def sync_num_nodes_from_dataset(cfg: DictConfig, dataset) -> int | None:
         if 'model' in cfg and cfg.model is not None:
             _remap_num_node_dependent_ints(cfg.model, configured, actual)
     return actual
+
+
+def resolve_class_weights_from_dataset(cfg: DictConfig, dataset) -> list[float] | None:
+    """Replace ``class_weights: balanced`` with sklearn-balanced weights from this training split.
+
+    Each fold gets weights from its own training labels; ``null`` keeps the loss unweighted.
+    """
+    setting = OmegaConf.select(cfg, 'dataset.parameters.class_weights')
+    if setting is None:
+        return None
+    if setting != 'balanced':
+        raise ValueError(
+            f'dataset.parameters.class_weights must be null or "balanced", got {setting!r}'
+        )
+    num_classes = int(cfg.dataset.parameters.num_classes)
+    labels = torch.cat([graph.y.reshape(-1) for graph in dataset.data_lst]).long()
+    counts = torch.bincount(labels, minlength=num_classes)
+    missing = (counts == 0).nonzero().flatten().tolist()
+    if missing:
+        raise ValueError(f'Training split has no samples for classes {missing}')
+    weights = (len(labels) / (num_classes * counts.double())).tolist()
+    with open_dict(cfg):
+        cfg.dataset.parameters.class_weights = weights
+    return weights
 
 
 def get_flattened_channels(num_nodes, channels):
@@ -734,52 +754,3 @@ def get_default_metrics(task, metrics=None):
             return ['mse', 'mae']
         else:
             raise ValueError(f'Invalid task {task}')
-
-
-def get_target_normalizer_stats(
-    data_dir, data_name, adjacency_threshold, method, node_sample_ratio, train_val_test_split
-):
-    r"""Get target normalizer statistics from processing stats file.
-
-    Parameters
-    ----------
-    data_dir : str
-        Data directory path.
-    data_name : str
-        Name of the dataset.
-    adjacency_threshold : float
-        Adjacency threshold used.
-    method : str
-        Node selection method used.
-    node_sample_ratio : float
-        Node sample ratio used.
-    train_val_test_split : list[float]
-        Train/validation/test split ratios.
-
-    Returns
-    -------
-    tuple[float, float]
-        Target mean and standard deviation.
-    """
-    # Construct the path to the processing stats file
-    stats_path = os.path.join(
-        data_dir,
-        data_name,
-        f'adj_thresh_{adjacency_threshold}',
-        method,
-        f'p_{node_sample_ratio}',
-        f'train_split_{train_val_test_split[0]}',
-        'processed',
-        'processing_stats.json',
-    )
-
-    try:
-        with open(stats_path) as f:
-            stats = json.load(f)
-
-        target_stats = stats['target_normalizer']
-        return target_stats['mean'], target_stats['std']
-    except (FileNotFoundError, KeyError) as e:
-        # Return default values if file not found or key missing
-        print(f'Warning: Could not load target normalizer stats from {stats_path}: {e}')
-        return 0.0, 1.0

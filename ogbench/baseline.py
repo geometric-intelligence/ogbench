@@ -293,6 +293,9 @@ def _get_hf_omics_raw_dir(cfg: DictConfig) -> str:
         corrections=list(params.get('corrections') or []),
         grouping=_resolve_grouping(cfg),
         adjacency_target_connectivity=params.get('adjacency_target_connectivity'),
+        revision=params.revision,
+        imputation_method=params.imputation_method,
+        wgcna_binarization=params.wgcna_binarization,
     )
     return osp.join(params.data_dir, name, 'raw')
 

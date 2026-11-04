@@ -27,6 +27,7 @@ from ogbench.utils import (
 )
 from ogbench.utils.config_resolvers import (
     register_all_resolvers,
+    resolve_class_weights_from_dataset,
     sync_num_nodes_from_dataset,
 )
 
@@ -145,6 +146,10 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     elif actual_nodes is not None:
         log.info(f'Graph num_nodes={actual_nodes} matches config')
 
+    class_weights = resolve_class_weights_from_dataset(cfg, dataset_train)
+    if class_weights is not None:
+        log.info(f'Class weights from training split: {class_weights}')
+
     # Inject optional learnable node identity before the feature encoder.
     gene_identity_bank = setup_gene_identity(cfg, dataset)
 
@@ -198,7 +203,9 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
                     {'checkpoint': trainer.checkpoint_callback.best_model_path}
                 )
 
-    train_metrics = trainer.callback_metrics
+    # Materialize the validation metrics before an optional test loop mutates
+    # Lightning's callback_metrics mapping.
+    train_metrics = dict(trainer.callback_metrics)
 
     if cfg.get('test'):
         log.info('Starting testing!')
@@ -221,7 +228,7 @@ def run(cfg: DictConfig) -> tuple[dict[str, Any], dict[str, Any]]:
                 ckpt_path = None
             trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
 
-    test_metrics = trainer.callback_metrics
+    test_metrics = dict(trainer.callback_metrics)
 
     # Merge train and test metrics
     metric_dict = {**train_metrics, **test_metrics}
