@@ -39,18 +39,20 @@ def _normalize_orf(orf: str) -> str:
     return _ORF_SUFFIX_RE.sub('', orf.strip())
 
 
-def _parse_series_matrix(gz_path: str) -> tuple[list[str], list[str], pd.DataFrame]:
+def _parse_series_matrix(gz_path: str) -> tuple[list[str], list[str], list[str], pd.DataFrame]:
     """Parse the GSE19433 series matrix.
 
     Returns:
         sample_ids: GSM accessions in column order of the expression matrix.
         culture_status: raw M. tuberculosis culture value per sample (e.g. "POS", "NEG",
             "not applicable"), aligned with sample_ids.
+        countries: country of serum collection per sample, aligned with sample_ids.
         expression: DataFrame of shape (n_samples, n_spots) indexed by GSM accession,
             columns are microarray spot ids.
     """
     sample_ids: list[str] = []
     culture_status: list[str] = []
+    countries: list[str] = []
 
     with gzip.open(gz_path, 'rt') as f:
         for line in f:
@@ -63,6 +65,12 @@ def _parse_series_matrix(gz_path: str) -> tuple[list[str], list[str], pd.DataFra
                 tokens = [x.strip().strip('"') for x in line.rstrip('\n').split('\t')[1:]]
                 if tokens and tokens[0].lower().startswith('m. tuberculosis culture:'):
                     culture_status = [t.split(':', 1)[-1].strip() for t in tokens]
+            elif (
+                line.startswith('!Sample_characteristics_ch1')
+                and 'country of serum collection:' in line
+            ):
+                tokens = [x.strip().strip('"') for x in line.rstrip('\n').split('\t')[1:]]
+                countries = [t.split(':', 1)[-1].strip() for t in tokens]
             elif line.startswith('!series_matrix_table_begin'):
                 break
 
@@ -72,9 +80,10 @@ def _parse_series_matrix(gz_path: str) -> tuple[list[str], list[str], pd.DataFra
         raise ValueError(
             'Could not find the "m. tuberculosis culture:" characteristics line in series matrix'
         )
-    if len(sample_ids) != len(culture_status):
+    if len(sample_ids) != len(culture_status) or len(sample_ids) != len(countries):
         raise ValueError(
-            f'Sample count mismatch: {len(sample_ids)} GSM ids vs {len(culture_status)} culture values'
+            f'Sample count mismatch: {len(sample_ids)} GSM ids vs {len(culture_status)} culture '
+            f'values vs {len(countries)} countries'
         )
 
     with gzip.open(gz_path, 'rt') as f:
@@ -88,7 +97,7 @@ def _parse_series_matrix(gz_path: str) -> tuple[list[str], list[str], pd.DataFra
         )
     expression = expression.loc[sample_ids]
 
-    return sample_ids, culture_status, expression
+    return sample_ids, culture_status, countries, expression
 
 
 def _build_spot_to_orf(soft_path: str) -> dict[str, str]:
@@ -170,7 +179,7 @@ def process_tuberculosis(output_dir: str = 'temp_data') -> None:
         download_file(urls['UniProt_H37Rv_proteome'], uniprot_path)
 
     print('Parsing series matrix...')
-    sample_ids, culture_status, expression = _parse_series_matrix(gz_path)
+    sample_ids, culture_status, countries, expression = _parse_series_matrix(gz_path)
     print(f'  Samples: {len(sample_ids)}, Spots: {expression.shape[1]}')
 
     # Build target: culture NEG=0, POS=1; drop "not applicable" / anything else.
@@ -185,6 +194,7 @@ def process_tuberculosis(output_dir: str = 'temp_data') -> None:
 
     expression = expression.loc[keep_samples]
     targets = targets_raw[keep_samples].astype(np.int64)
+    countries = np.array(countries)[keep_samples]
 
     print('Mapping spots -> Rv ORFs -> UniProt accessions...')
     spot_to_orf = _build_spot_to_orf(soft_path)
@@ -239,10 +249,13 @@ def process_tuberculosis(output_dir: str = 'temp_data') -> None:
     data_file = os.path.join(output_dir, 'tuberculosis_data.parquet')
     targets_file = os.path.join(output_dir, 'tuberculosis_targets.parquet')
     map_file = os.path.join(output_dir, 'tuberculosis_map.parquet')
+    batches_file = os.path.join(output_dir, 'tuberculosis_batches.parquet')
 
     raw_data.to_parquet(data_file)
     pd.DataFrame({'target': targets}).to_parquet(targets_file)
     gene_map.reset_index(drop=True).to_parquet(map_file, index=False)
+    # Culture positivity differs sharply by country, so k-fold keeps countries unmixed.
+    pd.DataFrame({'batch': countries}).to_parquet(batches_file, index=False)
 
     target_stats = {
         'class_mapping': class_mapping,
@@ -267,11 +280,18 @@ def process_tuberculosis(output_dir: str = 'temp_data') -> None:
             'M. tuberculosis ORFs (Rv locus tags) via the GPL9790 platform table; array-specific '
             'segment/alt spots ("-s1", "-alt") are collapsed to the base locus tag by averaging. '
             'Rv locus tags are mapped to UniProt accessions via the H37Rv reference proteome '
-            f'({UNIPROT_PROTEOME}); spots that do not resolve to a UniProt accession are discarded.'
+            f'({UNIPROT_PROTEOME}); spots that do not resolve to a UniProt accession are discarded. '
+            'tuberculosis_batches.parquet holds the country of serum collection per sample; '
+            'culture positivity differs sharply by country, so k-fold splits keep countries unmixed.'
         ),
     )
 
-    data_files = {'data': data_file, 'targets': targets_file, 'map': map_file}
+    data_files = {
+        'data': data_file,
+        'targets': targets_file,
+        'map': map_file,
+        'batches': batches_file,
+    }
     upload_to_huggingface('tuberculosis', data_files, metadata)
 
     print('Successfully processed and uploaded tuberculosis dataset')

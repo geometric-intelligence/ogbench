@@ -11,7 +11,7 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 - **4 curated omics datasets** on Hugging Face Hub with automatic download
 - **9 GNN architectures** — GCN, GATv2, GATv4, GIN, GraphSAGE, ChebNet, SAGN, GPS, MLP
 - **2 graph construction methods** — WGCNA co-expression and STRING protein-protein interaction
-- **GNN-features baselines** — sklearn classifiers (SVM, Elastic Net) on learned GNN embeddings
+- **Sklearn baselines** — SVM and Elastic Net on the exact features and folds the GNN pipeline builds
 - **Hydra configs** for reproducible, composable experiments
 - **PyTorch Lightning** training with WandB logging and multi-GPU support
 - **Interactive leaderboard** webapp with dataset explorer
@@ -60,18 +60,33 @@ python scripts/download_datasets.py all
 
 ### Train / validation / test splits
 
-Omics datasets use `dataset.split_params.split_type` (default **`fixed`**):
+Omics datasets use `dataset.split_params.split_type` (default **`k-fold`**):
 
-- **`fixed`** — shuffle with seed 42, then cut 70 / 15 / 15. Graph caches keep the historical path.
-- **`k-fold`** — stratified 3/1/1 rotation over `k` folds (`k` defaults to 5 → about 60 / 20 / 20). `data_seed` is the **test fold**; validation is the next fold. Each sample is test once and validation once across folds `0 .. k-1`.
+- **`k-fold`** (default) — stratified 3/1/1 rotation over `k` folds (`k` defaults to 5 → about 60 / 20 / 20). `data_seed` is the **test fold**; validation is the next fold. Each sample is test once and validation once across folds `0 .. k-1`, and results are averaged over the folds.
+- **`fixed`** — shuffle with seed 42, then cut 70 / 15 / 15.
 
-Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test.
+Imputation, gene selection, adjacency, and feature normalization are always fit on **training samples only**, then applied to val/test. Each run trains, validates, and tests on the fold stored in the dataset cache; a cache without `split_info.json`, or built for a different split, raises an error instead of being re-split.
 
-MoTrPAC covariate adjustment, AddNeuroMed ComBat, and smoking promoter-probe pick plus median-centering are also train-only. Hub matrices are uncorrected; sidecars are `motrpac_covariates.parquet`, `addneuromed_batches.parquet`, and `smoking_probe_map.parquet`. Defaults are `corrections=[covariate_adjust]` (MoTrPAC), `corrections=[combat]` (AddNeuroMed), and `corrections=[promoter_min_beta, median_center]` (smoking). Smoking Hub columns are TSS1500/TSS200 probes; after the split, each gene keeps the candidate probe with the lowest mean beta on **training** never-smokers, remaining NaNs are imputed with training column means, and each gene is median-centered on train. Parkinson GEO characteristics are in `parkinsons_sample_meta.parquet`, including the hybridization-date `batch` field. Parkinson defaults to `dataset.split_params.grouping=batch`, so `StratifiedGroupKFold` keeps every batch inside a single fold and no batch is split across train / val / test. Batch sizes are very uneven (70 down to 1), so grouped folds are not equal sized: for `k=5` the test fold ranges from 95 to 120 samples. `grouping` applies to `k-fold` only and is ignored for `fixed`. Grouped caches are stored separately (`..._group_batch`).
+`class_weights: balanced` computes balanced loss weights from each run's training labels (`null` leaves the loss unweighted). `method=random` draws genes with a seed derived from the dataset, fold, and `node_sample_ratio`, so reruns and the sklearn baselines select the same genes.
+
+MoTrPAC covariate adjustment, AddNeuroMed ComBat, and smoking promoter-probe pick plus median-centering are also train-only. Hub matrices are uncorrected; sidecars are `motrpac_covariates.parquet`, `addneuromed_batches.parquet`, `tuberculosis_batches.parquet`, and `smoking_probe_map.parquet`. Defaults are `corrections=[covariate_adjust]` (MoTrPAC), `corrections=[combat]` (AddNeuroMed), and `corrections=[promoter_min_beta, median_center]` (smoking). Smoking Hub columns are TSS1500/TSS200 probes; after the split, each gene keeps the candidate probe with the lowest mean beta on **training** never-smokers, remaining NaNs are imputed with training column means, and each gene is median-centered on train. Parkinson GEO characteristics are in `parkinsons_sample_meta.parquet`, including the hybridization-date `batch` field. Parkinson defaults to `dataset.split_params.grouping=batch`, so `StratifiedGroupKFold` keeps every batch inside a single fold and no batch is split across train / val / test. Batch sizes are very uneven (70 down to 1), so grouped folds are not equal sized: for `k=5` the test fold ranges from 95 to 120 samples. Tuberculosis also defaults to `grouping=batch`, where `tuberculosis_batches.parquet` holds the country of serum collection: culture positivity differs sharply by country (Brazil and Peru are all positive, Canada and Tanzania all negative), so a random split would let models learn country. Its 11 countries give test folds of 88 to 139 samples. `grouping` applies to `k-fold` only; a `fixed` split with `grouping=batch` raises an error. Grouped caches are stored separately (`..._group_batch`).
 
 ```bash
-python -m ogbench dataset=brca model=gcn
-python -m ogbench dataset=brca model=gcn dataset.split_params.split_type=k-fold dataset.split_params.data_seed=0
+# One fold: test fold 0, validation fold 1
+python -m ogbench dataset=brca model=gcn dataset.split_params.data_seed=0
+
+# Full 5-fold rotation
+python -m ogbench dataset=brca model=gcn dataset.split_params.data_seed=0,1,2,3,4 -m
+```
+
+#### Fixed split
+
+The single 70 / 15 / 15 split is still available. Datasets that group folds by batch need `grouping=null` for it:
+
+```bash
+python -m ogbench dataset=motrpac model=gcn dataset.split_params.split_type=fixed
+python -m ogbench dataset=parkinsons model=gcn dataset.split_params.split_type=fixed dataset.split_params.grouping=null
+python -m ogbench dataset=tuberculosis model=gcn dataset.split_params.split_type=fixed dataset.split_params.grouping=null
 ```
 
 ## Graph Construction
@@ -85,31 +100,33 @@ Node (feature) selection methods: `variance`, `correlation`, `distance_correlati
 
 ```bash
 # Switch adjacency method
-python ogbench/run.py dataset=motrpac dataset.loader.parameters.adjacency_method=string
+python ogbench/run.py dataset=motrpac dataset.loader.parameters.adjacency_method=string dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Change node selection
-python ogbench/run.py dataset=motrpac dataset.loader.parameters.method=distance_correlation
+python ogbench/run.py dataset=motrpac dataset.loader.parameters.method=distance_correlation dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Adjust sampling ratio
-python ogbench/run.py dataset=motrpac dataset.loader.parameters.node_sample_ratio=0.3
+python ogbench/run.py dataset=motrpac dataset.loader.parameters.node_sample_ratio=0.3 dataset.split_params.data_seed=0,1,2,3,4 -m
 ```
 
 ## Usage
 
 ### Training a Model
 
+Each command trains on one fold (`data_seed`, default 0). The examples sweep all five folds as a Hydra multirun; average the test metrics across them.
+
 ```bash
 # Train GATv2 on MotrPac (default: WGCNA, variance selection, GPU)
-python ogbench/run.py dataset=motrpac model=gatv2
+python ogbench/run.py dataset=motrpac model=gatv2 dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Train GCN on Parkinson's with specific selection method
-python ogbench/run.py dataset=parkinsons model=gcn dataset.loader.parameters.method=correlation
+python ogbench/run.py dataset=parkinsons model=gcn dataset.loader.parameters.method=correlation dataset.split_params.data_seed=0,1,2,3,4 -m
 
 # Train GPS on BRCA with STRING adjacency
-python ogbench/run.py dataset=brca model=gps dataset.loader.parameters.adjacency_method=string
+python ogbench/run.py dataset=brca model=gps dataset.loader.parameters.adjacency_method=string dataset.split_params.data_seed=0,1,2,3,4 -m
 
-# Distributed training
-python ogbench/run.py dataset=addneuromed model=graph_sage trainer=ddp
+# Distributed training on one fold
+python ogbench/run.py dataset=addneuromed model=graph_sage trainer=ddp dataset.split_params.data_seed=0
 ```
 
 ### Available Models
@@ -144,7 +161,8 @@ Override any parameter from the command line:
 python ogbench/run.py dataset=brca model=gin \
     optimizer.parameters.lr=0.001 \
     trainer.max_epochs=200 \
-    seed=123
+    seed=123 \
+    dataset.split_params.data_seed=0,1,2,3,4 -m
 ```
 
 ### Learnable node identity
@@ -154,7 +172,7 @@ gene or marker each row represents. Append a trainable embedding for every node
 before the feature encoder and message-passing layers:
 
 ```bash
-python -m ogbench dataset=brca model=gcn gene_identity=learnable
+python -m ogbench dataset=brca model=gcn gene_identity=learnable dataset.split_params.data_seed=0,1,2,3,4 -m
 ```
 
 The default `combine=concat` appends 32 identity channels and updates the
@@ -163,26 +181,30 @@ embedding size, or use `gene_identity.combine=add` to project identity into the
 existing feature dimension. SAGN is not supported because it trains on node
 features aggregated before training, so the identity embedding would never reach it.
 
-## Baselines — GNN-Features Pipeline
+## Sklearn Baselines
 
-OGBench supports a hybrid baseline approach: train a GNN to learn node embeddings, then use those embeddings as features for sklearn classifiers. This isolates the value of the graph structure from the classifier head.
+Sklearn classifiers are trained on the same input the GNNs see, without a graph, so comparing them with the GNNs isolates the value of the graph structure and message passing. Each dataset's YAML configures them under the `baselines` key (e.g. `configs/dataset/motrpac.yaml`):
 
-Two GNN-features baselines are configured per dataset:
+- **`svm`** and **`elastic_net`** (standard) — LinearSVC with calibration and elastic-net logistic regression. They rebuild the GNN input from the Hub data: the same split and fold, train-only corrections and imputation, and the same node selection (including the seeded `random` method).
+- **`svm_gnn_features`** and **`elastic_net_gnn_features`** — the same classifiers on the exact matrix the GNN pipeline caches as `selected_data.parquet`, with the split from `split_info.json`. With `split_type=k-fold` they need the cache of every fold, so run the GNN pipeline on all folds first.
 
-- **`svm_gnn_features`** — LinearSVC with calibration on GNN-learned embeddings
-- **`elastic_net_gnn_features`** — Logistic regression with elastic net penalty on GNN-learned embeddings
-
-Both skip the manual feature selection step (no `SelectKBest`) since the GNN already performs representation learning.
+With `split_type=k-fold`, every grid configuration is scored on the validation fold of all `k` folds, and the one with the best mean validation score is kept (`baseline_hparam_selection: global_kfold_mean_validation`). Each fold is then refit on its training split with that configuration and evaluated on its test fold. The selection is cached under `baseline_hparam_cache_dir`, so the other folds reuse it. Results are logged to WandB.
 
 ```bash
-# Run baselines on a specific dataset
-python ogbench/baseline.py dataset=motrpac
+# Standard baselines on one fold of one dataset
+python ogbench/baseline.py dataset=motrpac baseline_filter=standard dataset.split_params.data_seed=0
 
-# Run all baselines across datasets
+# All datasets, folds, node ratios and selection methods
 bash run_baselines.sh
 ```
 
-Baselines are configured in each dataset's YAML under the `baselines` key (e.g. `configs/dataset/motrpac.yaml`). Results are logged to WandB.
+`run_baselines.sh` reads `DATASETS`, `FOLDS`, `NODE_RATIOS`, `METHODS`, and `PYTHON` from the environment, and passes extra arguments to Hydra as overrides:
+
+```bash
+DATASETS=motrpac NODE_RATIOS=0.5 bash run_baselines.sh logger.wandb.project=my_baselines
+```
+
+`scripts/verify_baseline_features.py --root-dir <root>` checks that the standard baselines select exactly the features stored in every cached GNN fold.
 
 ## Leaderboard & Dataset Explorer
 

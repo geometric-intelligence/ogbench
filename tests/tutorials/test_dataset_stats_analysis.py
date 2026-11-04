@@ -4,9 +4,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from omegaconf import OmegaConf
 
 from ogbench.data.datasets import hf_omics
 from tutorials import dataset_stats_analysis
+
+HF_CONFIG = Path(__file__).parents[2] / 'configs' / 'hf' / 'default.yaml'
 
 
 @pytest.mark.parametrize(
@@ -16,7 +19,7 @@ from tutorials import dataset_stats_analysis
         ('addneuromed', ['combat'], None),
         ('smoking', ['promoter_min_beta', 'median_center'], None),
         ('parkinsons', [], 'batch'),
-        ('tuberculosis', [], None),
+        ('tuberculosis', [], 'batch'),
         ('brca', [], None),
     ],
 )
@@ -46,3 +49,4 @@ def test_load_dataset_uses_canonical_fold_zero(
     assert captured['grouping'] == grouping
     assert captured['species'] == (83332 if dataset_name == 'tuberculosis' else 9606)
     assert captured['wgcna_binarization'] == 'fixed_threshold'
+    assert captured['revision'] == OmegaConf.load(HF_CONFIG).revision

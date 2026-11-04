@@ -3,4 +3,4 @@
 # Override per-dataset in dataset configs if needed.
 # Uncorrected matrices plus sidecars (covariates, batches, Parkinson sample_meta,
 # smoking promoter probe map).
-revision: 056dfdc4f434fd35355ffbe5f7b63910d785a97a
+revision: 893d31a6d47df9e49ed39c7b8f31d3fbb37cd711

@@ -5,7 +5,7 @@ loader:
     data_domain: graph
     data_name: tuberculosis
     data_dir: ${paths.data_dir}/${dataset.loader.parameters.data_type}
-    adjacency_threshold: 0.4 # STRING combined-score cutoff; WGCNA uses adjacency_target_connectivity
+    adjacency_threshold: 0.4
     adjacency_target_connectivity: 0.10
     wgcna_binarization: target_connectivity
     adjacency_method: wgcna
@@ -31,9 +31,7 @@ parameters:
   num_nodes: ${calculate_num_nodes:${dataset.parameters.num_samples},${dataset.loader.parameters.train_val_test_split},${dataset.loader.parameters.node_sample_ratio},${dataset.parameters.full_num_nodes},${dataset.split_params.split_type},${dataset.split_params.k}}
   task: classification
   loss_type: cross_entropy
-  class_weights:
-    - 0.883
-    - 1.153
+  class_weights: balanced
   monitor_metric: f1_macro
   metrics:
     - accuracy
@@ -47,10 +45,10 @@ parameters:
 split_params:
   learning_setting: inductive
   data_split_dir: ${paths.data_dir}/${dataset.loader.parameters.data_name}/data_splits
-  data_seed: 0 # k-fold test-fold index; validation is the next fold
-  split_type: fixed # or k-fold
+  data_seed: 0
+  split_type: k-fold
   k: 5
-  grouping: null
+  grouping: batch
 dataloader_params:
   batch_size: 16
   num_workers: 0
@@ -59,11 +57,6 @@ dataloader_params:
 baselines:
   svm:
     pipeline:
-      - name: feature_selection
-        _target_: sklearn.feature_selection.SelectKBest
-        score_func:
-          _target_: sklearn.feature_selection.f_classif
-        k: 100
       - name: scaler
         _target_: sklearn.preprocessing.StandardScaler
       - name: calibrated_svm
@@ -75,10 +68,6 @@ baselines:
           random_state: ${seed}
         method: sigmoid
     param_grid:
-      feature_selection__k:
-        - 50
-        - 100
-        - 500
       calibrated_svm__estimator__C:
         - 0.001
         - 0.01
@@ -87,11 +76,6 @@ baselines:
     n_jobs: -1
   elastic_net:
     pipeline:
-      - name: feature_selection
-        _target_: sklearn.feature_selection.SelectKBest
-        score_func:
-          _target_: sklearn.feature_selection.f_classif
-        k: 100
       - name: scaler
         _target_: sklearn.preprocessing.StandardScaler
       - name: elastic_net
@@ -102,10 +86,6 @@ baselines:
         max_iter: 5000
         random_state: ${seed}
     param_grid:
-      feature_selection__k:
-        - 50
-        - 100
-        - 500
       elastic_net__C:
         - 0.001
         - 0.01
