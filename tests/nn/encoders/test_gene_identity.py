@@ -167,6 +167,14 @@ def test_setup_rejects_configured_node_mismatch():
         setup_gene_identity(cfg, [Data(x=torch.randn(5, 2))])
 
 
+def test_setup_rejects_models_with_precomputed_features():
+    cfg = _config('Identity', None, 8)
+    cfg.model.model_name = 'sagn'
+
+    with pytest.raises(ValueError, match="model 'sagn'"):
+        setup_gene_identity(cfg, [Data(x=torch.randn(4, 2))])
+
+
 def test_apply_wraps_model_feature_encoder():
     cfg = _config('AllCellFeatureEncoder', [2], 8)
     bank = LearnableGeneIdentityBank(num_nodes=4, embed_dim=3)

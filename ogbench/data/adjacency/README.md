@@ -48,4 +48,7 @@ ADJACENCY_BUILDER_REGISTRY['correlation'] = CorrelationAdjacencyBuilder
 - **Input**: `node_features: pd.DataFrame` (samples x features)
 - **Output**: `np.ndarray` (continuous adjacency matrix, features x features)
 
-The continuous adjacency matrix is then binarized in `calculate_adjacency_matrix()` based on `adjacency_threshold`.
+The continuous adjacency matrix is then binarized in `calculate_adjacency_matrix()`, using only the training samples of the current fold:
+
+- **WGCNA** keeps the strongest undirected edges until `adjacency_target_connectivity` (default 0.10) of all possible off-diagonal pairs is reached. `adjacency_threshold` is ignored, and a missing target connectivity raises an error.
+- **STRING** keeps edges whose normalized combined score is greater than `adjacency_threshold` (0.4, i.e. combined score 400).

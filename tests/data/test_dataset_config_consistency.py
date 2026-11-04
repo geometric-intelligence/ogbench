@@ -72,7 +72,6 @@ class TestDatasetConfigConsistency:
     def test_all_configs_identical_except_dataset_specific_keys(self, all_configs):
         EXCLUDED_PATHS = [
             ('loader', 'parameters', 'data_name'),
-            ('loader', 'parameters', 'adjacency_threshold'),
             ('loader', 'parameters', 'species'),
             ('loader', 'parameters', 'corrections'),
             ('split_params', 'grouping'),
