@@ -11,7 +11,7 @@ A benchmarking framework for Graph Neural Networks on omics datasets. OGBench pr
 - **4 curated omics datasets** on Hugging Face Hub with automatic download
 - **9 GNN architectures** — GCN, GATv2, GATv4, GIN, GraphSAGE, ChebNet, SAGN, GPS, MLP
 - **2 graph construction methods** — WGCNA co-expression and STRING protein-protein interaction
-- **GNN-features baselines** — sklearn classifiers (SVM, Elastic Net) on learned GNN embeddings
+- **Sklearn baselines** — SVM and Elastic Net on the exact features and folds the GNN pipeline builds
 - **Hydra configs** for reproducible, composable experiments
 - **PyTorch Lightning** training with WandB logging and multi-GPU support
 - **Interactive leaderboard** webapp with dataset explorer
@@ -180,26 +180,30 @@ embedding size, or use `gene_identity.combine=add` to project identity into the
 existing feature dimension. SAGN is not supported because it trains on node
 features aggregated before training, so the identity embedding would never reach it.
 
-## Baselines — GNN-Features Pipeline
+## Sklearn Baselines
 
-OGBench supports a hybrid baseline approach: train a GNN to learn node embeddings, then use those embeddings as features for sklearn classifiers. This isolates the value of the graph structure from the classifier head.
+Sklearn classifiers are trained on the same input the GNNs see, without a graph, so comparing them with the GNNs isolates the value of the graph structure and message passing. Each dataset's YAML configures them under the `baselines` key (e.g. `configs/dataset/motrpac.yaml`):
 
-Two GNN-features baselines are configured per dataset:
+- **`svm`** and **`elastic_net`** (standard) — LinearSVC with calibration and elastic-net logistic regression. They rebuild the GNN input from the Hub data: the same split and fold, train-only corrections and imputation, and the same node selection (including the seeded `random` method).
+- **`svm_gnn_features`** and **`elastic_net_gnn_features`** — the same classifiers on the exact matrix the GNN pipeline caches as `selected_data.parquet`, with the split from `split_info.json`. With `split_type=k-fold` they need the cache of every fold, so run the GNN pipeline on all folds first.
 
-- **`svm_gnn_features`** — LinearSVC with calibration on GNN-learned embeddings
-- **`elastic_net_gnn_features`** — Logistic regression with elastic net penalty on GNN-learned embeddings
-
-Both skip the manual feature selection step (no `SelectKBest`) since the GNN already performs representation learning.
+With `split_type=k-fold`, every grid configuration is scored on the validation fold of all `k` folds, and the one with the best mean validation score is kept (`baseline_hparam_selection: global_kfold_mean_validation`). Each fold is then refit on its training split with that configuration and evaluated on its test fold. The selection is cached under `baseline_hparam_cache_dir`, so the other folds reuse it. Results are logged to WandB.
 
 ```bash
-# Run baselines on a specific dataset
-python ogbench/baseline.py dataset=motrpac
+# Standard baselines on one fold of one dataset
+python ogbench/baseline.py dataset=motrpac baseline_filter=standard dataset.split_params.data_seed=0
 
-# Run all baselines across datasets
+# All datasets, folds, node ratios and selection methods
 bash run_baselines.sh
 ```
 
-Baselines are configured in each dataset's YAML under the `baselines` key (e.g. `configs/dataset/motrpac.yaml`). Results are logged to WandB.
+`run_baselines.sh` reads `DATASETS`, `FOLDS`, `NODE_RATIOS`, `METHODS`, and `PYTHON` from the environment, and passes extra arguments to Hydra as overrides:
+
+```bash
+DATASETS=motrpac NODE_RATIOS=0.5 bash run_baselines.sh logger.wandb.project=my_baselines
+```
+
+`scripts/verify_baseline_features.py --root-dir <root>` checks that the standard baselines select exactly the features stored in every cached GNN fold.
 
 ## Leaderboard & Dataset Explorer
 
