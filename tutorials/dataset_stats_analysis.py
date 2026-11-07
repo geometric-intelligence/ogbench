@@ -103,19 +103,31 @@ def _train_idx(dataset: Any) -> int:
         return int(json.load(f)['train_idx'])
 
 
-def _compute_feature_homophily(graph: nx.Graph, node_features: np.ndarray) -> float:
-    """Average cosine similarity of node features along graph edges."""
-    if graph.number_of_edges() == 0 or node_features.shape[0] == 0:
-        return 0.0
+def _unit_profiles(node_profiles: np.ndarray) -> np.ndarray:
+    norms = np.linalg.norm(node_profiles, axis=1, keepdims=True)
+    return node_profiles / np.where(norms == 0, 1.0, norms)
 
-    norms = np.linalg.norm(node_features, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1.0, norms)
-    normalized = node_features / norms
 
+def _compute_feature_homophily(
+    graph: nx.Graph, node_profiles: np.ndarray, chunk_size: int = 1_000_000
+) -> float:
+    """Mean cosine similarity, over non-self-loop edges, of the endpoints' feature profiles.
+
+    ``node_profiles`` has shape (num_nodes, num_train_samples). Features are standardized per node
+    on the training samples, so each cosine equals the Pearson correlation of the two nodes.
+    """
+    if node_profiles.shape[0] == 0:
+        return float('nan')
+
+    unit = _unit_profiles(node_profiles)
     total_similarity = 0.0
-    for u, v in graph.edges():
-        total_similarity += float(np.dot(normalized[u], normalized[v]))
-    return total_similarity / graph.number_of_edges()
+    num_edges = 0
+    edges = ((u, v) for u, v in graph.edges() if u != v)
+    while chunk := list(itertools.islice(edges, chunk_size)):
+        pairs = np.asarray(chunk)
+        total_similarity += float(np.einsum('ij,ij->', unit[pairs[:, 0]], unit[pairs[:, 1]]))
+        num_edges += len(pairs)
+    return total_similarity / num_edges if num_edges else float('nan')
 
 
 def _compute_lcc_metrics(largest_cc_graph: nx.Graph) -> dict[str, float]:
@@ -159,8 +171,13 @@ def _compute_lcc_metrics(largest_cc_graph: nx.Graph) -> dict[str, float]:
     }
 
 
-def get_graph_stats(dataset: Any, node_features: np.ndarray | None = None) -> dict[str, float]:
-    """Get statistics of the graph from the dataset."""
+def get_graph_stats(dataset: Any, node_profiles: np.ndarray | None = None) -> dict[str, float]:
+    """Get statistics of the graph from the dataset.
+
+    Self-loops are dropped first: the training pipeline adds one per node, and counting them
+    would inflate edge counts, degree, density, clustering, and modularity.
+    ``node_profiles`` (num_nodes x num_train_samples) is needed for the homophily metrics.
+    """
     empty_stats = {
         'num_nodes': 0,
         'num_edges': 0,
@@ -189,10 +206,10 @@ def get_graph_stats(dataset: Any, node_features: np.ndarray | None = None) -> di
             try:
                 adj_matrix = np.load(name)
                 graph = nx.from_numpy_array(adj_matrix)
-                graph.remove_edges_from(nx.selfloop_edges(graph))
             except FileNotFoundError:
                 print(f'Warning: Adjacency matrix not found at {name}')
                 return empty_stats
+        graph.remove_edges_from(list(nx.selfloop_edges(graph)))
 
         num_nodes = graph.number_of_nodes()
         num_edges = graph.number_of_edges()
@@ -213,8 +230,8 @@ def get_graph_stats(dataset: Any, node_features: np.ndarray | None = None) -> di
 
         lcc_metrics = _compute_lcc_metrics(largest_cc_graph)
         homophily = (
-            _compute_feature_homophily(graph, node_features)
-            if node_features is not None
+            _compute_feature_homophily(graph, node_profiles)
+            if node_profiles is not None
             else float('nan')
         )
 
@@ -265,13 +282,14 @@ def process_single_combination(
         dataset_dir = dataset.get_data_dir()
         print(f'Dataset loaded: {dataset}, length: {len(dataset)}')
 
-        node_features = None
+        node_profiles = None
         if len(dataset) > 0:
             n_train = _train_idx(dataset)
-            sample_features = [dataset[i].x.numpy() for i in range(n_train)]
-            node_features = np.mean(sample_features, axis=0)
+            node_profiles = np.stack(
+                [dataset[i].x.numpy().reshape(-1) for i in range(n_train)], axis=1
+            )
 
-        stats = get_graph_stats(dataset, node_features=node_features)
+        stats = get_graph_stats(dataset, node_profiles=node_profiles)
         stats.update(
             {
                 'dataset': dataset_name,
@@ -442,9 +460,8 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
                 continue
 
             fig, axes = plt.subplots(4, 3, figsize=(16, 16))
-            # Hide unused subplots (we have 11 metrics, grid has 12 cells)
-            for ax in axes.flatten()[11:]:
-                ax.set_visible(False)
+            # 11 metrics fill 11 of the 12 grid cells
+            axes.flatten()[-1].set_visible(False)
             title_adj = f', Adjacency: {adj_m}' if adj_m is not None else ''
             fig.suptitle(
                 f'{dataset_name} - Node Ratio: {node_ratio}, Method: {method}{title_adj}',
@@ -466,7 +483,7 @@ def create_plots_for_dataset(dataset_name: str, csv_file: str) -> None:
                 ('homophily', 'Feature Homophily', 'crimson'),
             ]
 
-            for ax, (col, title, color) in zip(axes.flatten(), plot_configs, strict=True):
+            for ax, (col, title, color) in zip(axes.flatten()[:-1], plot_configs, strict=True):
                 ax.plot(subset_df['adj_thresh'], subset_df[col], color=color)
                 ax.set_xlabel('Adjacency Threshold')
                 ax.set_ylabel(title)

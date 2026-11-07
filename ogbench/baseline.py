@@ -63,7 +63,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-HF_REPO_ID = 'geometric-intelligence/ogbench'
+HF_REPO_ID = 'geometric-intelligence/omicsgbench'
 
 
 @dataclass

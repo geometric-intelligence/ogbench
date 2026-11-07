@@ -79,7 +79,7 @@ def upload_to_huggingface(
     """
     try:
         api = huggingface_hub.HfApi()
-        repo_id = 'geometric-intelligence/ogbench'
+        repo_id = 'geometric-intelligence/omicsgbench'
 
         # Create repository if it doesn't exist
         try:
